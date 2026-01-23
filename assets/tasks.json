@@ -1,0 +1,343 @@
+[
+  {
+    "id": "t1",
+    "title": "Drink a glass of water",
+    "category": "health"
+  },
+  {
+    "id": "t2",
+    "title": "Breathe deeply for 2 minutes",
+    "category": "calm"
+  },
+  {
+    "id": "t3",
+    "title": "Do 10 squats",
+    "category": "body"
+  },
+  {
+    "id": "t4",
+    "title": "Send a quick thank-you message",
+    "category": "mind"
+  },
+  {
+    "id": "t5",
+    "title": "Read 1 page of a book",
+    "category": "growth"
+  },
+  {
+    "id": "t6",
+    "title": "Walk for 5 minutes",
+    "category": "body"
+  },
+  {
+    "id": "t7",
+    "title": "Put your phone away for 5 minutes",
+    "category": "calm"
+  },
+  {
+    "id": "t8",
+    "title": "Learn 3 new words",
+    "category": "growth"
+  },
+  {
+    "id": "t9",
+    "title": "Roll your shoulders 10 times",
+    "category": "body"
+  },
+  {
+    "id": "t10",
+    "title": "Tidy up for 2 minutes",
+    "category": "mind"
+  },
+  {
+    "id": "t11",
+    "title": "Write one small goal for today",
+    "category": "growth"
+  },
+  {
+    "id": "t12",
+    "title": "Stretch for 1 minute",
+    "category": "body"
+  },
+  {
+    "id": "t13",
+    "title": "Rest your eyes for 20 seconds",
+    "category": "health"
+  },
+  {
+    "id": "t14",
+    "title": "Write one thing you’re grateful for",
+    "category": "mind"
+  },
+  {
+    "id": "t15",
+    "title": "Meditate for 2 minutes",
+    "category": "calm"
+  },
+  {
+    "id": "t16",
+    "title": "Learn one small thing (quick read)",
+    "category": "growth"
+  },
+  {
+    "id": "t17",
+    "title": "Eat a piece of fruit",
+    "category": "health"
+  },
+  {
+    "id": "t18",
+    "title": "Do 5 push-ups (or try)",
+    "category": "body"
+  },
+  {
+    "id": "t19",
+    "title": "Say no to one distraction today",
+    "category": "mind"
+  },
+  {
+    "id": "t20",
+    "title": "Plan one thing for tomorrow",
+    "category": "growth"
+  },
+  {
+    "id": "t21",
+    "title": "Stand up and straighten your posture",
+    "category": "body"
+  },
+  {
+    "id": "t22",
+    "title": "Smile for 10 seconds",
+    "category": "mind"
+  },
+  {
+    "id": "t23",
+    "title": "Drink water slowly and mindfully",
+    "category": "health"
+  },
+  {
+    "id": "t24",
+    "title": "Close your eyes and relax your jaw",
+    "category": "calm"
+  },
+  {
+    "id": "t25",
+    "title": "Read one interesting fact",
+    "category": "growth"
+  },
+  {
+    "id": "t26",
+    "title": "Clean one small surface",
+    "category": "mind"
+  },
+  {
+    "id": "t27",
+    "title": "Take 5 deep belly breaths",
+    "category": "calm"
+  },
+  {
+    "id": "t28",
+    "title": "Do 15 jumping jacks",
+    "category": "body"
+  },
+  {
+    "id": "t29",
+    "title": "Write one positive thought",
+    "category": "mind"
+  },
+  {
+    "id": "t30",
+    "title": "Learn one keyboard shortcut",
+    "category": "growth"
+  },
+  {
+    "id": "t31",
+    "title": "Look away from the screen for 1 minute",
+    "category": "health"
+  },
+  {
+    "id": "t32",
+    "title": "Stretch your neck gently",
+    "category": "body"
+  },
+  {
+    "id": "t33",
+    "title": "Sit quietly and do nothing for 1 minute",
+    "category": "calm"
+  },
+  {
+    "id": "t34",
+    "title": "Write one thing you did well today",
+    "category": "mind"
+  },
+  {
+    "id": "t35",
+    "title": "Read a short inspirational quote",
+    "category": "growth"
+  },
+  {
+    "id": "t36",
+    "title": "Drink a warm or cold beverage mindfully",
+    "category": "health"
+  },
+  {
+    "id": "t37",
+    "title": "Do 10 wall push-ups",
+    "category": "body"
+  },
+  {
+    "id": "t38",
+    "title": "Declutter one digital file or photo",
+    "category": "mind"
+  },
+  {
+    "id": "t39",
+    "title": "Focus on your breathing for 60 seconds",
+    "category": "calm"
+  },
+  {
+    "id": "t40",
+    "title": "Learn one new word meaning",
+    "category": "growth"
+  },
+  {
+    "id": "t41",
+    "title": "Relax your shoulders and drop tension",
+    "category": "body"
+  },
+  {
+    "id": "t42",
+    "title": "Drink water before coffee or tea",
+    "category": "health"
+  },
+  {
+    "id": "t43",
+    "title": "Notice 3 things you can hear right now",
+    "category": "calm"
+  },
+  {
+    "id": "t44",
+    "title": "Write one sentence about your mood",
+    "category": "mind"
+  },
+  {
+    "id": "t45",
+    "title": "Read one paragraph you enjoy",
+    "category": "growth"
+  },
+  {
+    "id": "t46",
+    "title": "Stand on one foot for 30 seconds",
+    "category": "body"
+  },
+  {
+    "id": "t47",
+    "title": "Blink slowly 10 times",
+    "category": "health"
+  },
+  {
+    "id": "t48",
+    "title": "Pause and take a deep breath",
+    "category": "calm"
+  },
+  {
+    "id": "t49",
+    "title": "Think of one thing you’re thankful for",
+    "category": "mind"
+  },
+  {
+    "id": "t50",
+    "title": "Learn one tiny habit idea",
+    "category": "growth"
+  },
+  {
+    "id": "t51",
+    "title": "Walk around the room once",
+    "category": "body"
+  },
+  {
+    "id": "t52",
+    "title": "Drink water after sitting for long",
+    "category": "health"
+  },
+  {
+    "id": "t53",
+    "title": "Unclench your teeth and relax your face",
+    "category": "calm"
+  },
+  {
+    "id": "t54",
+    "title": "Write one thing you want less of",
+    "category": "mind"
+  },
+  {
+    "id": "t55",
+    "title": "Read one productivity tip",
+    "category": "growth"
+  },
+  {
+    "id": "t56",
+    "title": "Stretch your arms overhead",
+    "category": "body"
+  },
+  {
+    "id": "t57",
+    "title": "Drink a full glass of water slowly",
+    "category": "health"
+  },
+  {
+    "id": "t58",
+    "title": "Breathe in for 4, out for 6",
+    "category": "calm"
+  },
+  {
+    "id": "t59",
+    "title": "Forgive yourself for one small thing",
+    "category": "mind"
+  },
+  {
+    "id": "t60",
+    "title": "Learn one small improvement idea",
+    "category": "growth"
+  },
+  {
+    "id": "p1",
+    "title": "Premium focus sprint: 15 minutes deep work",
+    "category": "growth",
+    "difficulty": "medium",
+    "durationMinutes": 15,
+    "premiumOnly": true,
+    "aiSuggested": true
+  },
+  {
+    "id": "p2",
+    "title": "Premium calm reset: 5-minute box breathing",
+    "category": "calm",
+    "difficulty": "easy",
+    "durationMinutes": 5,
+    "premiumOnly": true
+  },
+  {
+    "id": "p3",
+    "title": "Premium body boost: 3 rounds of 12 squats",
+    "category": "body",
+    "difficulty": "hard",
+    "durationMinutes": 12,
+    "premiumOnly": true
+  },
+  {
+    "id": "ai1",
+    "title": "AI pick: organize one tiny space",
+    "category": "mind",
+    "difficulty": "easy",
+    "durationMinutes": 6,
+    "aiSuggested": true
+  },
+  {
+    "id": "ai2",
+    "title": "AI pick: short posture reset",
+    "category": "health",
+    "difficulty": "easy",
+    "durationMinutes": 4,
+    "aiSuggested": true
+  }
+]
