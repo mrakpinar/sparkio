@@ -2,13 +2,50 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
+import 'services/iap_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'firebase_options.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseAnalytics.instance;
+  await NotificationService.instance.init();
+  await NotificationService.instance.showRemoteNotification(
+    title: message.notification?.title,
+    body: message.notification?.body,
+  );
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   await NotificationService.instance.init();
   await ThemeService.instance.load();
   await MobileAds.instance.initialize();
+  await IapService.instance.init();
+  final messaging = FirebaseMessaging.instance;
+  await messaging.requestPermission(alert: true, badge: true, sound: true);
+  await messaging.setAutoInitEnabled(true);
+  await messaging.subscribeToTopic('all_users');
+  final token = await messaging.getToken();
+  // ignore: avoid_print
+  print('FCM: token=$token');
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    // ignore: avoid_print
+    print('FCM: token_refresh=$newToken');
+  });
+  FirebaseMessaging.onMessage.listen((message) async {
+    await NotificationService.instance.showRemoteNotification(
+      title: message.notification?.title,
+      body: message.notification?.body,
+    );
+  });
   runApp(const SparkioApp());
 }
 
@@ -85,6 +122,13 @@ class SparkioApp extends StatelessWidget {
         return MaterialApp(
           title: 'SPARKIO',
           debugShowCheckedModeBanner: false,
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             useMaterial3: true,
             fontFamily: 'Inter',

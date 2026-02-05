@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Keystore
+*.jks
+android/key.properties
+android/.keystore_meta.txt
+
+# Firebase service accounts (keep local only)
+functions/firebaseAdmin.json
+functions/serviceAccount.json

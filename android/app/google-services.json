@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "855180124418",
+    "project_id": "sparkio-12345",
+    "storage_bucket": "sparkio-12345.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:855180124418:android:eb59d38590a634a37e221b",
+        "android_client_info": {
+          "package_name": "com.mrahmiakpinar.sparkio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCdkJEUmgn-G__GdFSJ5hYzzGqUcGEz0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -7,11 +7,11 @@ class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
-  // ✅ Google TEST Ad Unit IDs
-  static const String bannerUnitId = 'ca-app-pub-3940256099942544/6300978111';
+  // AdMob ad unit IDs.
+  static const String bannerUnitId = 'ca-app-pub-9113236771764468/3264396817';
   static const String interstitialUnitId =
-      'ca-app-pub-3940256099942544/1033173712';
-  static const String rewardedUnitId = 'ca-app-pub-3940256099942544/5224354917';
+      'ca-app-pub-9113236771764468/2007155466';
+  static const String rewardedUnitId = 'ca-app-pub-9113236771764468/3431422934';
 
   static const _kLastInterstitialDate = 'last_interstitial_date_v1';
 
@@ -73,7 +73,7 @@ class AdService {
     await sp.setString(_kLastInterstitialDate, dateKey);
   }
 
-  /// ✅ Günde max 1 kez interstitial
+  /// Allow at most 1 interstitial per day.
   Future<bool> showInterstitialIfAllowed({required String dateKey}) async {
     final noAds = await PremiumService.instance.isNoAdsActive();
     if (noAds) return false;
@@ -105,7 +105,7 @@ class AdService {
     return true;
   }
 
-  /// ✅ Rewarded izlenirse true döner
+  /// Returns true if the rewarded ad was completed.
   Future<bool> showRewardedToUnlock() async {
     final ad = _rewarded;
     if (ad == null) {
@@ -115,14 +115,14 @@ class AdService {
 
     _rewarded = null;
 
-    // ✅ Completer ile asenkron sonuç bekleme
+    // Wait for the async result via Completer.
     final completer = Completer<bool>();
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _loadRewarded();
-        // Eğer henüz ödül kazanılmadıysa false döndür
+        // If reward not earned yet, resolve false.
         if (!completer.isCompleted) {
           completer.complete(false);
         }
@@ -138,14 +138,14 @@ class AdService {
 
     ad.show(
       onUserEarnedReward: (ad, reward) {
-        // ✅ Kullanıcı ödülü kazandı
+        // User earned the reward.
         if (!completer.isCompleted) {
           completer.complete(true);
         }
       },
     );
 
-    // ✅ Callback çalışana kadar bekle
+    // Wait for callbacks to resolve.
     return completer.future;
   }
 }

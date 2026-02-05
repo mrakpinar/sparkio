@@ -7,6 +7,8 @@ class TaskCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onSkip;
   final bool canSkip;
+  final double? progress;
+  final String progressLabel;
 
   const TaskCard({
     super.key,
@@ -15,6 +17,8 @@ class TaskCard extends StatelessWidget {
     required this.onTap,
     this.onSkip,
     this.canSkip = false,
+    this.progress,
+    this.progressLabel = 'Daily progress',
   });
 
   IconData _iconFor(String c) {
@@ -53,19 +57,20 @@ class TaskCard extends StatelessWidget {
 
   Color _colorFor(BuildContext context, String c) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     switch (c) {
       case 'body':
-        return scheme.primary;
+        return const Color(0xFFF97316); // Orange
       case 'mind':
-        return scheme.secondary;
+        return const Color(0xFF8B5CF6); // Violet
       case 'growth':
-        return scheme.primary;
+        return const Color(0xFF22C55E); // Green
       case 'calm':
-        return scheme.secondaryContainer;
+        return const Color(0xFF06B6D4); // Cyan
       case 'health':
-        return scheme.error;
+        return const Color(0xFFEF4444); // Red
       default:
-        return scheme.primary;
+        return isDark ? scheme.primary : scheme.primary;
     }
   }
 
@@ -85,129 +90,335 @@ class TaskCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final catColor = _colorFor(context, task.category);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        color: scheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: checked ? scheme.primary : scheme.outline),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: checked
-                      ? catColor.withOpacity(0.16)
-                      : catColor.withOpacity(0.22),
-                ),
-                child: Icon(_iconFor(task.category), size: 22, color: catColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _labelFor(task.category).toUpperCase(),
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 12,
-                        letterSpacing: 1.2,
-                        fontWeight: FontWeight.w700,
-                      ),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeInOut,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 220),
+        opacity: checked ? 0 : 1,
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOut,
+          offset: checked ? const Offset(0.03, -0.02) : Offset.zero,
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOut,
+            scale: checked ? 0.98 : 1.0,
+            child: Align(
+              heightFactor: checked ? 0 : 1,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: checked
+                        ? (isDark
+                              ? const Color(0xFF0D1B2E).withOpacity(0.8)
+                              : scheme.surfaceVariant.withOpacity(0.5))
+                        : (isDark ? const Color(0xFF0D1B2E) : scheme.surface),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: checked
+                          ? scheme.primary.withOpacity(0.35)
+                          : (isDark
+                                ? const Color(0xFF1E3A5F).withOpacity(0.35)
+                                : scheme.outline.withOpacity(0.25)),
+                      width: 1,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      task.title,
-                      style: textTheme.titleMedium?.copyWith(
-                        decoration: checked ? TextDecoration.lineThrough : null,
+                    boxShadow: [
+                      BoxShadow(
                         color: checked
-                            ? scheme.onSurface.withOpacity(0.6)
-                            : scheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _MetaChip(
-                          label:
-                              '${_difficultyLabel(task.difficulty)} • ${task.durationMinutes}m',
-                          color: scheme.primary,
-                        ),
-                        if (task.aiSuggested)
-                          _MetaChip(label: 'AI', color: scheme.secondary),
-                        if (task.premiumOnly)
-                          _MetaChip(
-                            label: 'Premium',
-                            color: scheme.secondaryContainer,
-                          ),
-                        if (task.isSpecial)
-                          _MetaChip(
-                            label: 'Special',
-                            color: scheme.primaryContainer,
-                          ),
-                      ],
-                    ),
-                    if (!checked && onSkip != null) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: canSkip ? onSkip : null,
-                          icon: const Icon(
-                            Icons.fast_forward_rounded,
-                            size: 18,
-                          ),
-                          label: Text(
-                            canSkip ? 'Skip this task' : 'Skip limit',
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            foregroundColor: canSkip
-                                ? scheme.secondary
-                                : scheme.onSurfaceVariant,
-                            backgroundColor: scheme.secondary.withOpacity(0.08),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                              side: BorderSide(
-                                color: scheme.secondary.withOpacity(0.2),
-                              ),
-                            ),
-                          ),
-                        ),
+                            ? scheme.primary.withOpacity(0.1)
+                            : (isDark
+                                  ? Colors.black.withOpacity(0.2)
+                                  : scheme.shadow.withOpacity(0.08)),
+                        blurRadius: checked ? 12 : 8,
+                        offset: Offset(0, checked ? 4 : 2),
                       ),
                     ],
-                  ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: onTap,
+                      splashColor: catColor.withOpacity(0.1),
+                      highlightColor: catColor.withOpacity(0.05),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            // Icon container
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: catColor.withOpacity(
+                                  isDark ? 0.1 : 0.12,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: catColor.withOpacity(
+                                    isDark ? 0.15 : 0.2,
+                                  ),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                _iconFor(task.category),
+                                size: 26,
+                                color: catColor,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+
+                            // Content
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Category badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: catColor.withOpacity(
+                                        isDark ? 0.12 : 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: catColor.withOpacity(
+                                          isDark ? 0.25 : 0.3,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: catColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _labelFor(
+                                            task.category,
+                                          ).toUpperCase(),
+                                          style: textTheme.labelSmall?.copyWith(
+                                            color: catColor,
+                                            letterSpacing: 1.1,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Title
+                                  Text(
+                                    task.title,
+                                    style: textTheme.titleMedium?.copyWith(
+                                      decoration: checked
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: scheme.onSurface
+                                          .withOpacity(0.5),
+                                      decorationThickness: 2,
+                                      color: checked
+                                          ? scheme.onSurface.withOpacity(0.5)
+                                          : (isDark
+                                                ? Colors.white.withOpacity(0.95)
+                                                : scheme.onSurface),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Meta chips
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      _ModernMetaChip(
+                                        icon: Icons.schedule_rounded,
+                                        label: '${task.durationMinutes}m',
+                                        color: const Color(0xFF3B82F6),
+                                      ),
+                                      _ModernMetaChip(
+                                        icon: Icons.signal_cellular_alt_rounded,
+                                        label: _difficultyLabel(
+                                          task.difficulty,
+                                        ),
+                                        color: const Color(0xFF10B981),
+                                      ),
+                                      if (task.aiSuggested)
+                                        _ModernMetaChip(
+                                          icon: Icons.auto_awesome_rounded,
+                                          label: 'AI',
+                                          color: const Color(0xFF8B5CF6),
+                                        ),
+                                      if (task.premiumOnly)
+                                        _ModernMetaChip(
+                                          icon: Icons.workspace_premium_rounded,
+                                          label: 'Premium',
+                                          color: const Color(0xFFFBBF24),
+                                        ),
+                                      if (task.isSpecial)
+                                        _ModernMetaChip(
+                                          icon: Icons.star_rounded,
+                                          label: 'Special',
+                                          color: const Color(0xFFF97316),
+                                        ),
+                                    ],
+                                  ),
+
+                                  // Skip button
+                                  if (!checked && onSkip != null) ...[
+                                    const SizedBox(height: 10),
+                                    TextButton.icon(
+                                      onPressed: canSkip ? onSkip : null,
+                                      icon: Icon(
+                                        Icons.fast_forward_rounded,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        canSkip
+                                            ? 'Skip this task'
+                                            : 'Skip limit reached',
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: canSkip
+                                            ? (isDark
+                                                  ? const Color(0xFF06B6D4)
+                                                  : scheme.secondary)
+                                            : (isDark
+                                                  ? Colors.white.withOpacity(
+                                                      0.4,
+                                                    )
+                                                  : scheme.onSurfaceVariant
+                                                        .withOpacity(0.5)),
+                                        backgroundColor: canSkip
+                                            ? (isDark
+                                                  ? const Color(
+                                                      0xFF06B6D4,
+                                                    ).withOpacity(0.12)
+                                                  : scheme.secondary
+                                                        .withOpacity(0.08))
+                                            : (isDark
+                                                  ? const Color(
+                                                      0xFF1E3A5F,
+                                                    ).withOpacity(0.2)
+                                                  : scheme.surfaceVariant
+                                                        .withOpacity(0.3)),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          side: BorderSide(
+                                            color: canSkip
+                                                ? (isDark
+                                                      ? const Color(
+                                                          0xFF06B6D4,
+                                                        ).withOpacity(0.3)
+                                                      : scheme.secondary
+                                                            .withOpacity(0.2))
+                                                : (isDark
+                                                      ? const Color(
+                                                          0xFF1E3A5F,
+                                                        ).withOpacity(0.3)
+                                                      : scheme.outline
+                                                            .withOpacity(0.15)),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(width: 12),
+
+                            // Checkbox
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                gradient: checked
+                                    ? LinearGradient(
+                                        colors: [
+                                          scheme.primary,
+                                          scheme.primary.withOpacity(0.85),
+                                        ],
+                                      )
+                                    : null,
+                                color: checked
+                                    ? null
+                                    : (isDark
+                                          ? const Color(
+                                              0xFF1E3A5F,
+                                            ).withOpacity(0.3)
+                                          : scheme.surfaceVariant.withOpacity(
+                                              0.4,
+                                            )),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: checked
+                                      ? scheme.primary
+                                      : (isDark
+                                            ? const Color(
+                                                0xFF3B82F6,
+                                              ).withOpacity(0.4)
+                                            : scheme.outline.withOpacity(0.3)),
+                                  width: checked ? 2 : 1.5,
+                                ),
+                                boxShadow: checked
+                                    ? [
+                                        BoxShadow(
+                                          color: scheme.primary.withOpacity(
+                                            0.3,
+                                          ),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 160),
+                                scale: checked ? 1.0 : 0.0,
+                                child: Icon(
+                                  Icons.check_rounded,
+                                  size: 18,
+                                  color: scheme.onPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              AnimatedScale(
-                duration: const Duration(milliseconds: 160),
-                scale: checked ? 1.05 : 1.0,
-                child: Icon(
-                  checked ? Icons.check_circle_rounded : Icons.circle_outlined,
-                  size: 26,
-                  color: checked
-                      ? scheme.primary
-                      : scheme.onSurfaceVariant.withOpacity(0.6),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -215,29 +426,42 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-class _MetaChip extends StatelessWidget {
+class _ModernMetaChip extends StatelessWidget {
+  final IconData icon;
   final String label;
   final Color color;
 
-  const _MetaChip({required this.label, required this.color});
+  const _ModernMetaChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.4)),
+        color: color.withOpacity(isDark ? 0.1 : 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(isDark ? 0.2 : 0.25)),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: scheme.onSurface,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }

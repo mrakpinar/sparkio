@@ -5,42 +5,283 @@ class HomeActionBar extends StatelessWidget {
     super.key,
     required this.onAddTask,
     required this.onUnlockPerks,
+    required this.premiumActive,
+    required this.premiumRemaining,
+    required this.onStatusTap,
   });
 
   final VoidCallback onAddTask;
   final VoidCallback onUnlockPerks;
+  final bool premiumActive;
+  final String premiumRemaining;
+  final VoidCallback? onStatusTap;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: scheme.surfaceVariant,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: scheme.outline),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: Text(
+              'Quick actions',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? Colors.white.withOpacity(0.5)
+                    : scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionTile(
+                  title: 'Add a custom task',
+                  subtitle: 'Personalize your list',
+                  icon: Icons.add_rounded,
+                  tint: isDark ? const Color(0xFF3B82F6) : scheme.primary,
+                  onTap: onAddTask,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: premiumActive
+                    ? _StatusTile(
+                        title: 'Premium active',
+                        subtitle: premiumRemaining,
+                        icon: Icons.verified_rounded,
+                        tint: isDark
+                            ? const Color(0xFF06B6D4)
+                            : scheme.secondary,
+                        onTap: onStatusTap,
+                      )
+                    : _ActionTile(
+                        title: 'Unlock perks',
+                        subtitle: 'Boosts & no-ads',
+                        icon: Icons.workspace_premium_rounded,
+                        tint: isDark
+                            ? const Color(0xFF06B6D4)
+                            : scheme.secondary,
+                        onTap: onUnlockPerks,
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: tint.withOpacity(0.1),
+        highlightColor: tint.withOpacity(0.05),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: isDark ? const Color(0xFF080F1C) : theme.colorScheme.surface,
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF1E3A5F).withOpacity(0.35)
+                  : theme.colorScheme.outline.withOpacity(0.25),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withOpacity(0.2)
+                    : theme.colorScheme.shadow.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: tint.withOpacity(isDark ? 0.1 : 0.12),
+                  border: Border.all(
+                    color: tint.withOpacity(isDark ? 0.15 : 0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: tint, size: 22),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.95)
+                      : theme.colorScheme.onSurface,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _StatusBadge(text: subtitle, tint: tint),
+            ],
+          ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: onAddTask,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add task'),
-              ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.text, required this.tint});
+
+  final String text;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: tint.withOpacity(isDark ? 0.1 : 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tint.withOpacity(isDark ? 0.2 : 0.25)),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: tint,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color tint;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: tint.withOpacity(0.1),
+        highlightColor: tint.withOpacity(0.05),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: isDark ? const Color(0xFF080F1C) : theme.colorScheme.surface,
+            border: Border.all(
+              color: isDark
+                  ? const Color(0xFF1E3A5F).withOpacity(0.35)
+                  : theme.colorScheme.outline.withOpacity(0.25),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onUnlockPerks,
-                icon: const Icon(Icons.workspace_premium_rounded),
-                label: const Text('Unlock perks'),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withOpacity(0.2)
+                    : theme.colorScheme.shadow.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: tint.withOpacity(isDark ? 0.1 : 0.12),
+                  border: Border.all(
+                    color: tint.withOpacity(isDark ? 0.15 : 0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: tint, size: 22),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.95)
+                      : theme.colorScheme.onSurface,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.6)
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

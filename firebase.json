@@ -1,0 +1,26 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "sparkio-12345",
+          "appId": "1:855180124418:android:eb59d38590a634a37e221b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "sparkio-12345",
+          "configurations": {
+            "android": "1:855180124418:android:eb59d38590a634a37e221b",
+            "ios": "1:855180124418:ios:8a9b65b2587990367e221b",
+            "web": "1:855180124418:web:a4624e099c8603fa7e221b"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

@@ -8,7 +8,7 @@ class ThemeService {
   static const _kThemeMode = 'theme_mode_v1';
 
   final ValueNotifier<ThemeMode> mode =
-      ValueNotifier<ThemeMode>(ThemeMode.light);
+      ValueNotifier<ThemeMode>(ThemeMode.dark);
 
   Future<void> load() async {
     final sp = await SharedPreferences.getInstance();
@@ -33,8 +33,9 @@ class ThemeService {
       case 'dark':
         return ThemeMode.dark;
       case 'light':
-      default:
         return ThemeMode.light;
+      default:
+        return ThemeMode.dark;
     }
   }
 
@@ -45,7 +46,7 @@ class ThemeService {
       case ThemeMode.dark:
         return 'dark';
       case ThemeMode.system:
-        return 'light';
+        return 'dark';
     }
   }
 }

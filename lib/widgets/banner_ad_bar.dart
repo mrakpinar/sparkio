@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../services/ad_service.dart';
@@ -10,24 +12,48 @@ class BannerAdBar extends StatefulWidget {
   State<BannerAdBar> createState() => _BannerAdBarState();
 }
 
-class _BannerAdBarState extends State<BannerAdBar> {
+class _BannerAdBarState extends State<BannerAdBar>
+    with WidgetsBindingObserver {
   BannerAd? _banner;
   bool _hideAds = false;
+  Timer? _retryTimer;
 
   @override
   void initState() {
     super.initState();
-    _initAd();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshNoAdsAndLoad();
   }
 
-  Future<void> _initAd() async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshNoAdsAndLoad();
+    }
+  }
+
+  Future<void> _refreshNoAdsAndLoad() async {
+    final premiumActive = await PremiumService.instance.isPremiumActive();
     final noAds = await PremiumService.instance.isNoAdsActive();
     if (!mounted) return;
-    if (noAds) {
-      setState(() => _hideAds = true);
+    if (premiumActive || noAds) {
+      setState(() {
+        _hideAds = true;
+      });
       return;
     }
 
+    if (_hideAds) {
+      setState(() => _hideAds = false);
+    }
+
+    if (_banner == null) {
+      _loadBanner();
+    }
+  }
+
+  void _loadBanner() {
+    _retryTimer?.cancel();
     _banner = BannerAd(
       adUnitId: AdService.bannerUnitId,
       size: AdSize.banner,
@@ -40,20 +66,36 @@ class _BannerAdBarState extends State<BannerAdBar> {
           ad.dispose();
           _banner = null;
           if (mounted) setState(() {});
+          _scheduleRetry();
         },
       ),
     )..load();
   }
 
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (_hideAds) return;
+      if (_banner != null) return;
+      _loadBanner();
+    });
+  }
+
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _banner?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    const hideAdsForScreenshots =
+        bool.fromEnvironment('HIDE_ADS', defaultValue: false);
+    if (hideAdsForScreenshots) return const SizedBox.shrink();
     if (_hideAds) return const SizedBox.shrink();
 
     final ad = _banner;
