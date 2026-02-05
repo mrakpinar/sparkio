@@ -51,3 +51,8 @@ android/.keystore_meta.txt
 # Firebase service accounts (keep local only)
 functions/firebaseAdmin.json
 functions/serviceAccount.json
+
+# Firebase client config (contains API keys; keep local only)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
