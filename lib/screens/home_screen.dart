@@ -31,6 +31,7 @@ import '../widgets/home_task_list.dart';
 import '../widgets/streak_share_card.dart';
 import '../widgets/home_badge_unlock_overlay.dart';
 import '../widgets/home_skeleton.dart';
+import '../widgets/daily_mood_sheet.dart';
 import '../widgets/home_header_sliver.dart';
 import '../widgets/home_action_sliver.dart';
 import '../widgets/home_debug_timer_sliver.dart';
@@ -67,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool _loading = true;
   bool _refreshing = false;
+  bool _dailyMoodPrompting = false;
   static const int _maxRefreshPerDay = 2;
   static const int _maxSkipsPerDay = 2;
   bool _rewardBusy = false;
@@ -197,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 HomeTaskListSliver(
                   tasks: _today,
                   completed: _completed,
+                  activeTimerTaskId: _activeTimerTask?.id,
                   canSkip: true,
                   onToggle: _toggle,
                   onSkip: (task) =>

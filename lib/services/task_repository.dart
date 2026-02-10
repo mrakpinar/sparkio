@@ -35,6 +35,8 @@ class TaskRepository {
   static const _kLastCompletedCategory = 'last_completed_category_v1';
   static const _kLastCompletedAt = 'last_completed_at_v1';
   static const _kBadges = 'earned_badges_v1';
+  static const _kDailyMoodDate = 'daily_mood_date_v1';
+  static const _kDailyMoodValue = 'daily_mood_value_v1';
 
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
@@ -542,6 +544,19 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kBadges, jsonEncode(updated.toList()));
     return newlyAdded.toList();
+  }
+
+  Future<String?> getDailyMood(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kDailyMoodDate);
+    if (savedDate != dateKey) return null;
+    return sp.getString(_kDailyMoodValue);
+  }
+
+  Future<void> setDailyMood({required String dateKey, required String mood}) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kDailyMoodDate, dateKey);
+    await sp.setString(_kDailyMoodValue, mood);
   }
 }
 

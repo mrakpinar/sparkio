@@ -145,12 +145,12 @@ class _ModernIconButton extends StatelessWidget {
 
     // Colors based on theme
     final backgroundColor = isDark
-        ? const Color(0xFF1E3A5F).withOpacity(0.6)
-        : scheme.primaryContainer.withOpacity(0.3);
+        ? const Color(0xFF1E3A5F).withOpacity(0.4)
+        : scheme.primaryContainer.withOpacity(0.2);
 
     final borderColor = isDark
-        ? const Color(0xFF3B82F6).withOpacity(0.2)
-        : scheme.primary.withOpacity(0.15);
+        ? const Color(0xFF3B82F6).withOpacity(0.15)
+        : scheme.primary.withOpacity(0.12);
 
     final iconColor = isDark ? Colors.white.withOpacity(0.9) : scheme.onSurface;
 
@@ -181,16 +181,16 @@ class _ModernIconButton extends StatelessWidget {
               boxShadow: isDark
                   ? [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: scheme.shadow.withOpacity(0.08),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
+                        color: scheme.shadow.withOpacity(0.05),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
                       ),
                     ],
             ),

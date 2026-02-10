@@ -19,6 +19,15 @@ class NotificationService {
   static const String taskTimerChannelName = 'Task Timer';
   static const String taskTimerChannelDescription =
       'Task timer completion notifications';
+  // Separate silent channel for the ongoing countdown notification.
+  // (Android 8+ uses channel sound settings, so per-notification flags aren't enough.)
+  // NOTE: Channel settings are immutable after creation. Bump the ID if you
+  // change sound/vibration/importance behavior.
+  static const String taskTimerOngoingChannelId =
+      'sparkio_task_timers_countdown_v8';
+  static const String taskTimerOngoingChannelName = 'Task Timer (Countdown)';
+  static const String taskTimerOngoingChannelDescription =
+      'Ongoing task timer countdown (silent)';
   static const int taskTimerOngoingId = 2001;
 
   static const int dailyReminderId = 1001;
@@ -53,68 +62,80 @@ class NotificationService {
 
   AndroidNotificationDetails _androidTaskTimerOngoingDetails({
     required String body,
-    required int max,
-    required int progress,
+    required int endAtMs,
+    required int timeoutAfterMs,
   }) {
     return AndroidNotificationDetails(
-      taskTimerChannelId,
-      taskTimerChannelName,
-      channelDescription: taskTimerChannelDescription,
-      importance: Importance.low,
-      priority: Priority.low,
+      taskTimerOngoingChannelId,
+      taskTimerOngoingChannelName,
+      channelDescription: taskTimerOngoingChannelDescription,
+      // Keep it clearly visible in the shade (but silent).
+      // Channel settings control sound/vibration; we set those to none on v6.
+      //
+      // Some OEM skins aggressively hide DEFAULT/LOW notifications. Keep this
+      // HIGH so it shows up reliably in the shade, but keep it silent via the channel.
+      importance: Importance.high,
+      priority: Priority.high,
       icon: 'ic_notification',
-      styleInformation: BigTextStyleInformation(body),
       onlyAlertOnce: true,
+      // Pin while a task is active so the countdown is always visible.
       ongoing: true,
-      showWhen: false,
+      autoCancel: false,
+      // Use the system chronometer so the countdown stays live even if the app is backgrounded.
+      showWhen: true,
+      when: endAtMs,
+      usesChronometer: true,
+      chronometerCountDown: true,
       playSound: false,
       enableVibration: false,
-      maxProgress: max,
-      progress: progress,
-      showProgress: true,
+      timeoutAfter: timeoutAfterMs,
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.stopwatch,
     );
-  }
-
-  String _formatDuration(Duration duration) {
-    final totalSeconds = duration.inSeconds.clamp(0, 24 * 3600);
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> init() async {
     if (_initialized) return;
 
-    try {
-      // Timezone init
-      tz.initializeTimeZones();
+    // Important: don't let timezone lookup failures skip plugin initialization.
+    // If init() short-circuits, *all* scheduled notifications can silently fail,
+    // especially in release / Play builds.
+    tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('UTC'));
 
-      // flutter_timezone now returns TimezoneInfo (not String)
+    try {
+      // flutter_timezone returns TimezoneInfo (not String) in recent versions.
       final TimezoneInfo currentTz = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(currentTz.identifier));
+    } catch (e) {
+      // Best-effort: keep UTC. Scheduling "now + duration" still works correctly.
+      // ignore: avoid_print
+      print('NOTI: failed to read device timezone, falling back to UTC: $e');
+    }
 
-      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosInit = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosInit = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
-      const initSettings = InitializationSettings(
-        android: androidInit,
-        iOS: iosInit,
-      );
+    const initSettings = InitializationSettings(
+      android: androidInit,
+      iOS: iosInit,
+    );
+
+    try {
       await _plugin.initialize(initSettings);
-
       await _createAndroidChannels();
 
-      // Android 13+ runtime permission request
+      // Android 13+ runtime permission request (best-effort).
       await _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.requestNotificationsPermission();
-      // Request exact alarms permission on supported Android versions
+      // Request exact alarms permission on supported Android versions (best-effort).
       await _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
@@ -123,11 +144,10 @@ class NotificationService {
 
       _initialized = true;
     } catch (e) {
-      // Fallback: set UTC and mark initialized to avoid repeated crashes.
-      tz.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation('UTC'));
-      await _createAndroidChannels();
-      _initialized = true;
+      // If initialization fails, keep _initialized=false so future calls retry.
+      // ignore: avoid_print
+      print('NOTI: NotificationService.init failed: $e');
+      rethrow;
     }
   }
 
@@ -137,6 +157,12 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >();
     if (android == null) return;
+
+    // Clean up old countdown channels to avoid duplicates in Android settings.
+    // Channel settings are immutable, so we bump the ID when changing behavior.
+    await android.deleteNotificationChannel('sparkio_task_timers_silent_v5');
+    await android.deleteNotificationChannel('sparkio_task_timers_countdown_v6');
+    await android.deleteNotificationChannel('sparkio_task_timers_countdown_v7');
 
     await android.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -154,6 +180,17 @@ class NotificationService {
         importance: Importance.high,
       ),
     );
+    await android.createNotificationChannel(
+      const AndroidNotificationChannel(
+        taskTimerOngoingChannelId,
+        taskTimerOngoingChannelName,
+        description: taskTimerOngoingChannelDescription,
+        importance: Importance.high,
+        playSound: false,
+        enableVibration: false,
+        showBadge: false,
+      ),
+    );
   }
 
   Future<void> _ensureInitialized() async {
@@ -163,6 +200,7 @@ class NotificationService {
 
   Future<bool> scheduleDailyReminder({int hour = 9, int minute = 0}) async {
     await _ensureInitialized();
+    await _ensureExactAlarmPermission();
 
     try {
       await _plugin.cancel(dailyReminderId);
@@ -191,29 +229,39 @@ class NotificationService {
       // ignore: avoid_print
       print('NOTI: scheduleDailyReminder at $scheduled (local)');
 
-      try {
-        await _plugin.zonedSchedule(
-          dailyReminderId,
-          _dailyTitle,
-          _dailyBody,
-          scheduled,
-          details,
-          androidScheduleMode: AndroidScheduleMode.alarmClock,
-          matchDateTimeComponents:
-              DateTimeComponents.time, // repeat daily at same time
-        );
-      } catch (_) {
-        await _plugin.zonedSchedule(
-          dailyReminderId,
-          _dailyTitle,
-          _dailyBody,
-          scheduled,
-          details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          matchDateTimeComponents:
-              DateTimeComponents.time, // repeat daily at same time
-        );
+      final exactAllowed = await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.canScheduleExactNotifications();
+
+      final candidates = <AndroidScheduleMode>[
+        if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
+        // alarmClock as fallback (needs SET_ALARM).
+        AndroidScheduleMode.alarmClock,
+        AndroidScheduleMode.inexactAllowWhileIdle,
+      ];
+
+      Object? lastError;
+      for (final mode in candidates.toSet()) {
+        try {
+          await _plugin.zonedSchedule(
+            dailyReminderId,
+            _dailyTitle,
+            _dailyBody,
+            scheduled,
+            details,
+            androidScheduleMode: mode,
+            matchDateTimeComponents:
+                DateTimeComponents.time, // repeat daily at same time
+          );
+          lastError = null;
+          break;
+        } catch (e) {
+          lastError = e;
+        }
       }
+      if (lastError != null) throw lastError;
       return true;
     } catch (_) {
       return false;
@@ -222,6 +270,7 @@ class NotificationService {
 
   Future<bool> scheduleQuickTest({int minutesFromNow = 1}) async {
     await _ensureInitialized();
+    await _ensureExactAlarmPermission();
     await _plugin.cancelAll();
     final androidDetails = _androidDetails(_dailyBody);
     const iosDetails = DarwinNotificationDetails();
@@ -243,33 +292,38 @@ class NotificationService {
     // ignore: avoid_print
     print('NOTI: exactAllowed=$exactAllowed');
 
-    try {
-      await _plugin.zonedSchedule(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        _dailyTitle,
-        _dailyBody,
-        scheduled,
-        details,
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
-      );
-      final pending = await _plugin.pendingNotificationRequests();
-      // ignore: avoid_print
-      print('NOTI: pending=${pending.length}');
-      return exactAllowed ?? false;
-    } catch (_) {
-      await _plugin.zonedSchedule(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        _dailyTitle,
-        _dailyBody,
-        scheduled,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-      final pending = await _plugin.pendingNotificationRequests();
-      // ignore: avoid_print
-      print('NOTI: pending=${pending.length}');
-      return exactAllowed ?? false;
+    // For short timers, prefer alarmClock: it is exact on modern Android
+    // without relying on the user-granted "Alarms & reminders" access, and
+    // tends to be the most reliable in the wild.
+    final candidates = <AndroidScheduleMode>[
+      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
+      AndroidScheduleMode.alarmClock,
+      AndroidScheduleMode.inexactAllowWhileIdle,
+    ];
+
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    Object? lastError;
+    for (final mode in candidates.toSet()) {
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          _dailyTitle,
+          _dailyBody,
+          scheduled,
+          details,
+          androidScheduleMode: mode,
+        );
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
+      }
     }
+    final pending = await _plugin.pendingNotificationRequests();
+    // ignore: avoid_print
+    print('NOTI: pending=${pending.length}');
+    if (lastError != null) throw lastError;
+    return exactAllowed ?? false;
   }
 
   Future<bool> areNotificationsEnabled() async {
@@ -352,6 +406,7 @@ class NotificationService {
     required Duration duration,
   }) async {
     await _ensureInitialized();
+    await _ensureExactAlarmPermission();
     final androidDetails = _androidTaskTimerDetails(body);
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -370,20 +425,56 @@ class NotificationService {
         ?.canScheduleExactNotifications();
     // ignore: avoid_print
     print('NOTI: taskTimer exactAllowed=$exactAllowed');
-    final scheduleMode = exactAllowed == true
-        ? AndroidScheduleMode.exactAllowWhileIdle
-        : AndroidScheduleMode.inexactAllowWhileIdle;
-    await _plugin.zonedSchedule(
-      notificationId,
-      title,
-      body,
-      scheduled,
-      details,
-      androidScheduleMode: scheduleMode,
-    );
+    // Prefer exactAllowWhileIdle when possible. Some OEMs appear to accept
+    // alarmClock scheduling calls but still never deliver them, so alarmClock
+    // is a fallback (not the first attempt).
+    final candidates = <AndroidScheduleMode>[
+      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
+      // alarmClock is a fallback when exact-while-idle isn't available.
+      AndroidScheduleMode.alarmClock,
+      AndroidScheduleMode.inexactAllowWhileIdle,
+    ];
+
+    Object? lastError;
+    for (final mode in candidates.toSet()) {
+      try {
+        await _plugin.zonedSchedule(
+          notificationId,
+          title,
+          body,
+          scheduled,
+          details,
+          androidScheduleMode: mode,
+        );
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (lastError != null) throw lastError;
     final pending = await _plugin.pendingNotificationRequests();
     // ignore: avoid_print
     print('NOTI: taskTimer pending=${pending.length}');
+  }
+
+  /// Ensure exact-alarm permission is granted on Android 12+ before scheduling.
+  /// Some OEM ROMs (ColorOS/EMUI) silently drop alarms unless this is enabled.
+  Future<void> _ensureExactAlarmPermission() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return;
+    final allowed = await android.canScheduleExactNotifications();
+    // ignore: avoid_print
+    print('NOTI: exact alarm permission current=$allowed');
+    if (allowed != true) {
+      await android.requestExactAlarmsPermission();
+      final after = await android.canScheduleExactNotifications();
+      // ignore: avoid_print
+      print('NOTI: exact alarm permission afterRequest=$after');
+    }
   }
 
   Future<void> showTaskTimerOngoing({
@@ -392,14 +483,15 @@ class NotificationService {
     required Duration total,
   }) async {
     await _ensureInitialized();
-    final totalSeconds = total.inSeconds.clamp(1, 24 * 3600);
-    final remainingSeconds = remaining.inSeconds.clamp(0, totalSeconds);
-    final progress = (totalSeconds - remainingSeconds).clamp(0, totalSeconds);
-    final body = 'Remaining: ${_formatDuration(remaining)}';
+    // The system chronometer shows the live countdown; keep the body generic so
+    // we don't display a stale "Remaining: 05:00" while the OS timer updates.
+    const body = 'Time left';
+    final timeoutAfterMs = remaining.inMilliseconds.clamp(0, 24 * 3600 * 1000);
+    final endAtMs = DateTime.now().add(remaining).millisecondsSinceEpoch;
     final androidDetails = _androidTaskTimerOngoingDetails(
       body: body,
-      max: totalSeconds,
-      progress: progress,
+      endAtMs: endAtMs,
+      timeoutAfterMs: timeoutAfterMs,
     );
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -408,7 +500,7 @@ class NotificationService {
     );
     await _plugin.show(
       taskTimerOngoingId,
-      'SPARKIO • $taskTitle',
+      'SPARKIO - $taskTitle',
       body,
       details,
     );

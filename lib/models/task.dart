@@ -26,8 +26,11 @@ class Task {
     title: m['title'] as String,
     category: m['category'] as String,
     isCustom: (m['isCustom'] as bool?) ?? false,
-    difficulty: (m['difficulty'] as String?) ?? 'easy',
-    durationMinutes: (m['durationMinutes'] as num?)?.toInt() ?? 5,
+    difficulty: _normalizeDifficulty(m['difficulty'] as String?),
+    durationMinutes: _normalizeDuration(
+      _normalizeDifficulty(m['difficulty'] as String?),
+      (m['durationMinutes'] as num?)?.toInt(),
+    ),
     aiSuggested: (m['aiSuggested'] as bool?) ?? false,
     premiumOnly: (m['premiumOnly'] as bool?) ?? false,
     isSpecial: (m['isSpecial'] as bool?) ?? false,
@@ -44,4 +47,26 @@ class Task {
     'premiumOnly': premiumOnly,
     'isSpecial': isSpecial,
   };
+}
+
+/// Clamp remote task durations to sensible ranges so overly long tasks
+/// from Firestore don't degrade UX.
+String _normalizeDifficulty(String? raw) {
+  final value = (raw ?? 'easy').toLowerCase();
+  if (value == 'medium' || value == 'hard' || value == 'easy') return value;
+  return 'easy';
+}
+
+int _normalizeDuration(String difficulty, int? raw) {
+  const defaults = {'easy': 5, 'medium': 8, 'hard': 12};
+  const mins = {'easy': 3, 'medium': 5, 'hard': 8};
+  const maxs = {'easy': 8, 'medium': 12, 'hard': 18};
+
+  final base = defaults[difficulty] ?? 7;
+  final value = (raw ?? base).clamp(-9999, 9999);
+  final min = mins[difficulty] ?? 4;
+  final max = maxs[difficulty] ?? 15;
+  // If backend sent 0/negative or absurdly high numbers, fall back to default.
+  if (value <= 0) return base;
+  return value.clamp(min, max);
 }

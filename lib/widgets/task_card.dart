@@ -4,6 +4,7 @@ import '../models/task.dart';
 class TaskCard extends StatelessWidget {
   final Task task;
   final bool checked;
+  final bool isTimerActive;
   final VoidCallback onTap;
   final VoidCallback? onSkip;
   final bool canSkip;
@@ -14,6 +15,7 @@ class TaskCard extends StatelessWidget {
     super.key,
     required this.task,
     required this.checked,
+    this.isTimerActive = false,
     required this.onTap,
     this.onSkip,
     this.canSkip = false,
@@ -91,6 +93,7 @@ class TaskCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final catColor = _colorFor(context, task.category);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final timerActive = isTimerActive && !checked;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 240),
@@ -113,21 +116,48 @@ class TaskCard extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   decoration: BoxDecoration(
+                    gradient: timerActive
+                        ? LinearGradient(
+                            colors: [
+                              const Color(0xFF0D1B2E),
+                              Color.lerp(
+                                    const Color(0xFF0D1B2E),
+                                    scheme.primary,
+                                    0.18,
+                                  ) ??
+                                  const Color(0xFF0D1B2E),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
                     color: checked
                         ? (isDark
                               ? const Color(0xFF0D1B2E).withOpacity(0.8)
                               : scheme.surfaceVariant.withOpacity(0.5))
-                        : (isDark ? const Color(0xFF0D1B2E) : scheme.surface),
+                        : (timerActive
+                              ? null
+                              : (isDark
+                                    ? const Color(0xFF0D1B2E)
+                                    : scheme.surface)),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: checked
                           ? scheme.primary.withOpacity(0.35)
+                          : timerActive
+                              ? scheme.primary.withOpacity(0.55)
                           : (isDark
                                 ? const Color(0xFF1E3A5F).withOpacity(0.35)
                                 : scheme.outline.withOpacity(0.25)),
-                      width: 1,
+                      width: timerActive ? 1.3 : 1,
                     ),
                     boxShadow: [
+                      if (timerActive)
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.22),
+                          blurRadius: 22,
+                          offset: const Offset(0, 10),
+                        ),
                       BoxShadow(
                         color: checked
                             ? scheme.primary.withOpacity(0.1)

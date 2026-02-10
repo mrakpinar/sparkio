@@ -8,6 +8,7 @@ class HomeTaskListSliver extends StatelessWidget {
     super.key,
     required this.tasks,
     required this.completed,
+    this.activeTimerTaskId,
     required this.canSkip,
     required this.onToggle,
     required this.onSkip,
@@ -15,6 +16,7 @@ class HomeTaskListSliver extends StatelessWidget {
 
   final List<Task> tasks;
   final Map<String, bool> completed;
+  final String? activeTimerTaskId;
   final bool canSkip;
   final void Function(Task task) onToggle;
   final void Function(Task task) onSkip;
@@ -39,6 +41,7 @@ class HomeTaskListSliver extends StatelessWidget {
               onSkip: () => onSkip(task),
               canSkip: canSkip,
               progress: progress,
+              isTimerActive: activeTimerTaskId == task.id,
             );
           },
           childCount: tasks.length,

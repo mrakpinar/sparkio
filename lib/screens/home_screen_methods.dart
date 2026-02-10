@@ -37,6 +37,116 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (_reminderEnabled) {
       await _controller.applyReminderEnabled(true);
     }
+
+    // Ask once per day, on the first open, to tailor a task to the user's mood.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybePromptDailyMood());
+    });
+  }
+
+  List<String> _moodTargetCategories(String mood) {
+    switch (mood) {
+      case 'stressed':
+        return const ['calm', 'mind'];
+      case 'low_energy':
+        return const ['health', 'body'];
+      case 'focus':
+        return const ['mind', 'growth'];
+      default:
+        return const [];
+    }
+  }
+
+  Future<void> _maybePromptDailyMood() async {
+    if (!mounted || _loading || _dailyMoodPrompting) return;
+    if (_today.isEmpty) return;
+
+    final dateKey = _todayKey();
+    final existing = await _repo.getDailyMood(dateKey);
+    if (existing != null) return;
+
+    _updateState(() => _dailyMoodPrompting = true);
+    try {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          return DailyMoodSheet(
+            onSelect: (mood) => Navigator.of(sheetContext).pop(mood),
+            onSkip: () => Navigator.of(sheetContext).pop(),
+          );
+        },
+      );
+
+      if (!mounted) return;
+
+      // Don't keep re-prompting the user on the same day if they dismiss it.
+      if (selected == null) {
+        await _repo.setDailyMood(dateKey: dateKey, mood: 'skipped');
+        return;
+      }
+
+      await _repo.setDailyMood(dateKey: dateKey, mood: selected);
+      await _applyMoodToTodayTasks(selected);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Got it — tailored one task for you.')),
+      );
+    } finally {
+      if (mounted) {
+        _updateState(() => _dailyMoodPrompting = false);
+      } else {
+        _dailyMoodPrompting = false;
+      }
+    }
+  }
+
+  Future<void> _applyMoodToTodayTasks(String mood) async {
+    final targets = _moodTargetCategories(mood);
+    if (targets.isEmpty || _today.isEmpty) return;
+    final dateKey = _todayKey();
+
+    // If today already contains a matching category, keep the list stable.
+    if (_today.any((t) => targets.contains(t.category))) return;
+
+    final pool = await _repo.loadPool();
+    if (pool.isEmpty) return;
+
+    final todayIds = _today.map((t) => t.id).toSet();
+    final candidates = pool
+        .where(
+          (t) =>
+              targets.contains(t.category) &&
+              !todayIds.contains(t.id) &&
+              (_premiumActive || !t.premiumOnly),
+        )
+        .toList();
+    if (candidates.isEmpty) return;
+
+    final replaceIndex = _today.indexWhere(
+      (t) => _completed[t.id] != true && !t.isCustom,
+    );
+    final idx = replaceIndex >= 0
+        ? replaceIndex
+        : _today.indexWhere((t) => _completed[t.id] != true);
+    if (idx < 0) return;
+
+    candidates.shuffle(Random('$dateKey-$mood'.hashCode));
+    final chosen = candidates.first;
+
+    final updated = [..._today];
+    updated[idx] = chosen;
+
+    _updateState(() {
+      _today = updated;
+      _syncCompletedMap();
+    });
+
+    await _repo.saveSelectedTasks(updated);
+    await _repo.saveCompletedMap(_completed);
+    await _controller.updateLastSeen(dateKey: _todayKey(), tasks: [chosen]);
   }
 
   double get _progress {
@@ -398,29 +508,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('AI task added.')));
-    }
-  }
-
-  Future<void> _generateAiMoodTasks(String mood) async {
-    final result = await _controller.generateAiMoodTasks(
-      mood: mood,
-      current: _today,
-    );
-
-    if (!result.success) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('AI tasks are Premium only.')),
-      );
-      return;
-    }
-
-    _applyAiResponse(result);
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('AI tasks added.')));
     }
   }
 
@@ -864,7 +951,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           premiumActive: _premiumActive,
           onAdd: _addCustomTask,
           onGenerateAi: _generateAiTask,
-          onGenerateAiMood: _generateAiMoodTasks,
         );
       },
     );
@@ -1147,22 +1233,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _activeTimerFinished = false;
     });
 
-    await NotificationService.instance.scheduleTaskTimer(
-      notificationId: notificationId,
-      title: 'Task timer finished',
-      body: '${task.title} is ready to mark done.',
-      duration: duration,
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Go finish this task: ${task.title}'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-
+    // Start the in-app ticker immediately so the UI countdown begins even if
+    // notification scheduling is slow or fails on a given device/build.
     _activeTimerTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final now = DateTime.now();
@@ -1172,20 +1244,77 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           _activeTimerRemaining = Duration.zero;
           _activeTimerFinished = true;
         });
-        NotificationService.instance.showTaskTimerNotification(
-          title: 'Task timer finished',
-          body: '${task.title} is ready to mark done.',
+        // If the app is running, we can show the completion notification
+        // immediately and cancel the scheduled one to avoid duplicates.
+        unawaited(NotificationService.instance.cancelTaskTimerOngoing());
+        unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
+        unawaited(
+          NotificationService.instance.showTaskTimerNotification(
+            title: 'Task timer finished',
+            body: '${task.title} is ready to mark done.',
+          ),
         );
         _activeTimerTicker?.cancel();
         return;
       }
       _updateState(() => _activeTimerRemaining = remaining);
     });
+
+    // Best-effort local scheduling for the "timer finished" notification (covers
+    // background/idle). Do not block the UI timer if scheduling fails.
+    unawaited(() async {
+      try {
+        await NotificationService.instance.cancelTaskTimer(notificationId);
+        await NotificationService.instance.scheduleTaskTimer(
+          notificationId: notificationId,
+          title: 'Task timer finished',
+          body: '${task.title} is ready to mark done.',
+          duration: duration,
+        );
+      } catch (e) {
+        _log('NOTI: scheduleTaskTimer failed: $e');
+        if (mounted) {
+          final scheme = Theme.of(context).colorScheme;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Timer notification could not be scheduled. '
+                'Please check notification and alarm permissions.',
+              ),
+              backgroundColor: scheme.error,
+            ),
+          );
+        }
+      }
+    }());
+
+    // Initial ongoing notification (silent) - also best-effort.
+    unawaited(() async {
+      try {
+        await NotificationService.instance.showTaskTimerOngoing(
+          taskTitle: task.title,
+          remaining: duration,
+          total: duration,
+        );
+      } catch (e) {
+        _log('NOTI: showTaskTimerOngoing failed: $e');
+      }
+    }());
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Go finish this task: ${task.title}'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _cancelTaskTimer(Task task) async {
     final notificationId = _taskTimerNotificationId(task.id);
     await NotificationService.instance.cancelTaskTimer(notificationId);
+    await NotificationService.instance.cancelTaskTimerOngoing();
     _activeTimerTicker?.cancel();
     if (!mounted) return;
     _updateState(() {
@@ -1198,6 +1327,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _markTaskDone(Task task) async {
     await HapticFeedback.lightImpact();
     await _showSuccessPulse(_pickSuccessMessage());
+    if (_activeTimerTask?.id == task.id) {
+      await _cancelTaskTimer(task);
+    }
     await _repo.incrementCompleted(task.category);
     final newDaily = await _repo.incrementDailyCompleted(_todayKey());
     await _repo.setLastCompletedTask(
@@ -1220,7 +1352,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   int _taskTimerNotificationId(String taskId) {
-    return taskId.hashCode & 0x7fffffff;
+    // Avoid collisions with fixed notification IDs (e.g. daily reminder, ongoing timer).
+    final h = taskId.hashCode & 0x7fffffff;
+    return 300000 + (h % 100000);
   }
 
   Future<void> _refreshTasks() async {
