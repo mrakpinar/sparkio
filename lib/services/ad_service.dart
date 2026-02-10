@@ -17,6 +17,7 @@ class AdService {
 
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
+  bool _launchInterstitialShown = false;
 
   bool get interstitialReady => _interstitial != null;
   bool get rewardedReady => _rewarded != null;
@@ -101,6 +102,36 @@ class AdService {
     );
 
     await _markInterstitialShown(dateKey);
+    ad.show();
+    return true;
+  }
+
+  /// Show once per app launch (cold start). No persistence between runs.
+  Future<bool> showInterstitialOnLaunch() async {
+    if (_launchInterstitialShown) return false;
+    final noAds = await PremiumService.instance.isNoAdsActive();
+    if (noAds) return false;
+
+    final ad = _interstitial;
+    if (ad == null) {
+      _loadInterstitial(); // trigger load for next time in this session
+      return false;
+    }
+
+    _launchInterstitialShown = true;
+    _interstitial = null;
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _loadInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        _loadInterstitial();
+      },
+    );
+
     ad.show();
     return true;
   }

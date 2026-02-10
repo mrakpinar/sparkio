@@ -573,16 +573,24 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _BarChart extends StatelessWidget {
+class _BarChart extends StatefulWidget {
   const _BarChart({required this.series, required this.maxValue});
 
   final List<_DayStat> series;
   final int maxValue;
 
   @override
+  State<_BarChart> createState() => _BarChartState();
+}
+
+class _BarChartState extends State<_BarChart> {
+  int? _selectedIndex;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
+    final series = widget.series;
     if (series.isEmpty) {
       return _EmptyCard(
         message: 'No activity this week yet. Start today!',
@@ -599,51 +607,78 @@ class _BarChart extends StatelessWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        children: series.map((day) {
+        children: List.generate(series.length, (i) {
+          final day = series[i];
+          final selected = _selectedIndex == i;
           return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween<double>(
-                      begin: 0,
-                      end: maxValue == 0 ? 0 : day.count / maxValue,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = selected ? null : i;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: selected
+                          ? Text(
+                              '${day.count}',
+                              key: ValueKey('val_$i'),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: scheme.onSurface,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            )
+                          : const SizedBox(height: 0),
                     ),
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeOutCubic,
-                    builder: (context, value, child) {
-                      final height = 80 * value;
-                      return Container(
-                        height: height.clamp(8, 80),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              scheme.primary.withOpacity(0.6),
-                              scheme.primary,
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                    const SizedBox(height: 6),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                        begin: 0,
+                        end: widget.maxValue == 0
+                            ? 0
+                            : day.count / widget.maxValue,
+                      ),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, child) {
+                        final height = 80 * value;
+                        return Container(
+                          height: height.clamp(8, 80),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                scheme.primary.withOpacity(0.6),
+                                scheme.primary,
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    day.label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                        );
+                      },
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      day.label,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
-        }).toList(),
+        }),
       ),
     );
   }

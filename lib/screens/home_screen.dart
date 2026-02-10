@@ -93,22 +93,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Duration _activeTimerRemaining = Duration.zero;
   bool _activeTimerFinished = false;
   Timer? _activeTimerTicker;
+  Timer? _premiumTicker;
 
   @override
   void initState() {
     super.initState();
+    _startPremiumTicker();
     _bootstrap();
   }
 
   @override
   void dispose() {
     _activeTimerTicker?.cancel();
+    _premiumTicker?.cancel();
     super.dispose();
   }
 
   // Helper method to allow extensions to update state
   void _updateState(void Function() fn) {
     setState(fn);
+  }
+
+  void _startPremiumTicker() {
+    _premiumTicker?.cancel();
+    _premiumTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_premiumUntil == null) return;
+      final now = DateTime.now();
+      final stillActive = _premiumUntil!.isAfter(now);
+      if (!stillActive && _premiumActive) {
+        _updateState(() {
+          _premiumActive = false;
+          _premiumUntil = null;
+        });
+        return;
+      }
+      // trigger rebuild so remaining label updates
+      _updateState(() {});
+    });
   }
 
   @override

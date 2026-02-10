@@ -38,6 +38,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       await _controller.applyReminderEnabled(true);
     }
 
+    // Show one interstitial per cold start (after initial load).
+    unawaited(() async {
+      await Future.delayed(const Duration(milliseconds: 800));
+      await _controller.showInterstitialOnLaunch();
+    }());
+
     // Ask once per day, on the first open, to tailor a task to the user's mood.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybePromptDailyMood());
@@ -1058,6 +1064,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       "STREAK: lastDone=$lastDone today=$todayKey diffDays=$diffDays current=$_streak",
     );
 
+    // Full-screen celebration (once per day)
+    unawaited(_showAllDoneCelebration());
+
     if (diffDays == 0) {
       // Already counted for today.
       return;
@@ -1095,12 +1104,40 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     _updateState(() => _streak = newStreak);
 
-    if (_controller.interstitialReady) {
-      await _controller.showInterstitialIfAllowed(dateKey: todayKey);
-      await Future.delayed(const Duration(milliseconds: 250));
-    }
-
     // No modal; inline banner handles completion UI.
+  }
+
+  Future<void> _showAllDoneCelebration() async {
+    if (!mounted) return;
+    final scheme = Theme.of(context).colorScheme;
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'All done',
+      barrierColor: Colors.black.withOpacity(0.75),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, animation, _, _) {
+        final scale = Tween<double>(begin: 0.92, end: 1.0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+        );
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: scale,
+            child: _AllDoneOverlay(
+              scheme: scheme,
+              onViewStats: () {
+                Navigator.of(ctx).maybePop();
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const StatsScreen()));
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showBadgeUnlocked(String badgeId) {
@@ -1776,5 +1813,214 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         );
       }
     }
+  }
+}
+
+class _AllDoneOverlay extends StatelessWidget {
+  const _AllDoneOverlay({required this.scheme, required this.onViewStats});
+
+  final ColorScheme scheme;
+  final VoidCallback onViewStats;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AllDoneOverlayBody(scheme: scheme, onViewStats: onViewStats);
+  }
+}
+
+class _AllDoneOverlayBody extends StatefulWidget {
+  const _AllDoneOverlayBody({required this.scheme, required this.onViewStats});
+
+  final ColorScheme scheme;
+  final VoidCallback onViewStats;
+
+  @override
+  State<_AllDoneOverlayBody> createState() => _AllDoneOverlayBodyState();
+}
+
+class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = widget.scheme;
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (_, _) => CustomPaint(
+                  painter: _ConfettiFullPainter(
+                    t: _controller.value,
+                    primary: scheme.primary,
+                    secondary: scheme.secondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  scheme.primary.withOpacity(0.18),
+                  scheme.secondary.withOpacity(0.14),
+                  scheme.surface.withOpacity(0.95),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: scheme.outline.withOpacity(0.4)),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withOpacity(0.25),
+                  blurRadius: 28,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [scheme.primary, scheme.secondary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: scheme.primary.withOpacity(0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 52,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'All done!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'You finished every spark today.\nStreak +1, progress saved.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      child: const Text('Kapat'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: widget.onViewStats,
+                      icon: const Icon(Icons.bar_chart_rounded),
+                      label: const Text('İstatistiklere git'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: scheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfettiFullPainter extends CustomPainter {
+  const _ConfettiFullPainter({
+    required this.t,
+    required this.primary,
+    required this.secondary,
+  });
+
+  final double t;
+  final Color primary;
+  final Color secondary;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final spots = [
+      const Offset(0.1, 0.2),
+      const Offset(0.8, 0.25),
+      const Offset(0.3, 0.6),
+      const Offset(0.6, 0.7),
+      const Offset(0.2, 0.85),
+      const Offset(0.9, 0.55),
+    ];
+    for (var i = 0; i < spots.length; i++) {
+      final phase = (t + i * 0.17) % 1.0;
+      final dx = spots[i].dx * size.width;
+      final dy = (spots[i].dy * size.height) + (40 * phase);
+      final alpha = (1 - phase).clamp(0.2, 1.0);
+      paint.color = (i.isEven ? primary : secondary).withOpacity(alpha * 0.6);
+      canvas.save();
+      canvas.translate(dx, dy);
+      canvas.rotate(phase * 6.28);
+      final w = 10 + 6 * (1 - phase);
+      final h = 4 + 4 * (1 - phase);
+      final r = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: w, height: h),
+        const Radius.circular(2),
+      );
+      canvas.drawRRect(r, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConfettiFullPainter oldDelegate) {
+    return oldDelegate.t != t ||
+        oldDelegate.primary != primary ||
+        oldDelegate.secondary != secondary;
   }
 }

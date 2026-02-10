@@ -45,11 +45,11 @@ class HomeController {
     required PremiumService premium,
     required AdService adService,
     required NotificationService notifications,
-  })  : _repo = repo,
-        _engine = engine,
-        _premium = premium,
-        _adService = adService,
-        _notifications = notifications;
+  }) : _repo = repo,
+       _engine = engine,
+       _premium = premium,
+       _adService = adService,
+       _notifications = notifications;
 
   final TaskRepository _repo;
   final TaskEngine _engine;
@@ -239,8 +239,9 @@ class HomeController {
     final pool = await _repo.loadPool();
     final poolError = _repo.lastPoolError;
     final premiumActive = await _premium.isPremiumActive();
-    final effective =
-        premiumActive ? pool : pool.where((t) => !t.premiumOnly).toList();
+    final effective = premiumActive
+        ? pool
+        : pool.where((t) => !t.premiumOnly).toList();
     return EffectivePoolResult(
       pool: effective,
       premiumActive: premiumActive,
@@ -461,6 +462,10 @@ class HomeController {
     await _adService.showInterstitialIfAllowed(dateKey: dateKey);
   }
 
+  Future<void> showInterstitialOnLaunch() async {
+    await _adService.showInterstitialOnLaunch();
+  }
+
   Future<bool> applyReminderEnabled(bool enabled) async {
     try {
       if (enabled) {
@@ -617,8 +622,7 @@ class AiTaskResponse {
     required List<Task> updated,
     required int newCount,
     required List<Task> added,
-  }) =>
-      AiTaskResponse._(updated, newCount, added, null);
+  }) => AiTaskResponse._(updated, newCount, added, null);
 
   factory AiTaskResponse.failure(AiTaskFailure failure) =>
       AiTaskResponse._(null, null, null, failure);
@@ -640,5 +644,3 @@ class RewardResult {
   factory RewardResult.failure(RewardFailure failure) =>
       RewardResult._(null, failure);
 }
-
-
