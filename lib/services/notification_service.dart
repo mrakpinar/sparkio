@@ -200,7 +200,12 @@ class NotificationService {
 
   Future<bool> scheduleDailyReminder({int hour = 9, int minute = 0}) async {
     await _ensureInitialized();
-    await _ensureExactAlarmPermission();
+    try {
+      await _ensureExactAlarmPermission();
+    } catch (e) {
+      // ignore: avoid_print
+      print('NOTI: exact alarm request failed (daily): $e');
+    }
 
     try {
       await _plugin.cancel(dailyReminderId);
@@ -236,9 +241,9 @@ class NotificationService {
           ?.canScheduleExactNotifications();
 
       final candidates = <AndroidScheduleMode>[
-        if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
-        // alarmClock as fallback (needs SET_ALARM).
+        // alarmClock is most reliable on OEM ROMs (MIUI/ColorOS) for daily.
         AndroidScheduleMode.alarmClock,
+        if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
         AndroidScheduleMode.inexactAllowWhileIdle,
       ];
 
@@ -255,9 +260,13 @@ class NotificationService {
             matchDateTimeComponents:
                 DateTimeComponents.time, // repeat daily at same time
           );
+          // ignore: avoid_print
+          print('NOTI: dailyReminder scheduled with mode=$mode');
           lastError = null;
           break;
         } catch (e) {
+          // ignore: avoid_print
+          print('NOTI: dailyReminder schedule failed with mode=$mode error=$e');
           lastError = e;
         }
       }
@@ -270,7 +279,12 @@ class NotificationService {
 
   Future<bool> scheduleQuickTest({int minutesFromNow = 1}) async {
     await _ensureInitialized();
-    await _ensureExactAlarmPermission();
+    try {
+      await _ensureExactAlarmPermission();
+    } catch (e) {
+      // ignore: avoid_print
+      print('NOTI: exact alarm request failed (quickTest): $e');
+    }
     await _plugin.cancelAll();
     final androidDetails = _androidDetails(_dailyBody);
     const iosDetails = DarwinNotificationDetails();
@@ -296,8 +310,8 @@ class NotificationService {
     // without relying on the user-granted "Alarms & reminders" access, and
     // tends to be the most reliable in the wild.
     final candidates = <AndroidScheduleMode>[
-      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.alarmClock,
+      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.inexactAllowWhileIdle,
     ];
 
@@ -313,9 +327,13 @@ class NotificationService {
           details,
           androidScheduleMode: mode,
         );
+        // ignore: avoid_print
+        print('NOTI: quickTest scheduled with mode=$mode');
         lastError = null;
         break;
       } catch (e) {
+        // ignore: avoid_print
+        print('NOTI: quickTest schedule failed mode=$mode error=$e');
         lastError = e;
       }
     }
@@ -406,7 +424,12 @@ class NotificationService {
     required Duration duration,
   }) async {
     await _ensureInitialized();
-    await _ensureExactAlarmPermission();
+    try {
+      await _ensureExactAlarmPermission();
+    } catch (e) {
+      // ignore: avoid_print
+      print('NOTI: exact alarm request failed (taskTimer): $e');
+    }
     final androidDetails = _androidTaskTimerDetails(body);
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -429,9 +452,9 @@ class NotificationService {
     // alarmClock scheduling calls but still never deliver them, so alarmClock
     // is a fallback (not the first attempt).
     final candidates = <AndroidScheduleMode>[
-      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
-      // alarmClock is a fallback when exact-while-idle isn't available.
+      // alarmClock first: most reliable on MIUI/ColorOS for timers.
       AndroidScheduleMode.alarmClock,
+      if (exactAllowed == true) AndroidScheduleMode.exactAllowWhileIdle,
       AndroidScheduleMode.inexactAllowWhileIdle,
     ];
 
@@ -446,13 +469,28 @@ class NotificationService {
           details,
           androidScheduleMode: mode,
         );
+        // ignore: avoid_print
+        print('NOTI: taskTimer scheduled with mode=$mode');
         lastError = null;
         break;
       } catch (e) {
+        // ignore: avoid_print
+        print('NOTI: taskTimer schedule failed mode=$mode error=$e');
         lastError = e;
       }
     }
-    if (lastError != null) throw lastError;
+    if (lastError != null) {
+      // Fallback: show immediate notification so kullanıcı uyarı alsın.
+      try {
+        await _plugin.show(notificationId, title, body, details);
+        // ignore: avoid_print
+        print('NOTI: fallback immediate notification shown');
+      } catch (e) {
+        // ignore: avoid_print
+        print('NOTI: fallback show failed $e');
+        throw lastError;
+      }
+    }
     final pending = await _plugin.pendingNotificationRequests();
     // ignore: avoid_print
     print('NOTI: taskTimer pending=${pending.length}');

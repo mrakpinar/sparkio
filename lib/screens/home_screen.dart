@@ -33,10 +33,8 @@ import '../widgets/home_badge_unlock_overlay.dart';
 import '../widgets/home_skeleton.dart';
 import '../widgets/daily_mood_sheet.dart';
 import '../widgets/home_header_sliver.dart';
-import '../widgets/home_action_sliver.dart';
 import '../widgets/home_debug_timer_sliver.dart';
 import '../widgets/home_pool_error_sliver.dart';
-import '../widgets/home_active_timer_sliver.dart';
 import '../widgets/home_all_done_sliver.dart';
 part 'home_screen_methods.dart';
 
@@ -73,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static const int _maxSkipsPerDay = 2;
   bool _rewardBusy = false;
   bool _poolErrorShown = false;
+  bool _debugInstantComplete = false;
   String? _poolError;
 
   List<Task> _today = [];
@@ -141,15 +140,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final dateLabel = DateFormat('EEE, MMM d').format(DateTime.now());
     final focus = _controller.focusHint(_today);
 
-    final premiumActiveNow =
-        _premiumUntil != null && _premiumUntil!.isAfter(DateTime.now());
-    final premiumRemaining = premiumActiveNow
-        ? 'Remaining: ${_formatRemaining(_premiumUntil)}'
-        : 'Expired - tap to renew';
-
     return Scaffold(
       key: _scaffoldKey,
       bottomNavigationBar: BannerAdBar(),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'fab-add-task',
+        onPressed: _openAddTaskSheet,
+        backgroundColor: const Color(0xFF3B82F6),
+        splashColor: const Color(0xFF60A5FA),
+        child: const Icon(Icons.add_rounded, size: 28, color: Colors.white),
+      ),
       endDrawer: _buildEndDrawer(),
       body: _loading
           ? const HomeSkeleton()
@@ -169,6 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       onToggleReminder: _toggleReminder,
                       onSendTestNotification: _sendTestNotification,
                       onRefresh: _refreshing ? null : _refreshTasks,
+                      onOpenPerks: _openPerksSheet,
                       onOpenMenu: _openMenu,
                     );
                   },
@@ -187,41 +188,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     MaterialPageRoute(builder: (_) => const StatsScreen()),
                   ),
                 ),
-                HomeActionSliver(
-                  onAddTask: _openAddTaskSheet,
-                  onUnlockPerks: _openPerksSheet,
-                  premiumActive: premiumActiveNow,
-                  premiumRemaining: premiumRemaining,
-                  onStatusTap: premiumActiveNow ? null : _openPerksSheet,
-                ),
                 if (kDebugMode)
-                  HomeDebugTimerSliver(onPressed: _sendTaskTimerTest),
+                  HomeDebugTimerSliver(
+                    onPressed: _sendTaskTimerTest,
+                    instantEnabled: _debugInstantComplete,
+                    onToggleInstant: (v) =>
+                        _updateState(() => _debugInstantComplete = v),
+                  ),
                 if (_poolError != null)
                   HomePoolErrorSliver(
                     message: 'Sunucuya baglanilamadi, tekrar dene.',
                     onRetry: _retryLoadPool,
-                  ),
-                if (_activeTimerTask != null)
-                  HomeActiveTimerSliver(
-                    task: _activeTimerTask!,
-                    remaining: _activeTimerRemaining,
-                    done: _activeTimerFinished,
-                    onCancel: () => _cancelTaskTimer(_activeTimerTask!),
-                    onComplete: _activeTimerFinished
-                        ? () async {
-                            final task = _activeTimerTask!;
-                            await _cancelTaskTimer(task);
-                            setState(() => _completed[task.id] = true);
-                            await _repo.saveCompletedMap(_completed);
-                            await _markTaskDone(task);
-                          }
-                        : null,
                   ),
                 if (allDone) const HomeAllDoneSliver(),
                 HomeTaskListSliver(
                   tasks: _today,
                   completed: _completed,
                   activeTimerTaskId: _activeTimerTask?.id,
+                  activeTimerRemaining: _activeTimerTask != null
+                      ? _activeTimerRemaining
+                      : null,
+                  activeTimerDone: _activeTimerFinished,
+                  onCancelTimer: (task) => _cancelTaskTimer(task),
+                  onCompleteTimer: _activeTimerFinished
+                      ? (task) async {
+                          if (_activeTimerTask == null ||
+                              _activeTimerTask!.id != task.id) {
+                            return;
+                          }
+                          await _cancelTaskTimer(task);
+                          setState(() => _completed[task.id] = true);
+                          await _repo.saveCompletedMap(_completed);
+                          await _markTaskDone(task);
+                          await _applyStreakIfAllDone();
+                        }
+                      : null,
                   canSkip: true,
                   onToggle: _toggle,
                   onSkip: (task) =>

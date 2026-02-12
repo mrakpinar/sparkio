@@ -54,16 +54,16 @@ class SparkioApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFF3B82F6);
-    const primaryDark = Color(0xFF1E40AF);
-    const accent = Color(0xFF22D3EE);
+    const primary = Color(0xFF3E7BFA);
+    const primaryDark = Color(0xFF1B3F8B);
+    const accent = Color(0xFF2EA7D6);
 
-    const darkBackground = Color(0xFF0F172A);
-    const darkSurface = Color(0xFF020617);
-    const darkCard = Color(0xFF020617);
-    const darkTextPrimary = Color(0xFFE5E7EB);
-    const darkTextSecondary = Color(0xFF94A3B8);
-    const darkDivider = Color(0xFF1E293B);
+    const darkBackground = Color(0xFF060D1A);
+    const darkSurface = Color(0xFF0B1629);
+    const darkCard = Color(0xFF101D33);
+    const darkTextPrimary = Color(0xFFE7EDF9);
+    const darkTextSecondary = Color(0xFF9BAECB);
+    const darkDivider = Color(0xFF1C2C47);
 
     const lightBackground = Color(0xFFF8FAFC);
     const lightSurface = Color(0xFFFFFFFF);
@@ -79,8 +79,8 @@ class SparkioApp extends StatelessWidget {
       primaryContainer: primaryDark,
       onPrimaryContainer: Colors.white,
       secondary: accent,
-      onSecondary: Color(0xFF0F172A),
-      secondaryContainer: Color(0xFF0E7490),
+      onSecondary: Colors.white,
+      secondaryContainer: Color(0xFF123549),
       onSecondaryContainer: Colors.white,
       background: darkBackground,
       onBackground: darkTextPrimary,
@@ -207,7 +207,7 @@ class SparkioApp extends StatelessWidget {
             colorScheme: darkScheme,
             scaffoldBackgroundColor: darkBackground,
             appBarTheme: const AppBarTheme(
-              backgroundColor: darkBackground,
+              backgroundColor: darkSurface,
               elevation: 0,
               centerTitle: true,
             ),
@@ -261,7 +261,7 @@ class SparkioApp extends StatelessWidget {
             ),
             chipTheme: const ChipThemeData(
               selectedColor: primary,
-              backgroundColor: Color(0xFF0B1220),
+              backgroundColor: darkCard,
               labelStyle: TextStyle(color: darkTextPrimary),
               secondaryLabelStyle: TextStyle(color: Colors.white),
             ),

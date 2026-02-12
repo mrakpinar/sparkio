@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'premium_service.dart';
@@ -12,15 +13,24 @@ class AdService {
   static const String interstitialUnitId =
       'ca-app-pub-9113236771764468/2007155466';
   static const String rewardedUnitId = 'ca-app-pub-9113236771764468/3431422934';
+  static const String _interstitialTestUnitId =
+      'ca-app-pub-3940256099942544/1033173712';
 
   static const _kLastInterstitialDate = 'last_interstitial_date_v1';
 
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
   bool _launchInterstitialShown = false;
+  bool _launchInterstitialPending = false;
+  bool _interstitialShowing = false;
+  bool _interstitialLoading = false;
+  Timer? _interstitialRetryTimer;
+  int _interstitialRetryStep = 0;
 
   bool get interstitialReady => _interstitial != null;
   bool get rewardedReady => _rewarded != null;
+  String get _effectiveInterstitialUnitId =>
+      kDebugMode ? _interstitialTestUnitId : interstitialUnitId;
 
   Future<void> preloadAll() async {
     _loadInterstitial();
@@ -28,21 +38,74 @@ class AdService {
   }
 
   void _loadInterstitial() {
-    if (_interstitial != null) return;
+    if (_interstitial != null || _interstitialLoading) return;
+    _interstitialLoading = true;
 
     InterstitialAd.load(
-      adUnitId: interstitialUnitId,
+      adUnitId: _effectiveInterstitialUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          _interstitialLoading = false;
           _interstitial = ad;
           _interstitial!.setImmersiveMode(true);
+          _interstitialRetryStep = 0;
+          _interstitialRetryTimer?.cancel();
+          _interstitialRetryTimer = null;
+          // ignore: avoid_print
+          print('AD: interstitial loaded ($_effectiveInterstitialUnitId)');
+          if (_launchInterstitialPending && !_launchInterstitialShown) {
+            unawaited(_tryShowPendingLaunchInterstitial());
+          }
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          _interstitialLoading = false;
+          // ignore: avoid_print
+          print(
+            'AD: interstitial failed to load ${error.code} ${error.message} ($_effectiveInterstitialUnitId)',
+          );
           _interstitial = null;
+          _scheduleInterstitialRetry();
         },
       ),
     );
+  }
+
+  void _scheduleInterstitialRetry() {
+    if (_interstitialRetryTimer?.isActive == true) return;
+    const steps = <int>[2, 4, 8, 15, 30, 60];
+    final idx = _interstitialRetryStep.clamp(0, steps.length - 1);
+    final delaySeconds = steps[idx];
+    _interstitialRetryStep = (_interstitialRetryStep + 1).clamp(
+      0,
+      steps.length - 1,
+    );
+    _interstitialRetryTimer = Timer(Duration(seconds: delaySeconds), () {
+      _interstitialRetryTimer = null;
+      _loadInterstitial();
+    });
+  }
+
+  Future<InterstitialAd?> _takeReadyInterstitial({
+    Duration waitUpTo = const Duration(seconds: 4),
+  }) async {
+    if (_interstitial != null) {
+      final ready = _interstitial;
+      _interstitial = null;
+      return ready;
+    }
+
+    _loadInterstitial();
+    final endAt = DateTime.now().add(waitUpTo);
+    while (DateTime.now().isBefore(endAt)) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (_interstitial != null) {
+        final ready = _interstitial;
+        _interstitial = null;
+        return ready;
+      }
+    }
+    return null;
   }
 
   void _loadRewarded() {
@@ -76,19 +139,33 @@ class AdService {
 
   /// Allow at most 1 interstitial per day.
   Future<bool> showInterstitialIfAllowed({required String dateKey}) async {
-    final noAds = await PremiumService.instance.isNoAdsActive();
-    if (noAds) return false;
-
-    final can = await _canShowInterstitialToday(dateKey);
-    if (!can) return false;
-
-    final ad = _interstitial;
-    if (ad == null) {
-      _loadInterstitial();
+    if (_interstitialShowing) {
+      // ignore: avoid_print
+      print('AD: interstitial skipped (another ad is showing)');
       return false;
     }
 
-    _interstitial = null;
+    final noAds = await PremiumService.instance.isNoAdsActive();
+    if (noAds) {
+      // ignore: avoid_print
+      print('AD: interstitial skipped (no-ads active)');
+      return false;
+    }
+
+    final can = await _canShowInterstitialToday(dateKey);
+    if (!can) {
+      // ignore: avoid_print
+      print('AD: interstitial skipped (already shown today)');
+      return false;
+    }
+
+    final ad = await _takeReadyInterstitial(waitUpTo: const Duration(seconds: 3));
+    if (ad == null) {
+      // ignore: avoid_print
+      print('AD: interstitial not ready, reloading');
+      _loadInterstitial();
+      return false;
+    }
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
@@ -102,37 +179,114 @@ class AdService {
     );
 
     await _markInterstitialShown(dateKey);
+    // ignore: avoid_print
+    print('AD: showing interstitial (daily gate)');
     ad.show();
     return true;
   }
 
   /// Show once per app launch (cold start). No persistence between runs.
   Future<bool> showInterstitialOnLaunch() async {
-    if (_launchInterstitialShown) return false;
-    final noAds = await PremiumService.instance.isNoAdsActive();
-    if (noAds) return false;
+    if (_launchInterstitialShown || _launchInterstitialPending) return false;
+    if (_interstitialShowing) return false;
 
-    final ad = _interstitial;
-    if (ad == null) {
-      _loadInterstitial(); // trigger load for next time in this session
+    final noAds = await PremiumService.instance.isNoAdsActive();
+    if (noAds) {
+      // ignore: avoid_print
+      print('AD: launch interstitial skipped (no-ads active)');
       return false;
     }
 
-    _launchInterstitialShown = true;
+    final ad = _interstitial;
+    if (ad != null) {
+      _interstitial = null;
+      return _showLaunchInterstitial(ad);
+    }
+
+    // Queue the launch ad so it auto-shows as soon as load succeeds.
+    _launchInterstitialPending = true;
+    _loadInterstitial();
+    // ignore: avoid_print
+    print('AD: launch interstitial queued');
+    return false;
+  }
+
+  Future<void> _tryShowPendingLaunchInterstitial() async {
+    if (!_launchInterstitialPending || _launchInterstitialShown) return;
+    if (_interstitialShowing) return;
+
+    final noAds = await PremiumService.instance.isNoAdsActive();
+    if (noAds) {
+      _launchInterstitialPending = false;
+      // ignore: avoid_print
+      print('AD: launch interstitial pending cancelled (no-ads active)');
+      return;
+    }
+
+    final ad = _interstitial;
+    if (ad == null) return;
+
     _interstitial = null;
+    _launchInterstitialPending = false;
+    await _showLaunchInterstitial(ad);
+  }
+
+  Future<bool> _showLaunchInterstitial(InterstitialAd ad) async {
+    _launchInterstitialShown = true;
+    _interstitialShowing = true;
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
+        _interstitialShowing = false;
         ad.dispose();
         _loadInterstitial();
       },
-      onAdFailedToShowFullScreenContent: (ad, _) {
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _interstitialShowing = false;
         ad.dispose();
         _loadInterstitial();
+        // ignore: avoid_print
+        print('AD: launch interstitial failed to show ${error.message}');
       },
     );
 
     ad.show();
+    // ignore: avoid_print
+    print('AD: showing interstitial (launch)');
+    return true;
+  }
+
+  /// Debug helper to validate interstitial rendering without gates.
+  Future<bool> showInterstitialNowForDebug() async {
+    if (!kDebugMode) return false;
+    if (_interstitialShowing) return false;
+    final ad = await _takeReadyInterstitial(waitUpTo: const Duration(seconds: 5));
+    if (ad == null) {
+      _loadInterstitial();
+      // ignore: avoid_print
+      print('AD: debug interstitial not ready');
+      return false;
+    }
+
+    _interstitialShowing = true;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        _interstitialShowing = false;
+        ad.dispose();
+        _loadInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _interstitialShowing = false;
+        ad.dispose();
+        _loadInterstitial();
+        // ignore: avoid_print
+        print('AD: debug interstitial failed to show ${error.message}');
+      },
+    );
+
+    ad.show();
+    // ignore: avoid_print
+    print('AD: showing interstitial (debug)');
     return true;
   }
 

@@ -312,9 +312,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     return ModernDrawer(
       isDark: isDark,
-      reminderEnabled: _reminderEnabled,
       onToggleTheme: _toggleTheme,
-      onToggleReminder: _toggleReminder,
       onOpenBadges: _openBadges,
       onOpenContact: _openContact,
       onSendTestNotification: _sendTestNotification,
@@ -847,6 +845,27 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _openShareSheet() async {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final earnedBadgeIds = await _repo.getEarnedBadges();
+    final orderedBadgeIds = _shareBadgeOrder
+        .where(earnedBadgeIds.contains)
+        .toList();
+    for (final id in earnedBadgeIds) {
+      if (!orderedBadgeIds.contains(id)) {
+        orderedBadgeIds.add(id);
+      }
+    }
+    final shareBadges = orderedBadgeIds
+        .take(4)
+        .map(_badgeInfo)
+        .map(
+          (info) => ShareBadgeChipData(
+            label: info.label,
+            icon: info.icon,
+            color: info.color,
+          ),
+        )
+        .toList();
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -917,6 +936,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             dateLabel: DateFormat(
                               'EEE, MMM d',
                             ).format(DateTime.now()),
+                            badges: shareBadges,
                           ),
                         ),
                       ),
@@ -939,6 +959,19 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       },
     );
   }
+
+  static const List<String> _shareBadgeOrder = [
+    'total_100',
+    'total_50',
+    'total_10',
+    'streak_7',
+    'streak_3',
+    'cat_mind_10',
+    'cat_body_10',
+    'cat_growth_10',
+    'cat_calm_10',
+    'cat_health_10',
+  ];
 
   Future<void> _openAddTaskSheet() async {
     await showModalBottomSheet(
@@ -1018,8 +1051,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _toggle(Task t) async {
     final newVal = !(_completed[t.id] ?? false);
     if (newVal) {
-      await _startTaskTimer(t);
-      return;
+      if (kDebugMode && _debugInstantComplete) {
+        await _completeTaskImmediately(t);
+      } else {
+        await _startTaskTimer(t);
+        return;
+      }
     }
     _updateState(() => _completed[t.id] = newVal);
     await _repo.saveCompletedMap(_completed);
@@ -1034,17 +1071,19 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       if (mounted) _updateState(() => _todayCompleted = newDaily);
     }
 
+    await _applyStreakIfAllDone();
+  }
+
+  Future<void> _applyStreakIfAllDone() async {
     final done = _today.where((x) => _completed[x.id] == true).length;
     final allDone = _today.isNotEmpty && done == _today.length;
     if (!allDone) return;
 
     final todayKey = _todayKey();
-    if (_allDoneShownKey == todayKey) {
-      return;
-    }
+    if (_allDoneShownKey == todayKey) return;
     _allDoneShownKey = todayKey;
-    final lastDone = await _repo.getLastCompletedDate();
 
+    final lastDone = await _repo.getLastCompletedDate();
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     DateTime? lastDoneDate;
@@ -1059,28 +1098,20 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final diffDays = lastDoneDate == null
         ? null
         : todayDate.difference(lastDoneDate).inDays;
-
     _log(
       "STREAK: lastDone=$lastDone today=$todayKey diffDays=$diffDays current=$_streak",
     );
 
-    // Full-screen celebration (once per day)
     unawaited(_showAllDoneCelebration());
 
-    if (diffDays == 0) {
-      // Already counted for today.
-      return;
-    }
+    if (diffDays == 0) return;
 
     int newStreak;
     if (diffDays == 1) {
       newStreak = _streak + 1;
     } else if (diffDays != null && diffDays < 0) {
-      // Device time went backwards; avoid resetting the streak.
       newStreak = _streak + 1;
     } else if (lastDoneDate == null && _streak > 0) {
-      // If the last-completed date is missing but we have a streak value,
-      // assume continuity to avoid an unexpected reset.
       newStreak = _streak + 1;
     } else {
       newStreak = 1;
@@ -1089,6 +1120,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     await _repo.setStreakCount(newStreak);
     await _repo.setLastCompletedDate(todayKey);
     await _repo.setBestStreakIfHigher(newStreak);
+
     final totalCompleted = await _repo.getTotalCompleted();
     final categoryCounts = await _repo.getCategoryCounts();
     final streakBadges = await _repo.awardBadges(
@@ -1101,10 +1133,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
 
     if (!mounted) return;
-
     _updateState(() => _streak = newStreak);
+  }
 
-    // No modal; inline banner handles completion UI.
+  Future<void> _completeTaskImmediately(Task t) async {
+    _updateState(() => _completed[t.id] = true);
+    await _repo.saveCompletedMap(_completed);
   }
 
   Future<void> _showAllDoneCelebration() async {
@@ -1314,10 +1348,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           final scheme = Theme.of(context).colorScheme;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text(
-                'Timer notification could not be scheduled. '
-                'Please check notification and alarm permissions.',
-              ),
+              content: Text('Timer notification failed: $e', maxLines: 3),
               backgroundColor: scheme.error,
             ),
           );
@@ -1839,14 +1870,21 @@ class _AllDoneOverlayBody extends StatefulWidget {
 }
 
 class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
   )..repeat();
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+    lowerBound: 0.94,
+    upperBound: 1.06,
+  )..repeat(reverse: true);
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1872,101 +1910,145 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
               ),
             ),
           ),
-          Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            constraints: const BoxConstraints(maxWidth: 420),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  scheme.primary.withOpacity(0.18),
-                  scheme.secondary.withOpacity(0.14),
-                  scheme.surface.withOpacity(0.95),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: scheme.outline.withOpacity(0.4)),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.shadow.withOpacity(0.25),
-                  blurRadius: 28,
-                  offset: const Offset(0, 18),
+          ScaleTransition(
+            scale: _pulseController,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.92,
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.primary.withOpacity(0.22),
+                    scheme.secondary.withOpacity(0.18),
+                    scheme.surface.withOpacity(0.96),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [scheme.primary, scheme.secondary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(color: scheme.outline.withOpacity(0.35)),
+                boxShadow: [
+                  BoxShadow(
+                    color: scheme.primary.withOpacity(0.35),
+                    blurRadius: 32,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: SweepGradient(
+                        colors: [
+                          scheme.primary,
+                          scheme.secondary,
+                          scheme.primary,
+                        ],
+                        startAngle: 0,
+                        endAngle: 6.28,
+                        transform: GradientRotation(
+                          _pulseController.value * 6.28,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.45),
+                          blurRadius: 28,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: scheme.primary.withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                    child: Container(
+                      margin: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: scheme.surface,
+                      ),
+                      child: Icon(
+                        Icons.celebration_rounded,
+                        size: 64,
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'All done!',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'You finished every spark today.\nStreak +1, progress saved.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: scheme.onSurface,
+                        ),
+                        label: Text(
+                          'Close',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          backgroundColor: scheme.surfaceVariant.withOpacity(
+                            0.6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: widget.onViewStats,
+                        icon: const Icon(Icons.bar_chart_rounded),
+                        label: const Text('View stats'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: scheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 52,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'All done!',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You finished every spark today.\nStreak +1, progress saved.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Text('Kapat'),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: widget.onViewStats,
-                      icon: const Icon(Icons.bar_chart_rounded),
-                      label: const Text('İstatistiklere git'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: scheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

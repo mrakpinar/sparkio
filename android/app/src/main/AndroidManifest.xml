@@ -3,12 +3,15 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Needed on Android 14+ to keep exact alarms working (self-declared use). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Needed when using AlarmManager.setAlarmClock (used by alarmClock schedule mode). -->
     <uses-permission android:name="android.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <application
+        android:resizeableActivity="false"
         android:label="Sparkio"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

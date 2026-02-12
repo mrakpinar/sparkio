@@ -5,18 +5,14 @@ class ModernDrawer extends StatelessWidget {
   const ModernDrawer({
     super.key,
     required this.isDark,
-    required this.reminderEnabled,
     required this.onToggleTheme,
-    required this.onToggleReminder,
     required this.onOpenBadges,
     required this.onOpenContact,
     required this.onSendTestNotification,
   });
 
   final bool isDark;
-  final bool reminderEnabled;
   final VoidCallback onToggleTheme;
-  final VoidCallback onToggleReminder;
   final VoidCallback onOpenBadges;
   final VoidCallback onOpenContact;
   final Future<void> Function() onSendTestNotification;
@@ -113,16 +109,12 @@ class ModernDrawer extends StatelessWidget {
                     // Notifications Section
                     _SectionHeader(title: 'Notifications'),
                     const SizedBox(height: 8),
-                    _ModernSettingCard(
+                    _ModernMenuCard(
                       icon: Icons.notifications_active_rounded,
                       iconColor: scheme.secondary,
-                      title: 'Daily reminder',
-                      subtitle: 'Get a gentle daily nudge',
-                      trailing: Switch(
-                        value: reminderEnabled,
-                        onChanged: (_) => onToggleReminder(),
-                        activeColor: scheme.secondary,
-                      ),
+                      title: 'Notifications',
+                      subtitle: 'Manage in system settings',
+                      onTap: () => Navigator.of(context).maybePop(),
                     ),
 
                     const SizedBox(height: 20),

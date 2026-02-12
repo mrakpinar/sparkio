@@ -5,6 +5,10 @@ class TaskCard extends StatelessWidget {
   final Task task;
   final bool checked;
   final bool isTimerActive;
+  final Duration? timerRemaining;
+  final bool timerDone;
+  final VoidCallback? onCancelTimer;
+  final VoidCallback? onCompleteTimer;
   final VoidCallback onTap;
   final VoidCallback? onSkip;
   final bool canSkip;
@@ -16,6 +20,10 @@ class TaskCard extends StatelessWidget {
     required this.task,
     required this.checked,
     this.isTimerActive = false,
+    this.timerRemaining,
+    this.timerDone = false,
+    this.onCancelTimer,
+    this.onCompleteTimer,
     required this.onTap,
     this.onSkip,
     this.canSkip = false,
@@ -87,13 +95,26 @@ class TaskCard extends StatelessWidget {
     }
   }
 
+  String _formatDuration(Duration d) {
+    final totalSeconds = d.inSeconds.clamp(0, 360000);
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final catColor = _colorFor(context, task.category);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final timerActive = isTimerActive && !checked;
+    final hasInlineTimer = timerRemaining != null;
+    final timerActive = (isTimerActive || hasInlineTimer) && !checked;
+    final inlineRemaining = timerRemaining ?? Duration.zero;
+    final totalSeconds = (task.durationMinutes * 60).clamp(1, 360000);
+    final inlineProgress = hasInlineTimer
+        ? 1 - (inlineRemaining.inSeconds / totalSeconds)
+        : 0.0;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 240),
@@ -133,22 +154,22 @@ class TaskCard extends StatelessWidget {
                         : null,
                     color: checked
                         ? (isDark
-                              ? const Color(0xFF0D1B2E).withOpacity(0.8)
+                              ? const Color(0xFF0D1B2E).withOpacity(0.82)
                               : scheme.surfaceVariant.withOpacity(0.5))
                         : (timerActive
                               ? null
                               : (isDark
-                                    ? const Color(0xFF0D1B2E)
-                                    : scheme.surface)),
+                                    ? const Color(0xFF0E1526)
+                                    : scheme.surfaceVariant.withOpacity(0.92))),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: checked
                           ? scheme.primary.withOpacity(0.35)
                           : timerActive
-                              ? scheme.primary.withOpacity(0.55)
+                          ? scheme.primary.withOpacity(0.55)
                           : (isDark
-                                ? const Color(0xFF1E3A5F).withOpacity(0.35)
-                                : scheme.outline.withOpacity(0.25)),
+                                ? const Color(0xFF2C4A7A).withOpacity(0.55)
+                                : scheme.outline.withOpacity(0.35)),
                       width: timerActive ? 1.3 : 1,
                     ),
                     boxShadow: [
@@ -160,12 +181,12 @@ class TaskCard extends StatelessWidget {
                         ),
                       BoxShadow(
                         color: checked
-                            ? scheme.primary.withOpacity(0.1)
+                            ? scheme.primary.withOpacity(0.12)
                             : (isDark
-                                  ? Colors.black.withOpacity(0.2)
-                                  : scheme.shadow.withOpacity(0.08)),
-                        blurRadius: checked ? 12 : 8,
-                        offset: Offset(0, checked ? 4 : 2),
+                                  ? Colors.black.withOpacity(0.32)
+                                  : scheme.shadow.withOpacity(0.12)),
+                        blurRadius: checked ? 12 : 16,
+                        offset: Offset(0, checked ? 4 : 8),
                       ),
                     ],
                   ),
@@ -173,7 +194,7 @@ class TaskCard extends StatelessWidget {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),
-                      onTap: onTap,
+                      onTap: timerActive ? null : onTap,
                       splashColor: catColor.withOpacity(0.1),
                       highlightColor: catColor.withOpacity(0.05),
                       child: Padding(
@@ -312,6 +333,187 @@ class TaskCard extends StatelessWidget {
                                         ),
                                     ],
                                   ),
+
+                                  // Inline timer
+                                  if (hasInlineTimer) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? const Color(
+                                                0xFF0D1B2E,
+                                              ).withOpacity(0.7)
+                                            : scheme.surfaceVariant.withOpacity(
+                                                0.6,
+                                              ),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color:
+                                              (timerDone
+                                                      ? scheme.tertiary
+                                                      : scheme.primary)
+                                                  .withOpacity(0.4),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              gradient: LinearGradient(
+                                                colors: timerDone
+                                                    ? [
+                                                        scheme.tertiary,
+                                                        scheme.tertiary
+                                                            .withOpacity(0.7),
+                                                      ]
+                                                    : [
+                                                        scheme.primary,
+                                                        scheme.primary
+                                                            .withOpacity(0.7),
+                                                      ],
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              timerDone
+                                                  ? Icons.check_rounded
+                                                  : Icons.timer_rounded,
+                                              color: scheme.onPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  timerDone
+                                                      ? 'Time is up'
+                                                      : 'Counting down',
+                                                  style: textTheme.labelMedium
+                                                      ?.copyWith(
+                                                        color: scheme
+                                                            .onSurfaceVariant,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  timerDone
+                                                      ? '00:00'
+                                                      : _formatDuration(
+                                                          inlineRemaining,
+                                                        ),
+                                                  style: textTheme.titleLarge
+                                                      ?.copyWith(
+                                                        fontFeatures: const [
+                                                          FontFeature.tabularFigures(),
+                                                        ],
+                                                        letterSpacing: 1.2,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: timerDone
+                                                            ? scheme.tertiary
+                                                            : scheme.primary,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (onCancelTimer != null)
+                                            IconButton(
+                                              onPressed: onCancelTimer,
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                              ),
+                                              color: scheme.onSurfaceVariant,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: LinearProgressIndicator(
+                                        minHeight: 8,
+                                        value: inlineProgress.clamp(0.0, 1.0),
+                                        backgroundColor: scheme.outlineVariant
+                                            .withOpacity(0.3),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              timerDone
+                                                  ? scheme.tertiary
+                                                  : scheme.primary,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: onCancelTimer,
+                                            icon: const Icon(
+                                              Icons.stop_circle_rounded,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Cancel timer'),
+                                            style: OutlinedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              foregroundColor: scheme.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: FilledButton.icon(
+                                            onPressed: timerDone
+                                                ? onCompleteTimer
+                                                : null,
+                                            icon: Icon(
+                                              timerDone
+                                                  ? Icons.check_rounded
+                                                  : Icons.hourglass_bottom,
+                                              size: 18,
+                                            ),
+                                            label: Text(
+                                              timerDone
+                                                  ? 'Mark complete'
+                                                  : 'Running',
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              backgroundColor: timerDone
+                                                  ? scheme.tertiary
+                                                  : scheme.surfaceContainerHigh,
+                                              foregroundColor: timerDone
+                                                  ? scheme.onTertiary
+                                                  : scheme.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
 
                                   // Skip button
                                   if (!checked && onSkip != null) ...[

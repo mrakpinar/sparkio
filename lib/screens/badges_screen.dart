@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/task_repository.dart';
 
 class BadgesScreen extends StatelessWidget {
@@ -6,243 +7,78 @@ class BadgesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: scheme.surface,
+      backgroundColor: scheme.background,
       body: FutureBuilder<_BadgeProgressData>(
         future: _loadBadges(),
         builder: (context, snapshot) {
-          final data = snapshot.data;
-          final earned = data?.earned ?? <String>{};
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return Center(
+              child: Text(
+                'Unable to load badges right now.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            );
+          }
+
+          final data = snapshot.data!;
+          final earned = data.earned;
           final totalBadges = _allBadges.length;
           final earnedCount = earned.length;
-          final progress = earnedCount / totalBadges;
+          final progress = totalBadges == 0 ? 0.0 : earnedCount / totalBadges;
 
           return CustomScrollView(
             slivers: [
-              // Modern App Bar
-              SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        scheme.primary.withOpacity(0.15),
-                        scheme.secondary.withOpacity(0.08),
-                        scheme.surface,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Back button and title row
-                          Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: scheme.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: scheme.outline.withOpacity(0.3),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: scheme.shadow.withOpacity(0.05),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.arrow_back_ios_new_rounded,
-                                    size: 18,
-                                  ),
-                                  onPressed: () =>
-                                      Navigator.of(context).maybePop(),
-                                  tooltip: 'Back',
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Badges',
-                                      style: theme.textTheme.titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Track your achievements',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: scheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Progress card
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  scheme.primary.withOpacity(0.15),
-                                  scheme.secondary.withOpacity(0.08),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: scheme.outline.withOpacity(0.3),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: scheme.shadow.withOpacity(0.08),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    // Trophy icon
-                                    Container(
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            scheme.primary.withOpacity(0.2),
-                                            scheme.primary.withOpacity(0.1),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Icon(
-                                        Icons.emoji_events_rounded,
-                                        color: scheme.primary,
-                                        size: 28,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Your Progress',
-                                            style: theme.textTheme.titleSmall
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                  color:
-                                                      scheme.onSurfaceVariant,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '$earnedCount / $totalBadges badges',
-                                            style: theme.textTheme.titleLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: scheme.primary,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    // Circular progress
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            scheme.primary.withOpacity(0.1),
-                                            scheme.secondary.withOpacity(0.05),
-                                          ],
-                                        ),
-                                      ),
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 56,
-                                            height: 56,
-                                            child: CircularProgressIndicator(
-                                              value: progress,
-                                              strokeWidth: 4,
-                                              backgroundColor:
-                                                  scheme.surfaceVariant,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    scheme.primary,
-                                                  ),
-                                            ),
-                                          ),
-                                          Text(
-                                            '${(progress * 100).round()}%',
-                                            style: theme.textTheme.labelLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 12,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: 8,
-                                    backgroundColor: scheme.surfaceVariant
-                                        .withOpacity(0.5),
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      scheme.primary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+              SliverAppBar(
+                pinned: true,
+                expandedHeight: 55,
+                backgroundColor: scheme.surface,
+                surfaceTintColor: Colors.transparent,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+                centerTitle: true,
+                title: const Text('Badges'),
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          scheme.primary.withOpacity(0.12),
+                          scheme.primaryContainer.withOpacity(0.1),
+                          scheme.surface,
                         ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
                     ),
                   ),
                 ),
               ),
-
-              // Content
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: _SummaryCard(
+                    earnedCount: earnedCount,
+                    totalBadges: totalBadges,
+                    progress: progress,
+                  ),
+                ),
+              ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     if (earnedCount > 0) ...[
-                      const SizedBox(height: 8),
                       _SectionHeader(
                         title: 'Unlocked',
                         count: earnedCount,
@@ -251,7 +87,7 @@ class BadgesScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       _BadgeGrid(
                         badges: _allBadges
-                            .where((b) => earned.contains(b.id))
+                            .where((badge) => earned.contains(badge.id))
                             .toList(),
                         progress: data,
                         emptyMessage:
@@ -259,7 +95,6 @@ class BadgesScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                     ],
-                    const SizedBox(height: 8),
                     _SectionHeader(
                       title: 'Locked',
                       count: totalBadges - earnedCount,
@@ -268,10 +103,10 @@ class BadgesScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     _BadgeGrid(
                       badges: _allBadges
-                          .where((b) => !earned.contains(b.id))
+                          .where((badge) => !earned.contains(badge.id))
                           .toList(),
                       progress: data,
-                      emptyMessage: 'All badges unlocked! 🎉',
+                      emptyMessage: 'All badges unlocked!',
                       locked: true,
                     ),
                   ]),
@@ -304,6 +139,89 @@ class BadgesScreen extends StatelessWidget {
   }
 }
 
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.earnedCount,
+    required this.totalBadges,
+    required this.progress,
+  });
+
+  final int earnedCount;
+  final int totalBadges;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [
+            scheme.primary.withOpacity(0.14),
+            scheme.primaryContainer.withOpacity(0.09),
+            scheme.surface.withOpacity(0.92),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: scheme.outline.withOpacity(0.7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: scheme.primary.withOpacity(0.18),
+                ),
+                child: Icon(
+                  Icons.emoji_events_rounded,
+                  color: scheme.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '$earnedCount / $totalBadges badges unlocked',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '${(progress * 100).round()}%',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: scheme.surfaceVariant,
+              valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
@@ -317,38 +235,32 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Row(
       children: [
-        Container(
-          width: 3,
-          height: 16,
-          decoration: BoxDecoration(
-            color: scheme.primary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(icon, size: 18, color: scheme.primary),
+        Icon(icon, size: 20, color: scheme.primary),
         const SizedBox(width: 8),
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: scheme.surfaceVariant,
-            borderRadius: BorderRadius.circular(999),
+            color: scheme.surfaceVariant.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: scheme.outline.withOpacity(0.6)),
           ),
           child: Text(
             '$count',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
+            style: theme.textTheme.labelSmall?.copyWith(
               color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -380,16 +292,15 @@ class _BadgeGrid extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final crossAxisCount = width > 600 ? 3 : 2;
-        final spacing = 14.0;
 
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: spacing,
-            mainAxisSpacing: spacing,
-            childAspectRatio: 0.80,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.82,
           ),
           itemCount: badges.length,
           itemBuilder: (context, index) {
@@ -418,8 +329,8 @@ class _BadgeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final tint = badge.color;
     final current = progress == null ? 0 : _progressForBadge(badge, progress!);
     final target = badge.target;
@@ -427,216 +338,132 @@ class _BadgeCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: locked
-            ? null
-            : LinearGradient(
-                colors: [tint.withOpacity(0.08), scheme.surface],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-        color: locked ? scheme.surface : null,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: locked
+              ? [scheme.surface, scheme.surface]
+              : [tint.withOpacity(0.08), scheme.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border.all(
           color: locked
-              ? scheme.outline.withOpacity(0.3)
-              : tint.withOpacity(0.3),
-          width: locked ? 1 : 1.5,
+              ? scheme.outline.withOpacity(0.7)
+              : tint.withOpacity(0.4),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: locked
-                ? scheme.shadow.withOpacity(0.04)
-                : tint.withOpacity(0.15),
-            blurRadius: locked ? 8 : 16,
-            offset: Offset(0, locked ? 2 : 4),
-          ),
-        ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Icon and status
-              Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: locked
-                          ? null
-                          : LinearGradient(
-                              colors: [
-                                tint.withOpacity(0.25),
-                                tint.withOpacity(0.15),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                      color: locked
-                          ? scheme.surfaceVariant.withOpacity(0.5)
-                          : null,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: locked
-                          ? null
-                          : [
-                              BoxShadow(
-                                color: tint.withOpacity(0.2),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                    ),
-                    child: Icon(
-                      badge.icon,
-                      color: locked
-                          ? scheme.onSurfaceVariant.withOpacity(0.4)
-                          : tint,
-                      size: 28,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: locked
-                          ? null
-                          : LinearGradient(
-                              colors: [
-                                tint.withOpacity(0.2),
-                                tint.withOpacity(0.1),
-                              ],
-                            ),
-                      color: locked
-                          ? scheme.surfaceVariant.withOpacity(0.5)
-                          : null,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          locked
-                              ? Icons.lock_rounded
-                              : Icons.check_circle_rounded,
-                          size: 14,
-                          color: locked
-                              ? scheme.onSurfaceVariant.withOpacity(0.6)
-                              : tint,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          locked ? 'Locked' : 'Earned',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: locked
-                                ? scheme.onSurfaceVariant.withOpacity(0.6)
-                                : tint,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Title
-              Text(
-                badge.label,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: locked
-                      ? scheme.onSurfaceVariant.withOpacity(0.7)
-                      : scheme.onSurface,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 6),
-
-              // Description
-              Text(
-                badge.description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant.withOpacity(
-                    locked ? 0.6 : 0.8,
-                  ),
-                  height: 1.4,
-                  fontSize: 12,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              const SizedBox(height: 14),
-
-              // Progress section
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: locked
-                      ? scheme.surfaceVariant.withOpacity(0.3)
-                      : tint.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
                     color: locked
-                        ? scheme.outline.withOpacity(0.2)
-                        : tint.withOpacity(0.15),
+                        ? scheme.surfaceVariant.withOpacity(0.5)
+                        : tint.withOpacity(0.16),
+                  ),
+                  child: Icon(
+                    badge.icon,
+                    color: locked ? scheme.onSurfaceVariant : tint,
+                    size: 22,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          locked ? 'Progress' : 'Completed',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                        ),
-                        Text(
-                          locked ? '$current / $target' : '$target / $target',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: locked ? scheme.onSurfaceVariant : tint,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: locked
+                        ? scheme.surfaceVariant.withOpacity(0.5)
+                        : tint.withOpacity(0.14),
+                    border: Border.all(
+                      color: locked
+                          ? scheme.outline.withOpacity(0.6)
+                          : tint.withOpacity(0.4),
                     ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: ratio,
-                        minHeight: 6,
-                        backgroundColor: locked
-                            ? scheme.surfaceVariant.withOpacity(0.5)
-                            : tint.withOpacity(0.15),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          locked
-                              ? scheme.onSurfaceVariant.withOpacity(0.5)
-                              : tint,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        locked ? Icons.lock_rounded : Icons.check_rounded,
+                        size: 12,
+                        color: locked ? scheme.onSurfaceVariant : tint,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        locked ? 'Locked' : 'Earned',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: locked ? scheme.onSurfaceVariant : tint,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              badge.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              badge.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.9),
+                height: 1.35,
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Text(
+                  locked ? 'Progress' : 'Complete',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  locked ? '$current / $target' : '$target / $target',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: locked ? scheme.onSurfaceVariant : tint,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 6,
+                backgroundColor: scheme.surfaceVariant.withOpacity(0.8),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  locked ? scheme.onSurfaceVariant.withOpacity(0.7) : tint,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -650,47 +477,40 @@ class _EmptyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            scheme.primary.withOpacity(0.08),
-            scheme.secondary.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outline.withOpacity(0.7)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  scheme.primary.withOpacity(0.15),
-                  scheme.secondary.withOpacity(0.08),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(10),
+              color: scheme.primary.withOpacity(0.14),
             ),
             child: Icon(
               Icons.auto_awesome_rounded,
               color: scheme.primary,
-              size: 32,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -699,13 +519,6 @@ class _EmptyCard extends StatelessWidget {
 }
 
 class _BadgeDef {
-  final String id;
-  final String label;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final int target;
-
   const _BadgeDef({
     required this.id,
     required this.label,
@@ -714,6 +527,13 @@ class _BadgeDef {
     required this.color,
     required this.target,
   });
+
+  final String id;
+  final String label;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final int target;
 }
 
 const _allBadges = <_BadgeDef>[
@@ -800,17 +620,17 @@ const _allBadges = <_BadgeDef>[
 ];
 
 class _BadgeProgressData {
-  final Set<String> earned;
-  final int totalCompleted;
-  final int bestStreak;
-  final Map<String, int> categoryCounts;
-
   const _BadgeProgressData({
     required this.earned,
     required this.totalCompleted,
     required this.bestStreak,
     required this.categoryCounts,
   });
+
+  final Set<String> earned;
+  final int totalCompleted;
+  final int bestStreak;
+  final Map<String, int> categoryCounts;
 }
 
 int _progressForBadge(_BadgeDef badge, _BadgeProgressData data) {
