@@ -12,6 +12,10 @@ class HomeHeaderCard extends StatelessWidget {
     required this.dateLabel,
     required this.onShare,
     required this.onOpenStats,
+    required this.adaptiveLabel,
+    required this.weeklyDone,
+    required this.weeklyTarget,
+    required this.onOpenWeeklyPlan,
   });
 
   final double progress;
@@ -23,6 +27,10 @@ class HomeHeaderCard extends StatelessWidget {
   final String dateLabel;
   final VoidCallback onShare;
   final VoidCallback onOpenStats;
+  final String adaptiveLabel;
+  final int weeklyDone;
+  final int weeklyTarget;
+  final VoidCallback onOpenWeeklyPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -211,6 +219,86 @@ class HomeHeaderCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  ],
+
+                  if (adaptiveLabel.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.tertiary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: scheme.tertiary.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 15,
+                            color: scheme.tertiary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            adaptiveLabel,
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: scheme.tertiary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  if (weeklyTarget > 0) ...[
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: onOpenWeeklyPlan,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: scheme.primary.withOpacity(0.25),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_view_week_rounded,
+                              size: 15,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'This week: $weeklyDone/$weeklyTarget',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 14,
+                              color: scheme.primary.withOpacity(0.9),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

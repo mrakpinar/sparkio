@@ -138,19 +138,29 @@ class TaskCard extends StatelessWidget {
                   duration: const Duration(milliseconds: 200),
                   decoration: BoxDecoration(
                     gradient: timerActive
-                        ? LinearGradient(
-                            colors: [
-                              const Color(0xFF0D1B2E),
-                              Color.lerp(
+                        ? (isDark
+                              ? LinearGradient(
+                                  colors: [
                                     const Color(0xFF0D1B2E),
-                                    scheme.primary,
-                                    0.18,
-                                  ) ??
-                                  const Color(0xFF0D1B2E),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
+                                    Color.lerp(
+                                          const Color(0xFF0D1B2E),
+                                          scheme.primary,
+                                          0.18,
+                                        ) ??
+                                        const Color(0xFF0D1B2E),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : LinearGradient(
+                                  colors: const [
+                                    Color(0xFFF4F8FF),
+                                    Color(0xFFEAF2FF),
+                                    Color(0xFFE2EEFF),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ))
                         : null,
                     color: checked
                         ? (isDark
@@ -173,21 +183,20 @@ class TaskCard extends StatelessWidget {
                       width: timerActive ? 1.3 : 1,
                     ),
                     boxShadow: [
-                      if (timerActive)
+                      if (timerActive && isDark)
                         BoxShadow(
-                          color: scheme.primary.withOpacity(0.22),
-                          blurRadius: 22,
-                          offset: const Offset(0, 10),
+                          color: scheme.primary.withOpacity(0.12),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
                         ),
-                      BoxShadow(
-                        color: checked
-                            ? scheme.primary.withOpacity(0.12)
-                            : (isDark
-                                  ? Colors.black.withOpacity(0.32)
-                                  : scheme.shadow.withOpacity(0.12)),
-                        blurRadius: checked ? 12 : 16,
-                        offset: Offset(0, checked ? 4 : 8),
-                      ),
+                      if (isDark)
+                        BoxShadow(
+                          color: checked
+                              ? scheme.primary.withOpacity(0.1)
+                              : Colors.black.withOpacity(0.22),
+                          blurRadius: checked ? 10 : 12,
+                          offset: Offset(0, checked ? 3 : 6),
+                        ),
                     ],
                   ),
                   child: Material(

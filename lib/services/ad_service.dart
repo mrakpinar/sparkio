@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'analytics_service.dart';
 import 'premium_service.dart';
 
 class AdService {
@@ -17,6 +18,8 @@ class AdService {
       'ca-app-pub-3940256099942544/1033173712';
 
   static const _kLastInterstitialDate = 'last_interstitial_date_v1';
+  static const _kLaunchGateDate = 'launch_interstitial_gate_date_v1';
+  static const _kLaunchGateCount = 'launch_interstitial_gate_count_v1';
 
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
@@ -31,6 +34,17 @@ class AdService {
   bool get rewardedReady => _rewarded != null;
   String get _effectiveInterstitialUnitId =>
       kDebugMode ? _interstitialTestUnitId : interstitialUnitId;
+
+  void _track(String event, [Map<String, Object?> params = const {}]) {
+    unawaited(AnalyticsService.instance.logEvent(event, params: params));
+  }
+
+  Future<bool> _isAdFreeActive() async {
+    final premium = await PremiumService.instance.isPremiumActive();
+    if (premium) return true;
+    final noAds = await PremiumService.instance.isNoAdsActive();
+    return noAds;
+  }
 
   Future<void> preloadAll() async {
     _loadInterstitial();
@@ -137,18 +151,48 @@ class AdService {
     await sp.setString(_kLastInterstitialDate, dateKey);
   }
 
+  String _todayDateKey() {
+    final now = DateTime.now();
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$m-$d';
+  }
+
+  /// Launch strategy:
+  /// - show on the first launch of the day
+  /// - then show after skipping two launches (1, 4, 7, ...)
+  Future<bool> _shouldShowLaunchInterstitial() async {
+    final sp = await SharedPreferences.getInstance();
+    final todayKey = _todayDateKey();
+    final savedDate = sp.getString(_kLaunchGateDate);
+    var launchCount = sp.getInt(_kLaunchGateCount) ?? 0;
+
+    if (savedDate != todayKey) {
+      launchCount = 0;
+      await sp.setString(_kLaunchGateDate, todayKey);
+    }
+
+    launchCount += 1;
+    await sp.setInt(_kLaunchGateCount, launchCount);
+
+    // 1st, 4th, 7th... launches of the day
+    return ((launchCount - 1) % 3) == 0;
+  }
+
   /// Allow at most 1 interstitial per day.
   Future<bool> showInterstitialIfAllowed({required String dateKey}) async {
     if (_interstitialShowing) {
       // ignore: avoid_print
       print('AD: interstitial skipped (another ad is showing)');
+      _track('interstitial_skipped', {'reason': 'already_showing'});
       return false;
     }
 
-    final noAds = await PremiumService.instance.isNoAdsActive();
-    if (noAds) {
+    final adFree = await _isAdFreeActive();
+    if (adFree) {
       // ignore: avoid_print
-      print('AD: interstitial skipped (no-ads active)');
+      print('AD: interstitial skipped (premium/no-ads active)');
+      _track('interstitial_skipped', {'reason': 'ad_free_active'});
       return false;
     }
 
@@ -156,6 +200,7 @@ class AdService {
     if (!can) {
       // ignore: avoid_print
       print('AD: interstitial skipped (already shown today)');
+      _track('interstitial_skipped', {'reason': 'daily_cap'});
       return false;
     }
 
@@ -163,6 +208,7 @@ class AdService {
     if (ad == null) {
       // ignore: avoid_print
       print('AD: interstitial not ready, reloading');
+      _track('interstitial_skipped', {'reason': 'not_ready'});
       _loadInterstitial();
       return false;
     }
@@ -181,6 +227,7 @@ class AdService {
     await _markInterstitialShown(dateKey);
     // ignore: avoid_print
     print('AD: showing interstitial (daily gate)');
+    _track('interstitial_shown', {'trigger': 'daily_gate'});
     ad.show();
     return true;
   }
@@ -190,10 +237,17 @@ class AdService {
     if (_launchInterstitialShown || _launchInterstitialPending) return false;
     if (_interstitialShowing) return false;
 
-    final noAds = await PremiumService.instance.isNoAdsActive();
-    if (noAds) {
+    final adFree = await _isAdFreeActive();
+    if (adFree) {
       // ignore: avoid_print
-      print('AD: launch interstitial skipped (no-ads active)');
+      print('AD: launch interstitial skipped (premium/no-ads active)');
+      _track('interstitial_skipped', {'reason': 'ad_free_active_launch'});
+      return false;
+    }
+
+    final shouldShow = await _shouldShowLaunchInterstitial();
+    if (!shouldShow) {
+      _track('interstitial_skipped', {'reason': 'launch_gate_skip'});
       return false;
     }
 
@@ -208,6 +262,7 @@ class AdService {
     _loadInterstitial();
     // ignore: avoid_print
     print('AD: launch interstitial queued');
+    _track('interstitial_queued', {'trigger': 'launch'});
     return false;
   }
 
@@ -215,11 +270,12 @@ class AdService {
     if (!_launchInterstitialPending || _launchInterstitialShown) return;
     if (_interstitialShowing) return;
 
-    final noAds = await PremiumService.instance.isNoAdsActive();
-    if (noAds) {
+    final adFree = await _isAdFreeActive();
+    if (adFree) {
       _launchInterstitialPending = false;
       // ignore: avoid_print
-      print('AD: launch interstitial pending cancelled (no-ads active)');
+      print('AD: launch interstitial pending cancelled (premium/no-ads active)');
+      _track('interstitial_skipped', {'reason': 'ad_free_pending_launch'});
       return;
     }
 
@@ -253,6 +309,7 @@ class AdService {
     ad.show();
     // ignore: avoid_print
     print('AD: showing interstitial (launch)');
+    _track('interstitial_shown', {'trigger': 'launch'});
     return true;
   }
 

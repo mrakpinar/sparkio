@@ -13,12 +13,16 @@ import 'package:sparkio/widgets/modern_drawer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/task.dart';
+import '../models/weekly_plan.dart';
 import '../services/task_engine.dart';
 import '../services/task_repository.dart';
 import '../services/notification_service.dart';
 import '../services/ad_service.dart';
 import '../services/premium_service.dart';
 import '../services/theme_service.dart';
+import '../services/analytics_service.dart';
+import '../services/streak_service.dart';
+import '../services/home_widget_service.dart';
 import '../controllers/home_controller.dart';
 import 'task_add_sheet.dart';
 import 'premium_perks_sheet.dart';
@@ -36,6 +40,7 @@ import '../widgets/home_header_sliver.dart';
 import '../widgets/home_debug_timer_sliver.dart';
 import '../widgets/home_pool_error_sliver.dart';
 import '../widgets/home_all_done_sliver.dart';
+import '../widgets/weekly_plan_sheet.dart';
 part 'home_screen_methods.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -85,6 +90,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   DateTime? _premiumUntil;
   DateTime? _noAdsUntil;
   int _dailyAddCount = 0;
+  int _adaptiveDifficultyDelta = 0;
+  String _weeklyWeekKey = '';
+  Map<String, int> _weeklyTargets = {};
+  Map<String, int> _weeklyDone = {};
   String _customCategory = 'mind';
   String _customDifficulty = 'easy';
   int _customDuration = 5;
@@ -121,6 +130,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final now = DateTime.now();
       final stillActive = _premiumUntil!.isAfter(now);
       if (!stillActive && _premiumActive) {
+        unawaited(
+          AnalyticsService.instance.logEvent(
+            'premium_expired',
+            params: {'source': 'timer'},
+          ),
+        );
         _updateState(() {
           _premiumActive = false;
           _premiumUntil = null;
@@ -187,6 +202,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     context,
                     MaterialPageRoute(builder: (_) => const StatsScreen()),
                   ),
+                  adaptiveLabel: _adaptiveDifficultyLabel(),
+                  weeklyDone: _weeklyDone.values.fold<int>(
+                    0,
+                    (sum, value) => sum + value,
+                  ),
+                  weeklyTarget: _weeklyTargets.values.fold<int>(
+                    0,
+                    (sum, value) => sum + value,
+                  ),
+                  onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
                 ),
                 if (kDebugMode)
                   HomeDebugTimerSliver(

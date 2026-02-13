@@ -68,6 +68,16 @@ class HomeController {
     }
   }
 
+  Future<double> getRecentCompletionRate({int days = 7}) {
+    return _repo.getRecentCompletionRate(days: days);
+  }
+
+  int adaptationDeltaFromCompletionRate(double rate) {
+    if (rate >= 0.85) return 1;
+    if (rate <= 0.45) return -1;
+    return 0;
+  }
+
   String todayKey([DateTime? date]) =>
       DateFormat('yyyy-MM-dd').format(date ?? DateTime.now());
 
@@ -104,12 +114,18 @@ class HomeController {
     required int count,
     required String seedKey,
     required Set<String> avoidIds,
+    Map<String, int>? weeklyTargets,
+    Map<String, int>? weeklyDone,
   }) {
-    final rng = Random(seedKey.hashCode);
     final filtered = pool.where((t) => !avoidIds.contains(t.id)).toList();
     final source = filtered.length >= count ? filtered : pool;
-    source.shuffle(rng);
-    return source.take(count).toList();
+    return _engine.pickDailyTasks(
+      pool: source,
+      count: count,
+      seedKey: seedKey,
+      weeklyTargets: weeklyTargets,
+      weeklyDone: weeklyDone,
+    );
   }
 
   Future<void> updateLastSeen({
@@ -137,6 +153,13 @@ class HomeController {
     final lastSeenDate = await _repo.getLastSeenDate();
     final lastSeenIds = await _repo.getLastSeenTaskIds();
     final todayCompleted = await _repo.getDailyCompleted(dateKey);
+    final recentCompletionRate = await getRecentCompletionRate(days: 7);
+    final adaptiveDelta = adaptationDeltaFromCompletionRate(
+      recentCompletionRate,
+    );
+    final weekKey = _repo.currentWeekKey();
+    final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
+    final weeklyProgress = await _repo.getWeeklyProgress(weekKey: weekKey);
 
     final premiumUntilEpoch = await _premium.getPremiumUntilEpoch();
     final noAdsUntilEpoch = await _premium.getNoAdsUntilEpoch();
@@ -182,12 +205,18 @@ class HomeController {
         count: 3,
         seedKey: dateKey,
         avoidIds: avoidIds,
+        weeklyTargets: weeklyPlan?.targets,
+        weeklyDone: weeklyProgress.done,
       );
-      await _repo.saveSelectedTasks(picked);
+      final adjusted = applyDifficultyDelta(
+        tasks: picked,
+        delta: adaptiveDelta,
+      );
+      await _repo.saveSelectedTasks(adjusted);
       await _repo.setSelectedDate(dateKey);
       await _repo.clearCompleted();
-      await updateLastSeen(dateKey: dateKey, tasks: picked);
-      today = picked;
+      await updateLastSeen(dateKey: dateKey, tasks: adjusted);
+      today = adjusted;
     } else {
       today = await _repo.getSelectedTasks(pool);
       if (!premiumActive) {
@@ -199,10 +228,16 @@ class HomeController {
           count: 3,
           seedKey: dateKey,
           avoidIds: avoidIds,
+          weeklyTargets: weeklyPlan?.targets,
+          weeklyDone: weeklyProgress.done,
         );
-        await _repo.saveSelectedTasks(picked);
-        await updateLastSeen(dateKey: dateKey, tasks: picked);
-        today = picked;
+        final adjusted = applyDifficultyDelta(
+          tasks: picked,
+          delta: adaptiveDelta,
+        );
+        await _repo.saveSelectedTasks(adjusted);
+        await updateLastSeen(dateKey: dateKey, tasks: adjusted);
+        today = adjusted;
       }
     }
 
@@ -225,8 +260,49 @@ class HomeController {
     required List<Task> pool,
     required int count,
     required String seedKey,
+    Map<String, int>? weeklyTargets,
+    Map<String, int>? weeklyDone,
   }) {
-    return _engine.pickDailyTasks(pool: pool, count: count, seedKey: seedKey);
+    return _engine.pickDailyTasks(
+      pool: pool,
+      count: count,
+      seedKey: seedKey,
+      weeklyTargets: weeklyTargets,
+      weeklyDone: weeklyDone,
+    );
+  }
+
+  List<Task> applyDifficultyDelta({
+    required List<Task> tasks,
+    required int delta,
+  }) {
+    if (delta == 0) return tasks;
+    return tasks.map((task) {
+      if (task.isCustom || task.isSpecial) return task;
+      final current = task.difficulty.toLowerCase();
+      final nextDifficulty = _shiftDifficulty(current, delta);
+      final durationDelta = delta > 0 ? 1 : -1;
+      final nextDuration = (task.durationMinutes + durationDelta).clamp(2, 20);
+      return Task(
+        id: task.id,
+        title: task.title,
+        category: task.category,
+        isCustom: task.isCustom,
+        difficulty: nextDifficulty,
+        durationMinutes: nextDuration,
+        aiSuggested: task.aiSuggested,
+        premiumOnly: task.premiumOnly,
+        isSpecial: task.isSpecial,
+      );
+    }).toList();
+  }
+
+  String _shiftDifficulty(String difficulty, int delta) {
+    const levels = ['easy', 'medium', 'hard'];
+    final index = levels.indexOf(difficulty);
+    final current = index < 0 ? 0 : index;
+    final shifted = (current + delta).clamp(0, levels.length - 1);
+    return levels[shifted];
   }
 
   Future<bool> isPremiumActive() async {

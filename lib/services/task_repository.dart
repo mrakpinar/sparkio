@@ -3,12 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
+import '../models/weekly_plan.dart';
 
 class TaskRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
-    app: Firebase.app(),
-    databaseId: 'default',
-  );
+  FirebaseFirestore get _db =>
+      FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
   static const _kSelectedTasks = 'selected_tasks_v1';
   static const _kSelectedDate = 'selected_date_v1';
   static const _kCompletedMap = 'completed_map_v1';
@@ -37,6 +36,11 @@ class TaskRepository {
   static const _kBadges = 'earned_badges_v1';
   static const _kDailyMoodDate = 'daily_mood_date_v1';
   static const _kDailyMoodValue = 'daily_mood_value_v1';
+  static const _kActiveTimerTaskId = 'active_timer_task_id_v1';
+  static const _kActiveTimerTaskTitle = 'active_timer_task_title_v1';
+  static const _kActiveTimerEndAtMs = 'active_timer_end_at_ms_v1';
+  static const _kWeeklyPlan = 'weekly_plan_v1';
+  static const _kWeeklyProgress = 'weekly_progress_v1';
 
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
@@ -451,10 +455,9 @@ class TaskRepository {
     int count,
   ) async {
     final raw = sp.getString(_kDailyHistory);
-    final history =
-        raw == null
-            ? <String, dynamic>{}
-            : (jsonDecode(raw) as Map<String, dynamic>);
+    final history = raw == null
+        ? <String, dynamic>{}
+        : (jsonDecode(raw) as Map<String, dynamic>);
     history[dateKey] = count;
     await sp.setString(_kDailyHistory, jsonEncode(history));
   }
@@ -473,14 +476,31 @@ class TaskRepository {
       final parsed = DateTime.tryParse(entry.key);
       if (parsed == null) continue;
       final day = DateTime(parsed.year, parsed.month, parsed.day);
-      if (day.isBefore(
-        DateTime(cutoff.year, cutoff.month, cutoff.day),
-      )) {
+      if (day.isBefore(DateTime(cutoff.year, cutoff.month, cutoff.day))) {
         continue;
       }
       filtered[entry.key] = entry.value;
     }
     return filtered;
+  }
+
+  Future<double> getRecentCompletionRate({
+    int days = 7,
+    int assumedTasksPerDay = 3,
+  }) async {
+    final history = await getDailyHistory(days: days);
+    if (history.isEmpty) return 0.0;
+    final totalCompleted = history.values.fold<int>(
+      0,
+      (acc, value) => acc + value,
+    );
+    final observedDays = history.length;
+    final denominator = observedDays * assumedTasksPerDay;
+    if (denominator <= 0) return 0.0;
+    final ratio = totalCompleted / denominator;
+    if (ratio < 0) return 0.0;
+    if (ratio > 1) return 1.0;
+    return ratio;
   }
 
   Future<void> setLastCompletedTask({
@@ -553,10 +573,120 @@ class TaskRepository {
     return sp.getString(_kDailyMoodValue);
   }
 
-  Future<void> setDailyMood({required String dateKey, required String mood}) async {
+  Future<void> setDailyMood({
+    required String dateKey,
+    required String mood,
+  }) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kDailyMoodDate, dateKey);
     await sp.setString(_kDailyMoodValue, mood);
+  }
+
+  String currentWeekKey([DateTime? now]) {
+    final base = now ?? DateTime.now();
+    final day = DateTime(base.year, base.month, base.day);
+    final monday = day.subtract(Duration(days: day.weekday - DateTime.monday));
+    return _formatDateKey(monday);
+  }
+
+  Future<WeeklyPlan?> getWeeklyPlan({String? weekKey}) async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kWeeklyPlan);
+    if (raw == null) return null;
+    final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+    final plan = WeeklyPlan.fromMap(decoded);
+    if (plan.weekKey.isEmpty || !plan.hasTargets) return null;
+    final expectedWeek = weekKey ?? currentWeekKey();
+    if (plan.weekKey != expectedWeek) return null;
+    return plan;
+  }
+
+  Future<void> saveWeeklyPlan(WeeklyPlan plan) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kWeeklyPlan, jsonEncode(plan.toMap()));
+    final progress = await getWeeklyProgress(weekKey: plan.weekKey);
+    await saveWeeklyProgress(progress);
+  }
+
+  Future<void> clearWeeklyPlan() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kWeeklyPlan);
+    await sp.remove(_kWeeklyProgress);
+  }
+
+  Future<WeeklyProgress> getWeeklyProgress({required String weekKey}) async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kWeeklyProgress);
+    if (raw == null) {
+      return WeeklyProgress(weekKey: weekKey, done: const {});
+    }
+    final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+    final progress = WeeklyProgress.fromMap(decoded);
+    if (progress.weekKey != weekKey) {
+      return WeeklyProgress(weekKey: weekKey, done: const {});
+    }
+    return progress;
+  }
+
+  Future<void> saveWeeklyProgress(WeeklyProgress progress) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kWeeklyProgress, jsonEncode(progress.toMap()));
+  }
+
+  Future<WeeklyProgress> incrementWeeklyProgress({
+    required String weekKey,
+    required String category,
+    int delta = 1,
+  }) async {
+    final current = await getWeeklyProgress(weekKey: weekKey);
+    final next = <String, int>{...current.done};
+    final value = (next[category] ?? 0) + delta;
+    if (value <= 0) {
+      next.remove(category);
+    } else {
+      next[category] = value;
+    }
+    final updated = WeeklyProgress(weekKey: weekKey, done: next);
+    await saveWeeklyProgress(updated);
+    return updated;
+  }
+
+  Future<void> saveActiveTaskTimer({
+    required String taskId,
+    required String taskTitle,
+    required DateTime endAt,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kActiveTimerTaskId, taskId);
+    await sp.setString(_kActiveTimerTaskTitle, taskTitle);
+    await sp.setInt(_kActiveTimerEndAtMs, endAt.millisecondsSinceEpoch);
+  }
+
+  Future<ActiveTaskTimer?> getActiveTaskTimer() async {
+    final sp = await SharedPreferences.getInstance();
+    final taskId = sp.getString(_kActiveTimerTaskId);
+    final taskTitle = sp.getString(_kActiveTimerTaskTitle);
+    final endAtMs = sp.getInt(_kActiveTimerEndAtMs);
+    if (taskId == null || taskTitle == null || endAtMs == null) return null;
+    return ActiveTaskTimer(
+      taskId: taskId,
+      taskTitle: taskTitle,
+      endAt: DateTime.fromMillisecondsSinceEpoch(endAtMs),
+    );
+  }
+
+  Future<void> clearActiveTaskTimer() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kActiveTimerTaskId);
+    await sp.remove(_kActiveTimerTaskTitle);
+    await sp.remove(_kActiveTimerEndAtMs);
+  }
+
+  String _formatDateKey(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
   }
 }
 
@@ -571,5 +701,17 @@ class LastCompletedTask {
     required this.category,
     required this.completedAt,
     required this.dateKey,
+  });
+}
+
+class ActiveTaskTimer {
+  final String taskId;
+  final String taskTitle;
+  final DateTime endAt;
+
+  const ActiveTaskTimer({
+    required this.taskId,
+    required this.taskTitle,
+    required this.endAt,
   });
 }

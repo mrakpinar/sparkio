@@ -9,6 +9,7 @@ class ModernDrawer extends StatelessWidget {
     required this.onOpenBadges,
     required this.onOpenContact,
     required this.onSendTestNotification,
+    required this.onOpenWeeklyPlan,
   });
 
   final bool isDark;
@@ -16,6 +17,7 @@ class ModernDrawer extends StatelessWidget {
   final VoidCallback onOpenBadges;
   final VoidCallback onOpenContact;
   final Future<void> Function() onSendTestNotification;
+  final VoidCallback onOpenWeeklyPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +130,14 @@ class ModernDrawer extends StatelessWidget {
                       title: 'Badges',
                       subtitle: 'View earned badges and goals',
                       onTap: onOpenBadges,
+                    ),
+                    const SizedBox(height: 12),
+                    _ModernMenuCard(
+                      icon: Icons.calendar_view_week_rounded,
+                      iconColor: scheme.primary,
+                      title: 'Weekly plan',
+                      subtitle: 'Set category goals for this week',
+                      onTap: onOpenWeeklyPlan,
                     ),
 
                     // Debug Section (only in debug mode)

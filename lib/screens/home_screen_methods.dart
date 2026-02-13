@@ -3,10 +3,23 @@ part of 'home_screen.dart';
 extension _HomeScreenStateMethods on _HomeScreenState {
   String _todayKey() => _controller.todayKey();
 
+  String _adaptiveDifficultyLabel() {
+    if (_adaptiveDifficultyDelta > 0) return 'Adaptive mode: harder';
+    if (_adaptiveDifficultyDelta < 0) return 'Adaptive mode: easier';
+    return '';
+  }
+
   Future<void> _bootstrap() async {
     _updateState(() => _loading = true);
     await _controller.preloadAds();
     final result = await _controller.bootstrap();
+    final completionRate = await _controller.getRecentCompletionRate(days: 7);
+    final adaptiveDelta = _controller.adaptationDeltaFromCompletionRate(
+      completionRate,
+    );
+    final weekKey = _repo.currentWeekKey();
+    final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
+    final weeklyProgress = await _repo.getWeeklyProgress(weekKey: weekKey);
     if (!mounted) return;
     final todayIds = result.today.map((t) => t.id).toSet();
     final normalizedCompleted = <String, bool>{
@@ -22,9 +35,35 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _premiumUntil = result.premiumUntil;
       _noAdsUntil = result.noAdsUntil;
       _dailyAddCount = result.dailyAddCount;
+      _adaptiveDifficultyDelta = adaptiveDelta;
       _poolError = result.poolError;
+      _weeklyWeekKey = weekKey;
+      _weeklyTargets = weeklyPlan?.targets ?? {};
+      _weeklyDone = weeklyProgress.done;
       _loading = false;
     });
+    await _restoreActiveTimerIfNeeded();
+    unawaited(_syncHomeWidgetSnapshot());
+    _track('home_bootstrap_done', {
+      'today_task_count': _today.length,
+      'pool_error': result.poolError != null,
+      'premium_active': _premiumActive,
+      'adaptive_delta': _adaptiveDifficultyDelta,
+    });
+    unawaited(
+      AnalyticsService.instance.setUserProperty(
+        name: 'premium_active',
+        value: _premiumActive ? 'true' : 'false',
+      ),
+    );
+    unawaited(
+      AnalyticsService.instance.setUserProperty(
+        name: 'theme_mode',
+        value: ThemeService.instance.mode.value == ThemeMode.dark
+            ? 'dark'
+            : 'light',
+      ),
+    );
     await _syncPremiumTopics(_premiumActive);
 
     if (result.poolError != null && !_poolErrorShown && mounted) {
@@ -46,6 +85,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     // Ask once per day, on the first open, to tailor a task to the user's mood.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybePromptWeeklyPlan());
       unawaited(_maybePromptDailyMood());
     });
   }
@@ -90,10 +130,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       // Don't keep re-prompting the user on the same day if they dismiss it.
       if (selected == null) {
         await _repo.setDailyMood(dateKey: dateKey, mood: 'skipped');
+        _track('daily_mood_selected', {'mood': 'skipped'});
         return;
       }
 
       await _repo.setDailyMood(dateKey: dateKey, mood: selected);
+      _track('daily_mood_selected', {'mood': selected});
       await _applyMoodToTodayTasks(selected);
 
       if (!mounted) return;
@@ -155,6 +197,95 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     await _controller.updateLastSeen(dateKey: _todayKey(), tasks: [chosen]);
   }
 
+  Future<void> _maybePromptWeeklyPlan() async {
+    if (!mounted || _loading) return;
+    if (_weeklyTargets.isNotEmpty) return;
+    await _openWeeklyPlanSheet(
+      autoPrompt: true,
+      forceForWeek: _weeklyWeekKey.isEmpty
+          ? _repo.currentWeekKey()
+          : _weeklyWeekKey,
+    );
+  }
+
+  Future<void> _openWeeklyPlanSheet({
+    bool autoPrompt = false,
+    String? forceForWeek,
+  }) async {
+    final weekKey = forceForWeek ?? _repo.currentWeekKey();
+    final plan = await _repo.getWeeklyPlan(weekKey: weekKey);
+    final initialTargets = {
+      'mind': plan?.targets['mind'] ?? 0,
+      'body': plan?.targets['body'] ?? 0,
+      'growth': plan?.targets['growth'] ?? 0,
+      'calm': plan?.targets['calm'] ?? 0,
+      'health': plan?.targets['health'] ?? 0,
+    };
+
+    if (!mounted) return;
+    final result = await showModalBottomSheet<Map<String, int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return WeeklyPlanSheet(
+          initialTargets: initialTargets,
+          onSave: (targets) => Navigator.of(sheetContext).pop(targets),
+          onSkip: () => Navigator.of(sheetContext).pop(),
+          showSkip: autoPrompt,
+        );
+      },
+    );
+
+    if (result == null) return;
+
+    final cleaned = <String, int>{};
+    for (final entry in result.entries) {
+      if (entry.value > 0) {
+        cleaned[entry.key] = entry.value;
+      }
+    }
+
+    if (cleaned.isEmpty) {
+      await _repo.clearWeeklyPlan();
+      if (!mounted) return;
+      _updateState(() {
+        _weeklyWeekKey = weekKey;
+        _weeklyTargets = {};
+        _weeklyDone = {};
+      });
+      _track('weekly_plan_updated', {'has_targets': false, 'target_total': 0});
+      return;
+    }
+
+    final hadPlan = plan != null && plan.targets.isNotEmpty;
+    final weeklyPlan = WeeklyPlan(weekKey: weekKey, targets: cleaned);
+    await _repo.saveWeeklyPlan(weeklyPlan);
+    final progress = await _repo.getWeeklyProgress(weekKey: weekKey);
+    if (!mounted) return;
+    _updateState(() {
+      _weeklyWeekKey = weekKey;
+      _weeklyTargets = cleaned;
+      _weeklyDone = progress.done;
+    });
+
+    final total = cleaned.values.fold<int>(0, (sum, value) => sum + value);
+    _track(hadPlan ? 'weekly_plan_updated' : 'weekly_plan_created', {
+      'target_total': total,
+      'categories': cleaned.length,
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Weekly plan saved: ${_weeklyDoneTotal()}/$total'),
+      ),
+    );
+  }
+
+  int _weeklyDoneTotal() => _weeklyDone.values.fold<int>(0, (s, v) => s + v);
+
+  int _weeklyTargetTotal() =>
+      _weeklyTargets.values.fold<int>(0, (s, v) => s + v);
+
   double get _progress {
     if (_today.isEmpty) return 0;
     final done = _today.where((t) => _completed[t.id] == true).length;
@@ -173,6 +304,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _customDuration = result.task.durationMinutes;
     });
     _repo.saveCompletedMap(_completed);
+    unawaited(_syncHomeWidgetSnapshot());
   }
 
   void _applyAiResponse(AiTaskResponse response) {
@@ -194,6 +326,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       }
     });
     _repo.saveCompletedMap(_completed);
+    unawaited(_syncHomeWidgetSnapshot());
   }
 
   void _syncCompletedMap() {
@@ -201,10 +334,29 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     _completed = {for (final id in ids) id: _completed[id] ?? false};
   }
 
+  Future<void> _syncHomeWidgetSnapshot() async {
+    final remainingTasks = _today.where((t) => _completed[t.id] != true).length;
+    final timerActive = _activeTimerTask != null;
+    final timerRemaining = _activeTimerFinished
+        ? 0
+        : _activeTimerRemaining.inSeconds;
+    await HomeWidgetService.instance.updateSnapshot(
+      remainingTasks: remainingTasks,
+      timerActive: timerActive,
+      timerFinished: timerActive && _activeTimerFinished,
+      timerTaskTitle: _activeTimerTask?.title,
+      timerRemainingSec: timerRemaining,
+    );
+  }
+
   void _log(String message) {
     if (kDebugMode) {
       debugPrint(message);
     }
+  }
+
+  void _track(String event, [Map<String, Object?> params = const {}]) {
+    unawaited(AnalyticsService.instance.logEvent(event, params: params));
   }
 
   List<String> get _successMessages => const [
@@ -314,6 +466,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       isDark: isDark,
       onToggleTheme: _toggleTheme,
       onOpenBadges: _openBadges,
+      onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
       onOpenContact: _openContact,
       onSendTestNotification: _sendTestNotification,
     );
@@ -408,6 +561,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     required bool noAds,
   }) async {
     if (_rewardBusy) return;
+    _track('rewarded_watch_started', {
+      'reward_type': noAds ? 'no_ads' : 'premium',
+    });
     _updateState(() => _rewardBusy = true);
     final scheme = Theme.of(context).colorScheme;
 
@@ -418,6 +574,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       );
 
       if (!result.success) {
+        _track('rewarded_watch_failed', {
+          'reward_type': noAds ? 'no_ads' : 'premium',
+          'reason': result.failure?.name ?? 'unknown',
+        });
         if (mounted) {
           final message = result.failure == RewardFailure.notReady
               ? 'Could not load ad. Try again later.'
@@ -435,6 +595,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       }
 
       final status = result.status!;
+      _track('rewarded_watch_completed', {
+        'reward_type': noAds ? 'no_ads' : 'premium',
+        'premium_active': status.premiumActive,
+      });
+      _track('rewarded_watched', {'reward_type': noAds ? 'no_ads' : 'premium'});
+      if (!noAds && !_premiumActive && status.premiumActive) {
+        _track('premium_started', {'source': 'rewarded'});
+      }
       if (!mounted) return;
       _updateState(() {
         _premiumActive = status.premiumActive;
@@ -744,6 +912,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _today = updated;
       _completed.remove(removed.id);
     });
+    _track('task_skipped', {
+      'task_id': removed.id,
+      'bypass_limit': bypassLimit,
+      'premium_active': _premiumActive,
+    });
     return true;
   }
 
@@ -1030,6 +1203,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _openSubscribeSheet() async {
+    final wasPremium = _premiumActive;
+    _track('premium_purchase_opened');
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1045,6 +1220,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _premiumUntil = status.premiumUntil;
       _noAdsUntil = status.noAdsUntil;
     });
+    if (!wasPremium && _premiumActive) {
+      _track('premium_purchase_success');
+      _track('premium_started', {'source': 'iap'});
+    }
     await _syncPremiumTopics(_premiumActive);
   }
 
@@ -1072,6 +1251,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
 
     await _applyStreakIfAllDone();
+    unawaited(_syncHomeWidgetSnapshot());
   }
 
   Future<void> _applyStreakIfAllDone() async {
@@ -1095,31 +1275,30 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       }
     }
 
+    final resolution = StreakService.resolveNextStreak(
+      currentStreak: _streak,
+      today: todayDate,
+      lastCompletedDate: lastDoneDate,
+    );
     final diffDays = lastDoneDate == null
         ? null
         : todayDate.difference(lastDoneDate).inDays;
     _log(
-      "STREAK: lastDone=$lastDone today=$todayKey diffDays=$diffDays current=$_streak",
+      "STREAK: lastDone=$lastDone today=$todayKey diffDays=$diffDays current=$_streak next=${resolution.nextStreak} update=${resolution.shouldUpdate}",
     );
 
     unawaited(_showAllDoneCelebration());
 
-    if (diffDays == 0) return;
-
-    int newStreak;
-    if (diffDays == 1) {
-      newStreak = _streak + 1;
-    } else if (diffDays != null && diffDays < 0) {
-      newStreak = _streak + 1;
-    } else if (lastDoneDate == null && _streak > 0) {
-      newStreak = _streak + 1;
-    } else {
-      newStreak = 1;
-    }
+    if (!resolution.shouldUpdate) return;
+    final newStreak = resolution.nextStreak;
 
     await _repo.setStreakCount(newStreak);
     await _repo.setLastCompletedDate(todayKey);
     await _repo.setBestStreakIfHigher(newStreak);
+    _track('streak_updated', {'new_streak': newStreak, 'was_all_done': true});
+    if (newStreak > _streak) {
+      _track('streak_incremented', {'new_streak': newStreak});
+    }
 
     final totalCompleted = await _repo.getTotalCompleted();
     final categoryCounts = await _repo.getCategoryCounts();
@@ -1303,33 +1482,23 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _activeTimerRemaining = duration;
       _activeTimerFinished = false;
     });
-
-    // Start the in-app ticker immediately so the UI countdown begins even if
-    // notification scheduling is slow or fails on a given device/build.
-    _activeTimerTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final now = DateTime.now();
-      final remaining = endAt.difference(now);
-      if (remaining <= Duration.zero) {
-        _updateState(() {
-          _activeTimerRemaining = Duration.zero;
-          _activeTimerFinished = true;
-        });
-        // If the app is running, we can show the completion notification
-        // immediately and cancel the scheduled one to avoid duplicates.
-        unawaited(NotificationService.instance.cancelTaskTimerOngoing());
-        unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
-        unawaited(
-          NotificationService.instance.showTaskTimerNotification(
-            title: 'Task timer finished',
-            body: '${task.title} is ready to mark done.',
-          ),
-        );
-        _activeTimerTicker?.cancel();
-        return;
-      }
-      _updateState(() => _activeTimerRemaining = remaining);
+    _track('task_started', {
+      'task_id': task.id,
+      'category': task.category,
+      'duration_min': task.durationMinutes,
+      'difficulty': task.difficulty,
     });
+    await _repo.saveActiveTaskTimer(
+      taskId: task.id,
+      taskTitle: task.title,
+      endAt: endAt,
+    );
+
+    _startActiveTimerTicker(
+      task: task,
+      endAt: endAt,
+      notificationId: notificationId,
+    );
 
     // Best-effort local scheduling for the "timer finished" notification (covers
     // background/idle). Do not block the UI timer if scheduling fails.
@@ -1356,18 +1525,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       }
     }());
 
-    // Initial ongoing notification (silent) - also best-effort.
-    unawaited(() async {
-      try {
-        await NotificationService.instance.showTaskTimerOngoing(
-          taskTitle: task.title,
-          remaining: duration,
-          total: duration,
-        );
-      } catch (e) {
-        _log('NOTI: showTaskTimerOngoing failed: $e');
-      }
-    }());
+    _showTaskTimerOngoingBestEffort(task: task, remaining: duration);
+    unawaited(_syncHomeWidgetSnapshot());
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1383,6 +1542,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final notificationId = _taskTimerNotificationId(task.id);
     await NotificationService.instance.cancelTaskTimer(notificationId);
     await NotificationService.instance.cancelTaskTimerOngoing();
+    await _repo.clearActiveTaskTimer();
     _activeTimerTicker?.cancel();
     if (!mounted) return;
     _updateState(() {
@@ -1390,9 +1550,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _activeTimerRemaining = Duration.zero;
       _activeTimerFinished = false;
     });
+    unawaited(_syncHomeWidgetSnapshot());
   }
 
   Future<void> _markTaskDone(Task task) async {
+    final completedFromTimer = _activeTimerTask?.id == task.id;
+    final weekKey = _repo.currentWeekKey();
+    final beforeWeekDone = _weeklyDoneTotal();
+    final weekTarget = _weeklyTargetTotal();
     await HapticFeedback.lightImpact();
     await _showSuccessPulse(_pickSuccessMessage());
     if (_activeTimerTask?.id == task.id) {
@@ -1413,6 +1578,40 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       bestStreak: best,
       categoryCounts: counts,
     );
+    if (_weeklyTargets.isNotEmpty) {
+      final progress = await _repo.incrementWeeklyProgress(
+        weekKey: weekKey,
+        category: task.category,
+      );
+      if (mounted) {
+        _updateState(() {
+          _weeklyWeekKey = weekKey;
+          _weeklyDone = progress.done;
+        });
+      }
+      final afterWeekDone = progress.totalDone;
+      _track('weekly_progress_updated', {
+        'week_key': weekKey,
+        'category': task.category,
+        'done_total': afterWeekDone,
+        'target_total': weekTarget,
+      });
+      if (weekTarget > 0 &&
+          beforeWeekDone < weekTarget &&
+          afterWeekDone >= weekTarget) {
+        _track('weekly_goal_hit', {
+          'week_key': weekKey,
+          'target_total': weekTarget,
+          'done_total': afterWeekDone,
+        });
+      }
+    }
+    _track('task_completed', {
+      'task_id': task.id,
+      'category': task.category,
+      'duration_min': task.durationMinutes,
+      'from_timer': completedFromTimer,
+    });
     if (mounted && newBadges.isNotEmpty) {
       _showBadgeUnlocked(newBadges.first);
     }
@@ -1423,6 +1622,127 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     // Avoid collisions with fixed notification IDs (e.g. daily reminder, ongoing timer).
     final h = taskId.hashCode & 0x7fffffff;
     return 300000 + (h % 100000);
+  }
+
+  Future<void> _restoreActiveTimerIfNeeded() async {
+    try {
+      final saved = await _repo.getActiveTaskTimer();
+      if (saved == null) {
+        await _syncHomeWidgetSnapshot();
+        return;
+      }
+
+      Task? matchedTask;
+      for (final task in _today) {
+        if (task.id == saved.taskId) {
+          matchedTask = task;
+          break;
+        }
+      }
+
+      if (matchedTask == null) {
+        await _repo.clearActiveTaskTimer();
+        await NotificationService.instance.cancelTaskTimerOngoing();
+        await _syncHomeWidgetSnapshot();
+        return;
+      }
+
+      final notificationId = _taskTimerNotificationId(matchedTask.id);
+      final remaining = saved.endAt.difference(DateTime.now());
+      _activeTimerTicker?.cancel();
+
+      if (remaining <= Duration.zero) {
+        _updateState(() {
+          _activeTimerTask = matchedTask;
+          _activeTimerRemaining = Duration.zero;
+          _activeTimerFinished = true;
+        });
+        await NotificationService.instance.cancelTaskTimer(notificationId);
+        await NotificationService.instance.cancelTaskTimerOngoing();
+        await _syncHomeWidgetSnapshot();
+        return;
+      }
+
+      _updateState(() {
+        _activeTimerTask = matchedTask;
+        _activeTimerRemaining = remaining;
+        _activeTimerFinished = false;
+      });
+      _track('task_timer_restored', {
+        'task_id': matchedTask.id,
+        'remaining_sec': remaining.inSeconds,
+      });
+
+      _startActiveTimerTicker(
+        task: matchedTask,
+        endAt: saved.endAt,
+        notificationId: notificationId,
+      );
+      _showTaskTimerOngoingBestEffort(task: matchedTask, remaining: remaining);
+      await _syncHomeWidgetSnapshot();
+    } catch (e) {
+      _log('TIMER: restore failed: $e');
+    }
+  }
+
+  void _startActiveTimerTicker({
+    required Task task,
+    required DateTime endAt,
+    required int notificationId,
+  }) {
+    // Keep UI timer in sync and fire completion notification when app is active.
+    _activeTimerTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final remaining = endAt.difference(DateTime.now());
+      if (remaining <= Duration.zero) {
+        _updateState(() {
+          _activeTimerRemaining = Duration.zero;
+          _activeTimerFinished = true;
+        });
+        unawaited(NotificationService.instance.cancelTaskTimerOngoing());
+        unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
+        unawaited(
+          NotificationService.instance.showTaskTimerNotification(
+            title: 'Task timer finished',
+            body: '${task.title} is ready to mark done.',
+          ),
+        );
+        _track('task_timer_finished', {
+          'task_id': task.id,
+          'duration_min': task.durationMinutes,
+        });
+        _track('timer_finished', {
+          'task_id': task.id,
+          'duration_min': task.durationMinutes,
+        });
+        unawaited(_syncHomeWidgetSnapshot());
+        _activeTimerTicker?.cancel();
+        return;
+      }
+      _updateState(() => _activeTimerRemaining = remaining);
+      if (remaining.inSeconds % 15 == 0) {
+        _showTaskTimerOngoingBestEffort(task: task, remaining: remaining);
+        unawaited(_syncHomeWidgetSnapshot());
+      }
+    });
+  }
+
+  void _showTaskTimerOngoingBestEffort({
+    required Task task,
+    required Duration remaining,
+  }) {
+    final total = Duration(minutes: task.durationMinutes);
+    unawaited(() async {
+      try {
+        await NotificationService.instance.showTaskTimerOngoing(
+          taskTitle: task.title,
+          remaining: remaining,
+          total: total,
+        );
+      } catch (e) {
+        _log('NOTI: showTaskTimerOngoing failed: $e');
+      }
+    }());
   }
 
   Future<void> _refreshTasks() async {
@@ -1712,7 +2032,24 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       pool: availablePool,
       count: min(3, availablePool.length),
       seedKey: 'refresh_${DateTime.now().millisecondsSinceEpoch}',
+      weeklyTargets: _weeklyTargets.isEmpty ? null : _weeklyTargets,
+      weeklyDone: _weeklyDone.isEmpty ? null : _weeklyDone,
     );
+    final completionRate = await _controller.getRecentCompletionRate(days: 7);
+    final adaptiveDelta = _controller.adaptationDeltaFromCompletionRate(
+      completionRate,
+    );
+    final adapted = _controller.applyDifficultyDelta(
+      tasks: picked,
+      delta: adaptiveDelta,
+    );
+    if (adaptiveDelta != 0) {
+      _track('difficulty_adapted', {
+        'source': 'refresh',
+        'completion_rate': double.parse(completionRate.toStringAsFixed(3)),
+        'delta': adaptiveDelta,
+      });
+    }
 
     final special = Task(
       id: 'special_${DateTime.now().millisecondsSinceEpoch}',
@@ -1724,9 +2061,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       durationMinutes: 7,
     );
 
-    final pickedWithSpecial = [...picked, special];
+    final pickedWithSpecial = [...adapted, special];
 
-    _log(" REFRESH: Picked task IDs = ${picked.map((t) => t.id).toList()}");
+    _log(
+      " REFRESH: Picked task IDs = ${pickedWithSpecial.map((t) => t.id).toList()}",
+    );
 
     await _repo.saveSelectedTasks(pickedWithSpecial);
     await _repo.clearCompleted();
@@ -1746,8 +2085,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _today = pickedWithSpecial;
       _completed = {};
       _syncCompletedMap();
+      _adaptiveDifficultyDelta = adaptiveDelta;
       _refreshing = false;
     });
+    unawaited(_syncHomeWidgetSnapshot());
 
     _log(" REFRESH: UI updated with new tasks");
 

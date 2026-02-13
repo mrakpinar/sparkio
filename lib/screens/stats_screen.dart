@@ -12,6 +12,19 @@ class StatsScreen extends StatelessWidget {
     final counts = await repo.getCategoryCounts();
     final dailyHistory = await repo.getDailyHistory(days: 14);
     final lastCompleted = await repo.getLastCompletedTask();
+    final weekKey = repo.currentWeekKey();
+    final weeklyPlan = await repo.getWeeklyPlan(weekKey: weekKey);
+    final weeklyProgress = await repo.getWeeklyProgress(weekKey: weekKey);
+    final weeklyTargets = weeklyPlan?.targets ?? const <String, int>{};
+    final weeklyDoneByCategory = weeklyProgress.done;
+    final weeklyTarget = weeklyTargets.values.fold<int>(
+      0,
+      (sum, value) => sum + value,
+    );
+    final weeklyDone = weeklyDoneByCategory.values.fold<int>(
+      0,
+      (sum, value) => sum + value,
+    );
     final favorite = _favoriteCategory(counts);
     return _StatsData(
       total: total,
@@ -20,6 +33,10 @@ class StatsScreen extends StatelessWidget {
       categoryCounts: counts,
       dailyHistory: dailyHistory,
       lastCompleted: lastCompleted,
+      weeklyDone: weeklyDone,
+      weeklyTarget: weeklyTarget,
+      weeklyTargets: weeklyTargets,
+      weeklyDoneByCategory: weeklyDoneByCategory,
     );
   }
 
@@ -300,6 +317,19 @@ class _StatsBodyState extends State<_StatsBody> {
                 isWide: true,
               ),
 
+              if (data.weeklyTarget > 0) ...[
+                const SizedBox(height: 12),
+                _StatCard(
+                  title: 'Weekly plan',
+                  value: '${data.weeklyDone}/${data.weeklyTarget}',
+                  subtitle: 'done',
+                  icon: Icons.calendar_view_week_rounded,
+                  color: scheme.primary,
+                  isWide: true,
+                  onTap: _openWeeklyPlanDialog,
+                ),
+              ],
+
               const SizedBox(height: 24),
 
               // Weekly Activity
@@ -392,6 +422,90 @@ class _StatsBodyState extends State<_StatsBody> {
       ],
     );
   }
+
+  Future<void> _openWeeklyPlanDialog() async {
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final targets =
+        widget.data.weeklyTargets.entries
+            .where((entry) => entry.value > 0)
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    if (targets.isEmpty) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_view_week_rounded,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Weekly progress',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total: ${widget.data.weeklyDone}/${widget.data.weeklyTarget}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          for (final entry in targets)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _WeeklyProgressRow(
+                                label: widget.labelResolver(entry.key),
+                                color: widget.colorResolver(entry.key),
+                                done:
+                                    widget.data.weeklyDoneByCategory[entry
+                                        .key] ??
+                                    0,
+                                target: entry.value,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _QuickStat extends StatelessWidget {
@@ -477,6 +591,7 @@ class _StatCard extends StatelessWidget {
     required this.color,
     required this.icon,
     this.isWide = false,
+    this.onTap,
   });
 
   final String title;
@@ -485,86 +600,167 @@ class _StatCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final bool isWide;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surface,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.3), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [color.withOpacity(0.8), color]),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color.withOpacity(0.8), color],
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    TweenAnimationBuilder<int>(
-                      tween: IntTween(begin: 0, end: int.tryParse(value) ?? 0),
-                      duration: const Duration(milliseconds: 600),
-                      builder: (context, val, child) {
-                        final displayValue = int.tryParse(value) != null
-                            ? val.toString()
-                            : value;
-                        return Text(
-                          displayValue,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: color,
-                          ),
-                        );
-                      },
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        subtitle!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
-              ],
+                child: Icon(icon, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        TweenAnimationBuilder<int>(
+                          tween: IntTween(
+                            begin: 0,
+                            end: int.tryParse(value) ?? 0,
+                          ),
+                          duration: const Duration(milliseconds: 600),
+                          builder: (context, val, child) {
+                            final displayValue = int.tryParse(value) != null
+                                ? val.toString()
+                                : value;
+                            return Text(
+                              displayValue,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: color,
+                              ),
+                            );
+                          },
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            subtitle!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.onSurfaceVariant,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeeklyProgressRow extends StatelessWidget {
+  const _WeeklyProgressRow({
+    required this.label,
+    required this.color,
+    required this.done,
+    required this.target,
+  });
+
+  final String label;
+  final Color color;
+  final int done;
+  final int target;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final safeDone = done.clamp(0, target);
+    final progress = target <= 0 ? 0.0 : safeDone / target;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outline.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                '$safeDone / $target',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: scheme.surfaceVariant,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
         ],
@@ -992,6 +1188,10 @@ class _StatsData {
   final Map<String, int> categoryCounts;
   final Map<String, int> dailyHistory;
   final LastCompletedTask? lastCompleted;
+  final int weeklyDone;
+  final int weeklyTarget;
+  final Map<String, int> weeklyTargets;
+  final Map<String, int> weeklyDoneByCategory;
 
   const _StatsData({
     required this.total,
@@ -1000,6 +1200,10 @@ class _StatsData {
     required this.categoryCounts,
     required this.dailyHistory,
     required this.lastCompleted,
+    required this.weeklyDone,
+    required this.weeklyTarget,
+    required this.weeklyTargets,
+    required this.weeklyDoneByCategory,
   });
 }
 
