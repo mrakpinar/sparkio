@@ -162,6 +162,43 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
   }
 
+  Future<void> _openDailyMoodSheetDebug() async {
+    if (!mounted || _loading || _dailyMoodPrompting) return;
+    if (_today.isEmpty) return;
+
+    _updateState(() => _dailyMoodPrompting = true);
+    try {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          return DailyMoodSheet(
+            onSelect: (mood) => Navigator.of(sheetContext).pop(mood),
+            onSkip: () => Navigator.of(sheetContext).pop(),
+          );
+        },
+      );
+
+      if (!mounted || selected == null) return;
+      final dateKey = _todayKey();
+      await _repo.setDailyMood(dateKey: dateKey, mood: selected);
+      _track('daily_mood_selected_debug', {'mood': selected});
+      await _applyMoodToTodayTasks(selected);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debug mood selection applied.')),
+      );
+    } finally {
+      if (mounted) {
+        _updateState(() => _dailyMoodPrompting = false);
+      } else {
+        _dailyMoodPrompting = false;
+      }
+    }
+  }
+
   Future<void> _applyMoodToTodayTasks(String mood) async {
     final targets = _moodTargetCategories(mood);
     if (targets.isEmpty || _today.isEmpty) return;

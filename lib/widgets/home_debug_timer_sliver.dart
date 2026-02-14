@@ -4,11 +4,13 @@ class HomeDebugTimerSliver extends StatelessWidget {
   const HomeDebugTimerSliver({
     super.key,
     required this.onPressed,
+    required this.onOpenDailyMood,
     required this.instantEnabled,
     required this.onToggleInstant,
   });
 
   final VoidCallback onPressed;
+  final VoidCallback onOpenDailyMood;
   final bool instantEnabled;
   final ValueChanged<bool> onToggleInstant;
 
@@ -24,6 +26,12 @@ class HomeDebugTimerSliver extends StatelessWidget {
               onPressed: onPressed,
               icon: const Icon(Icons.timer_rounded),
               label: const Text('Test task timer (30s)'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onOpenDailyMood,
+              icon: const Icon(Icons.psychology_rounded),
+              label: const Text('Open daily mood sheet (debug)'),
             ),
             const SizedBox(height: 8),
             SwitchListTile(

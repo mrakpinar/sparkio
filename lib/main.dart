@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
@@ -39,11 +40,15 @@ Future<void> main() async {
   await messaging.setAutoInitEnabled(true);
   await messaging.subscribeToTopic('all_users');
   final token = await messaging.getToken();
-  // ignore: avoid_print
-  print('FCM: token=$token');
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+  if (kDebugMode) {
     // ignore: avoid_print
-    print('FCM: token_refresh=$newToken');
+    print('FCM: token=$token');
+  }
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('FCM: token_refresh=$newToken');
+    }
   });
   FirebaseMessaging.onMessage.listen((message) async {
     await NotificationService.instance.showRemoteNotification(

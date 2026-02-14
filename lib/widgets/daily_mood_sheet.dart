@@ -15,78 +15,109 @@ class DailyMoodSheet extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: scheme.outline.withOpacity(0.35)),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [scheme.surface, scheme.surfaceContainerHighest],
         ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Drag handle
               Container(
-                width: 44,
-                height: 4,
+                width: 48,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withOpacity(0.35),
+                  color: scheme.onSurfaceVariant.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
+              // Header
               Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(18),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          scheme.primary.withOpacity(0.28),
-                          scheme.primary.withOpacity(0.10),
+                          scheme.primary,
+                          scheme.primary.withOpacity(0.7),
                         ],
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Icon(
                       Icons.waving_hand_rounded,
-                      color: scheme.primary,
+                      color: scheme.onPrimary,
+                      size: 28,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'How are you feeling?',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           "We'll tailor one spark for you.",
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: onSkip,
-                    icon: const Icon(Icons.close_rounded),
-                    tooltip: 'Close',
+                  Container(
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: onSkip,
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 24),
+
+              // Mood options
               _MoodOption(
                 value: 'stressed',
                 title: 'Feeling stressed',
@@ -95,7 +126,7 @@ class DailyMoodSheet extends StatelessWidget {
                 accent: const Color(0xFF38BDF8),
                 onTap: () => onSelect('stressed'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _MoodOption(
                 value: 'low_energy',
                 title: 'Low energy',
@@ -104,7 +135,7 @@ class DailyMoodSheet extends StatelessWidget {
                 accent: const Color(0xFF60A5FA),
                 onTap: () => onSelect('low_energy'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _MoodOption(
                 value: 'focus',
                 title: 'Need focus',
@@ -113,12 +144,29 @@ class DailyMoodSheet extends StatelessWidget {
                 accent: const Color(0xFF22D3EE),
                 onTap: () => onSelect('focus'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
+
+              // Skip button
               SizedBox(
                 width: double.infinity,
-                child: TextButton(
+                child: OutlinedButton(
                   onPressed: onSkip,
-                  child: const Text('Not now'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    side: BorderSide(
+                      color: scheme.outline.withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    'Not now',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -129,7 +177,7 @@ class DailyMoodSheet extends StatelessWidget {
   }
 }
 
-class _MoodOption extends StatelessWidget {
+class _MoodOption extends StatefulWidget {
   const _MoodOption({
     required this.value,
     required this.title,
@@ -147,70 +195,137 @@ class _MoodOption extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_MoodOption> createState() => _MoodOptionState();
+}
+
+class _MoodOptionState extends State<_MoodOption>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _controller.forward().then((_) {
+      _controller.reverse();
+      widget.onTap();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: scheme.outline.withOpacity(0.45)),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accent.withOpacity(0.22),
-                scheme.surfaceVariant.withOpacity(0.16),
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _handleTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: scheme.surface,
+              border: Border.all(
+                color: scheme.outline.withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [widget.accent.withOpacity(0.08), scheme.surface],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        widget.accent.withOpacity(0.2),
+                        widget.accent.withOpacity(0.1),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: widget.accent.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(widget.icon, color: widget.accent, size: 26),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: scheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                ),
               ],
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  color: accent.withOpacity(0.16),
-                ),
-                child: Icon(icon, color: accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: scheme.onSurfaceVariant,
-              ),
-            ],
           ),
         ),
       ),
     );
   }
 }
-

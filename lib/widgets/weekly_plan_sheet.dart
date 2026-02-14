@@ -38,140 +38,242 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet> {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: scheme.outline.withOpacity(0.35)),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [scheme.surface, scheme.surfaceContainerHighest],
         ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Drag handle
               Container(
-                width: 44,
-                height: 4,
+                width: 48,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withOpacity(0.35),
+                  color: scheme.onSurfaceVariant.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
+              // Header
               Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(18),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          scheme.primary.withOpacity(0.28),
-                          scheme.primary.withOpacity(0.10),
+                          scheme.primary,
+                          scheme.primary.withOpacity(0.7),
                         ],
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Icon(
                       Icons.calendar_view_week_rounded,
-                      color: scheme.primary,
+                      color: scheme.onPrimary,
+                      size: 28,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Plan your week',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
+                          'Plan Your Week',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          'Set category goals for this week.',
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          'Set your goals for this week',
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
                   if (widget.showSkip)
-                    IconButton(
-                      onPressed: widget.onSkip,
-                      icon: const Icon(Icons.close_rounded),
-                      tooltip: 'Close',
+                    Container(
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: widget.onSkip,
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Close',
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
-              for (final category in _categories)
+              const SizedBox(height: 24),
+
+              // Categories
+              for (var i = 0; i < _categories.length; i++)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: EdgeInsets.only(
+                    bottom: i < _categories.length - 1 ? 12 : 0,
+                  ),
                   child: _PlanRow(
-                    category: category,
-                    target: _targets[category] ?? 0,
+                    category: _categories[i],
+                    target: _targets[_categories[i]] ?? 0,
                     onMinus: () {
                       setState(() {
-                        final next = (_targets[category] ?? 0) - 1;
-                        _targets[category] = next < 0 ? 0 : next;
+                        final next = (_targets[_categories[i]] ?? 0) - 1;
+                        _targets[_categories[i]] = next < 0 ? 0 : next;
                       });
                     },
                     onPlus: () {
                       setState(() {
-                        final next = (_targets[category] ?? 0) + 1;
-                        _targets[category] = next > 20 ? 20 : next;
+                        final next = (_targets[_categories[i]] ?? 0) + 1;
+                        _targets[_categories[i]] = next > 20 ? 20 : next;
                       });
                     },
                   ),
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 20),
+
+              // Total badge
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: scheme.primary.withOpacity(0.2)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scheme.primary.withOpacity(0.12),
+                      scheme.primary.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: scheme.primary.withOpacity(0.3),
+                    width: 1.5,
+                  ),
                 ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.flag_rounded, size: 16, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Weekly goal total: $_total',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.flag_rounded,
+                        size: 20,
                         color: scheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Weekly goal: ',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      '$_total',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: scheme.primary,
+                        fontSize: 24,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
+              // Action buttons
               Row(
                 children: [
                   if (widget.showSkip)
                     Expanded(
                       child: OutlinedButton(
                         onPressed: widget.onSkip,
-                        child: const Text('Not now'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(
+                            color: scheme.outline.withOpacity(0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          'Not now',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
-                  if (widget.showSkip) const SizedBox(width: 10),
+                  if (widget.showSkip) const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.icon(
+                    flex: widget.showSkip ? 1 : 1,
+                    child: FilledButton(
                       onPressed: () => widget.onSave(_targets),
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Save weekly plan'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 4,
+                        shadowColor: scheme.primary.withOpacity(0.4),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_rounded, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Save plan',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -184,7 +286,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet> {
   }
 }
 
-class _PlanRow extends StatelessWidget {
+class _PlanRow extends StatefulWidget {
   const _PlanRow({
     required this.category,
     required this.target,
@@ -198,54 +300,157 @@ class _PlanRow extends StatelessWidget {
   final VoidCallback onPlus;
 
   @override
+  State<_PlanRow> createState() => _PlanRowState();
+}
+
+class _PlanRowState extends State<_PlanRow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _animateTap() {
+    _controller.forward().then((_) => _controller.reverse());
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final accent = _categoryColor(category);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scheme.outline.withOpacity(0.35)),
-        color: scheme.surface,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(_categoryIcon(category), size: 18, color: accent),
+    final accent = _categoryColor(widget.category);
+
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: scheme.surface,
+          border: Border.all(
+            color: scheme.outline.withOpacity(0.2),
+            width: 1.5,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _categoryLabel(category),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [accent.withOpacity(0.2), accent.withOpacity(0.1)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: accent.withOpacity(0.3), width: 1),
+              ),
+              child: Icon(
+                _categoryIcon(widget.category),
+                size: 24,
+                color: accent,
               ),
             ),
-          ),
-          IconButton(
-            onPressed: onMinus,
-            icon: const Icon(Icons.remove_rounded),
-            visualDensity: VisualDensity.compact,
-          ),
-          Text(
-            '$target',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                _categoryLabel(widget.category),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: onPlus,
-            icon: const Icon(Icons.add_rounded),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
+            Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        _animateTap();
+                        widget.onMinus();
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.remove_rounded,
+                          size: 20,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      '${widget.target}',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: accent,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        _animateTap();
+                        widget.onPlus();
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.add_rounded,
+                          size: 20,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -271,15 +476,15 @@ String _categoryLabel(String key) {
 Color _categoryColor(String key) {
   switch (key) {
     case 'body':
-      return const Color(0xFFF97316);
+      return const Color(0xFFF97316); // Orange
     case 'mind':
-      return const Color(0xFF8B5CF6);
+      return const Color(0xFF8B5CF6); // Purple
     case 'growth':
-      return const Color(0xFF22C55E);
+      return const Color(0xFF22C55E); // Green
     case 'calm':
-      return const Color(0xFF06B6D4);
+      return const Color(0xFF06B6D4); // Cyan
     case 'health':
-      return const Color(0xFF3B82F6);
+      return const Color(0xFFEF4444); // Red
     default:
       return const Color(0xFF60A5FA);
   }

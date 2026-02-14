@@ -262,6 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 if (kDebugMode)
                   HomeDebugTimerSliver(
                     onPressed: _sendTaskTimerTest,
+                    onOpenDailyMood: _openDailyMoodSheetDebug,
                     instantEnabled: _debugInstantComplete,
                     onToggleInstant: (v) =>
                         _updateState(() => _debugInstantComplete = v),
