@@ -4,9 +4,20 @@ import '../services/task_repository.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
+  static const bool _useScreenshotPreset = bool.fromEnvironment(
+    'SCREENSHOT_STATS_PRESET',
+    defaultValue: false,
+  );
+  static const bool _forceScreenshotPreset = bool.fromEnvironment(
+    'SCREENSHOT_STATS_PRESET_FORCE',
+    defaultValue: false,
+  );
 
   Future<_StatsData> _load() async {
     final repo = TaskRepository();
+    if (_useScreenshotPreset) {
+      await repo.applyStatsScreenshotPreset(force: _forceScreenshotPreset);
+    }
     final total = await repo.getTotalCompleted();
     final best = await repo.getBestStreak();
     final counts = await repo.getCategoryCounts();
@@ -16,7 +27,11 @@ class StatsScreen extends StatelessWidget {
     final weeklyPlan = await repo.getWeeklyPlan(weekKey: weekKey);
     final weeklyProgress = await repo.getWeeklyProgress(weekKey: weekKey);
     final weeklyTargets = weeklyPlan?.targets ?? const <String, int>{};
-    final weeklyDoneByCategory = weeklyProgress.done;
+    final weeklyDoneByCategory = <String, int>{
+      for (final entry in weeklyTargets.entries)
+        if (entry.value > 0 && (weeklyProgress.done[entry.key] ?? 0) > 0)
+          entry.key: weeklyProgress.done[entry.key]!,
+    };
     final weeklyTarget = weeklyTargets.values.fold<int>(
       0,
       (sum, value) => sum + value,
@@ -75,7 +90,7 @@ class StatsScreen extends StatelessWidget {
       case 'calm':
         return const Color(0xFF06B6D4);
       case 'health':
-        return const Color(0xFFEF4444);
+        return const Color(0xFF3B82F6);
       default:
         return Theme.of(context).colorScheme.primary;
     }
@@ -195,8 +210,8 @@ class _StatsBodyState extends State<_StatsBody> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    scheme.primary.withOpacity(0.15),
-                    scheme.secondary.withOpacity(0.08),
+                    scheme.primary.withOpacity(0.09),
+                    scheme.secondary.withOpacity(0.04),
                     scheme.background,
                   ],
                   begin: Alignment.topCenter,
@@ -213,13 +228,16 @@ class _StatsBodyState extends State<_StatsBody> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [scheme.primary, scheme.secondary],
+                            colors: [
+                              scheme.primary.withOpacity(0.9),
+                              scheme.secondary.withOpacity(0.85),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: scheme.primary.withOpacity(0.3),
-                              blurRadius: 16,
+                              color: scheme.primary.withOpacity(0.18),
+                              blurRadius: 12,
                               offset: const Offset(0, 8),
                             ),
                           ],
@@ -632,7 +650,7 @@ class _StatCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [color.withOpacity(0.8), color],
+                    colors: [color.withOpacity(0.68), color.withOpacity(0.9)],
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
@@ -850,8 +868,8 @@ class _BarChartState extends State<_BarChart> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                scheme.primary.withOpacity(0.6),
-                                scheme.primary,
+                                scheme.primary.withOpacity(0.45),
+                                scheme.primary.withOpacity(0.82),
                               ],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
@@ -1060,7 +1078,9 @@ class _RecentWinCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [color.withOpacity(0.8), color]),
+              gradient: LinearGradient(
+                colors: [color.withOpacity(0.68), color.withOpacity(0.88)],
+              ),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
@@ -1116,7 +1136,7 @@ class _BadgeChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.withOpacity(0.15), color.withOpacity(0.08)],
+          colors: [color.withOpacity(0.10), color.withOpacity(0.05)],
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(0.3)),
@@ -1349,7 +1369,7 @@ List<_Badge> _buildBadges(
       const _Badge(
         label: 'Health x10',
         icon: Icons.favorite_rounded,
-        color: Color(0xFFEF4444),
+        color: Color(0xFF3B82F6),
       ),
     );
   }

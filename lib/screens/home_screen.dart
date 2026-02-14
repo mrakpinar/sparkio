@@ -51,6 +51,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  static const bool _useStatsScreenshotPreset = bool.fromEnvironment(
+    'SCREENSHOT_STATS_PRESET',
+    defaultValue: false,
+  );
+  static const bool _useHomeScreenshotPreset = bool.fromEnvironment(
+    'SCREENSHOT_HOME_PRESET',
+    defaultValue: false,
+  );
+  static const int _headerPresetDoneCount = 2;
+  static const int _headerPresetTotalCount = 3;
+  static const int _headerPresetTodayCompleted = 3;
+  static const int _headerPresetStreak = 6;
+  static const int _headerPresetWeeklyDone = 3;
+  static const int _headerPresetWeeklyTarget = 5;
+  static const String _headerPresetFocusLabel = 'Calm';
+  static const String _headerPresetAdaptiveLabel = 'Adaptive mode: easier';
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   static final Uri _instagramUri = Uri.parse(
     'https://www.instagram.com/sparkio.app/',
@@ -154,6 +171,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final allDone = _today.isNotEmpty && remainingCount == 0;
     final dateLabel = DateFormat('EEE, MMM d').format(DateTime.now());
     final focus = _controller.focusHint(_today);
+    final weeklyDone = _weeklyDone.values.fold<int>(
+      0,
+      (sum, value) => sum + value,
+    );
+    final weeklyTarget = _weeklyTargets.values.fold<int>(
+      0,
+      (sum, value) => sum + value,
+    );
+    final screenshotHeaderMode =
+        _useHomeScreenshotPreset || _useStatsScreenshotPreset;
+    final headerDoneCount = screenshotHeaderMode
+        ? _headerPresetDoneCount
+        : doneCount;
+    final headerTotalCount = screenshotHeaderMode
+        ? _headerPresetTotalCount
+        : _today.length;
+    final headerProgress = screenshotHeaderMode
+        ? (_headerPresetDoneCount / _headerPresetTotalCount)
+        : _progress;
+    final headerTodayCompleted = screenshotHeaderMode
+        ? _headerPresetTodayCompleted
+        : _todayCompleted;
+    final headerStreak = screenshotHeaderMode ? _headerPresetStreak : _streak;
+    final headerFocusLabel = screenshotHeaderMode
+        ? _headerPresetFocusLabel
+        : focus;
+    final headerAdaptiveLabel = screenshotHeaderMode
+        ? _headerPresetAdaptiveLabel
+        : _adaptiveDifficultyLabel();
+    final headerWeeklyDone = screenshotHeaderMode
+        ? _headerPresetWeeklyDone
+        : weeklyDone;
+    final headerWeeklyTarget = screenshotHeaderMode
+        ? _headerPresetWeeklyTarget
+        : weeklyTarget;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -190,27 +242,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   },
                 ),
                 HomeHeaderSliver(
-                  progress: _progress,
-                  doneCount: doneCount,
-                  totalCount: _today.length,
-                  todayCompleted: _todayCompleted,
-                  streak: _streak,
-                  focusLabel: focus,
+                  progress: headerProgress,
+                  doneCount: headerDoneCount,
+                  totalCount: headerTotalCount,
+                  todayCompleted: headerTodayCompleted,
+                  streak: headerStreak,
+                  focusLabel: headerFocusLabel,
                   dateLabel: dateLabel,
                   onShare: _openShareSheet,
                   onOpenStats: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const StatsScreen()),
                   ),
-                  adaptiveLabel: _adaptiveDifficultyLabel(),
-                  weeklyDone: _weeklyDone.values.fold<int>(
-                    0,
-                    (sum, value) => sum + value,
-                  ),
-                  weeklyTarget: _weeklyTargets.values.fold<int>(
-                    0,
-                    (sum, value) => sum + value,
-                  ),
+                  adaptiveLabel: headerAdaptiveLabel,
+                  weeklyDone: headerWeeklyDone,
+                  weeklyTarget: headerWeeklyTarget,
                   onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
                 ),
                 if (kDebugMode)

@@ -45,8 +45,8 @@ class HomeHeaderCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           gradient: LinearGradient(
             colors: [
-              scheme.primary.withOpacity(0.15),
-              scheme.secondary.withOpacity(0.08),
+              scheme.primary.withOpacity(0.10),
+              scheme.secondary.withOpacity(0.05),
               scheme.surface,
             ],
             begin: Alignment.topLeft,
@@ -100,8 +100,8 @@ class HomeHeaderCard extends StatelessWidget {
                           shape: BoxShape.circle,
                           gradient: LinearGradient(
                             colors: [
-                              scheme.primary.withOpacity(0.1),
-                              scheme.secondary.withOpacity(0.05),
+                              scheme.primary.withOpacity(0.07),
+                              scheme.secondary.withOpacity(0.035),
                             ],
                           ),
                         ),
@@ -193,8 +193,8 @@ class HomeHeaderCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            scheme.secondary.withOpacity(0.15),
-                            scheme.secondary.withOpacity(0.05),
+                            scheme.secondary.withOpacity(0.10),
+                            scheme.secondary.withOpacity(0.035),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -269,10 +269,10 @@ class HomeHeaderCard extends StatelessWidget {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: scheme.primary.withOpacity(0.08),
+                          color: scheme.primary.withOpacity(0.06),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: scheme.primary.withOpacity(0.25),
+                            color: scheme.primary.withOpacity(0.22),
                           ),
                         ),
                         child: Row(
@@ -353,7 +353,7 @@ class HomeHeaderCard extends StatelessWidget {
                         horizontal: 12,
                         vertical: 8,
                       ),
-                      backgroundColor: scheme.primary.withOpacity(0.12),
+                      backgroundColor: scheme.primary.withOpacity(0.09),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

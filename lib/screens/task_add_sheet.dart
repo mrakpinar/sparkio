@@ -633,7 +633,7 @@ List<Color> _chipGradient(
       base = const Color(0xFF06B6D4);
       break;
     case 'health':
-      base = const Color(0xFFEF4444);
+      base = const Color(0xFF3B82F6);
       break;
     case 'stressed':
       base = const Color(0xFFF43F5E);

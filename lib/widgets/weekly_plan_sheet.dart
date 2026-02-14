@@ -279,7 +279,7 @@ Color _categoryColor(String key) {
     case 'calm':
       return const Color(0xFF06B6D4);
     case 'health':
-      return const Color(0xFFEF4444);
+      return const Color(0xFF3B82F6);
     default:
       return const Color(0xFF60A5FA);
   }

@@ -52,19 +52,23 @@ class HomeAppBar extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: [logoBlue, const Color(0xFF2E63DE)],
+                colors: [logoBlue, const Color(0xFF4A7BE3)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: logoBlue.withOpacity(0.28),
-                  blurRadius: 10,
+                  color: logoBlue.withOpacity(0.18),
+                  blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 24),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 12),
           Container(
@@ -169,7 +173,7 @@ class _ModernIconButton extends StatelessWidget {
     final backgroundGradient = filled
         ? LinearGradient(
             colors: isDark
-                ? [palette.$1.withOpacity(0.95), palette.$2.withOpacity(0.9)]
+                ? [palette.$1.withOpacity(0.88), palette.$2.withOpacity(0.82)]
                 : [palette.$1, palette.$2],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -177,8 +181,8 @@ class _ModernIconButton extends StatelessWidget {
         : LinearGradient(
             colors: isDark
                 ? [
-                    const Color(0xFF10253E).withOpacity(0.78),
-                    const Color(0xFF0E2037).withOpacity(0.72),
+                    const Color(0xFF10253E).withOpacity(0.66),
+                    const Color(0xFF0E2037).withOpacity(0.62),
                   ]
                 : [scheme.surface, scheme.surface],
             begin: Alignment.topLeft,
@@ -186,8 +190,10 @@ class _ModernIconButton extends StatelessWidget {
           );
 
     final borderColor = filled
-        ? (isDark ? palette.$1.withOpacity(0.4) : palette.$1.withOpacity(0.7))
-        : (isDark ? palette.$1.withOpacity(0.3) : scheme.outline.withOpacity(0.7));
+        ? (isDark ? palette.$1.withOpacity(0.28) : palette.$1.withOpacity(0.55))
+        : (isDark
+              ? palette.$1.withOpacity(0.22)
+              : scheme.outline.withOpacity(0.55));
 
     final iconColor = filled
         ? Colors.white
@@ -205,11 +211,11 @@ class _ModernIconButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           splashColor: isDark
-              ? const Color(0xFF3B82F6).withOpacity(0.2)
-              : scheme.primary.withOpacity(0.1),
+              ? const Color(0xFF3B82F6).withOpacity(0.14)
+              : scheme.primary.withOpacity(0.07),
           highlightColor: isDark
-              ? const Color(0xFF3B82F6).withOpacity(0.1)
-              : scheme.primary.withOpacity(0.05),
+              ? const Color(0xFF3B82F6).withOpacity(0.06)
+              : scheme.primary.withOpacity(0.03),
           child: Container(
             width: 48,
             height: 48,
@@ -221,9 +227,9 @@ class _ModernIconButton extends StatelessWidget {
                   ? [
                       BoxShadow(
                         color: isDark
-                            ? palette.$1.withOpacity(0.22)
-                            : palette.$1.withOpacity(0.18),
-                        blurRadius: 10,
+                            ? palette.$1.withOpacity(0.14)
+                            : palette.$1.withOpacity(0.12),
+                        blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),
                     ]

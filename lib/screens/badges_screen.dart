@@ -614,7 +614,7 @@ const _allBadges = <_BadgeDef>[
     label: 'Health x10',
     description: 'Complete 10 Health tasks.',
     icon: Icons.favorite_rounded,
-    color: Color(0xFFEF4444),
+    color: Color(0xFF3B82F6),
     target: 10,
   ),
 ];

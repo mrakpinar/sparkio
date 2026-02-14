@@ -8,6 +8,10 @@ import 'premium_service.dart';
 class AdService {
   AdService._();
   static final AdService instance = AdService._();
+  static const bool hideAdsForScreenshots = bool.fromEnvironment(
+    'HIDE_ADS',
+    defaultValue: false,
+  );
 
   // AdMob ad unit IDs.
   static const String bannerUnitId = 'ca-app-pub-9113236771764468/3264396817';
@@ -40,6 +44,7 @@ class AdService {
   }
 
   Future<bool> _isAdFreeActive() async {
+    if (hideAdsForScreenshots) return true;
     final premium = await PremiumService.instance.isPremiumActive();
     if (premium) return true;
     final noAds = await PremiumService.instance.isNoAdsActive();
@@ -47,11 +52,13 @@ class AdService {
   }
 
   Future<void> preloadAll() async {
+    if (hideAdsForScreenshots) return;
     _loadInterstitial();
     _loadRewarded();
   }
 
   void _loadInterstitial() {
+    if (hideAdsForScreenshots) return;
     if (_interstitial != null || _interstitialLoading) return;
     _interstitialLoading = true;
 
@@ -86,6 +93,7 @@ class AdService {
   }
 
   void _scheduleInterstitialRetry() {
+    if (hideAdsForScreenshots) return;
     if (_interstitialRetryTimer?.isActive == true) return;
     const steps = <int>[2, 4, 8, 15, 30, 60];
     final idx = _interstitialRetryStep.clamp(0, steps.length - 1);
@@ -123,6 +131,7 @@ class AdService {
   }
 
   void _loadRewarded() {
+    if (hideAdsForScreenshots) return;
     if (_rewarded != null) return;
 
     RewardedAd.load(
@@ -181,6 +190,10 @@ class AdService {
 
   /// Allow at most 1 interstitial per day.
   Future<bool> showInterstitialIfAllowed({required String dateKey}) async {
+    if (hideAdsForScreenshots) {
+      _track('interstitial_skipped', {'reason': 'hide_ads_define'});
+      return false;
+    }
     if (_interstitialShowing) {
       // ignore: avoid_print
       print('AD: interstitial skipped (another ad is showing)');
@@ -234,6 +247,10 @@ class AdService {
 
   /// Show once per app launch (cold start). No persistence between runs.
   Future<bool> showInterstitialOnLaunch() async {
+    if (hideAdsForScreenshots) {
+      _track('interstitial_skipped', {'reason': 'hide_ads_define_launch'});
+      return false;
+    }
     if (_launchInterstitialShown || _launchInterstitialPending) return false;
     if (_interstitialShowing) return false;
 
@@ -315,6 +332,7 @@ class AdService {
 
   /// Debug helper to validate interstitial rendering without gates.
   Future<bool> showInterstitialNowForDebug() async {
+    if (hideAdsForScreenshots) return false;
     if (!kDebugMode) return false;
     if (_interstitialShowing) return false;
     final ad = await _takeReadyInterstitial(waitUpTo: const Duration(seconds: 5));
@@ -349,6 +367,10 @@ class AdService {
 
   /// Returns true if the rewarded ad was completed.
   Future<bool> showRewardedToUnlock() async {
+    if (hideAdsForScreenshots) {
+      _track('rewarded_skipped', {'reason': 'hide_ads_define'});
+      return false;
+    }
     final ad = _rewarded;
     if (ad == null) {
       _loadRewarded();

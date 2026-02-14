@@ -41,6 +41,8 @@ class TaskRepository {
   static const _kActiveTimerEndAtMs = 'active_timer_end_at_ms_v1';
   static const _kWeeklyPlan = 'weekly_plan_v1';
   static const _kWeeklyProgress = 'weekly_progress_v1';
+  static const _kStatsScreenshotPresetApplied =
+      'stats_screenshot_preset_applied_v1';
 
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
@@ -680,6 +682,66 @@ class TaskRepository {
     await sp.remove(_kActiveTimerTaskId);
     await sp.remove(_kActiveTimerTaskTitle);
     await sp.remove(_kActiveTimerEndAtMs);
+  }
+
+  Future<void> applyStatsScreenshotPreset({bool force = false}) async {
+    final sp = await SharedPreferences.getInstance();
+    final alreadyApplied = sp.getBool(_kStatsScreenshotPresetApplied) ?? false;
+    if (alreadyApplied && !force) return;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final todayKey = _formatDateKey(today);
+    final weekKey = currentWeekKey(today);
+
+    final dailyHistory = <String, int>{};
+    const completions = [1, 2, 1, 3, 2, 4, 3];
+    for (var i = 0; i < completions.length; i++) {
+      final day = today.subtract(Duration(days: completions.length - 1 - i));
+      dailyHistory[_formatDateKey(day)] = completions[i];
+    }
+
+    const categoryCounts = <String, int>{
+      'growth': 34,
+      'mind': 27,
+      'body': 18,
+      'calm': 11,
+      'health': 9,
+    };
+    const totalCompleted = 99;
+    const weeklyTargets = <String, int>{
+      'growth': 2,
+      'mind': 1,
+      'body': 1,
+      'calm': 1,
+    };
+    const weeklyDone = <String, int>{
+      'growth': 1,
+      'mind': 1,
+      'body': 1,
+      'calm': 0,
+    };
+
+    await sp.setInt(_kTotalCompleted, totalCompleted);
+    await sp.setInt(_kBestStreak, 14);
+    await sp.setInt(_kStreakCount, 6);
+    await sp.setString(_kCategoryCounts, jsonEncode(categoryCounts));
+    await sp.setString(_kDailyHistory, jsonEncode(dailyHistory));
+    await sp.setString(_kDailyCompletedDate, todayKey);
+    await sp.setInt(_kDailyCompletedCount, 3);
+    await sp.setString(_kLastCompletedDate, todayKey);
+    await sp.setString(_kLastCompletedTitle, 'Evening focus sprint');
+    await sp.setString(_kLastCompletedCategory, 'growth');
+    await sp.setString(_kLastCompletedAt, todayKey);
+    await sp.setString(
+      _kWeeklyPlan,
+      jsonEncode(WeeklyPlan(weekKey: weekKey, targets: weeklyTargets).toMap()),
+    );
+    await sp.setString(
+      _kWeeklyProgress,
+      jsonEncode(WeeklyProgress(weekKey: weekKey, done: weeklyDone).toMap()),
+    );
+    await sp.setBool(_kStatsScreenshotPresetApplied, true);
   }
 
   String _formatDateKey(DateTime date) {

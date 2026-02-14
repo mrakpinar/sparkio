@@ -33,6 +33,12 @@ class _BannerAdBarState extends State<BannerAdBar>
   }
 
   Future<void> _refreshNoAdsAndLoad() async {
+    if (AdService.hideAdsForScreenshots) {
+      if (mounted) {
+        setState(() => _hideAds = true);
+      }
+      return;
+    }
     final premiumActive = await PremiumService.instance.isPremiumActive();
     final noAds = await PremiumService.instance.isNoAdsActive();
     if (!mounted) return;
@@ -93,9 +99,7 @@ class _BannerAdBarState extends State<BannerAdBar>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const hideAdsForScreenshots =
-        bool.fromEnvironment('HIDE_ADS', defaultValue: false);
-    if (hideAdsForScreenshots) return const SizedBox.shrink();
+    if (AdService.hideAdsForScreenshots) return const SizedBox.shrink();
     if (_hideAds) return const SizedBox.shrink();
 
     final ad = _banner;

@@ -20,6 +20,17 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final weekKey = _repo.currentWeekKey();
     final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
     final weeklyProgress = await _repo.getWeeklyProgress(weekKey: weekKey);
+    final weeklyTargets = weeklyPlan?.targets ?? const <String, int>{};
+    final weeklyDone = _filterWeeklyDoneByTargets(
+      done: weeklyProgress.done,
+      targets: weeklyTargets,
+    );
+    if (weeklyTargets.isNotEmpty &&
+        !_intMapEquals(weeklyDone, weeklyProgress.done)) {
+      await _repo.saveWeeklyProgress(
+        WeeklyProgress(weekKey: weekKey, done: weeklyDone),
+      );
+    }
     if (!mounted) return;
     final todayIds = result.today.map((t) => t.id).toSet();
     final normalizedCompleted = <String, bool>{
@@ -38,8 +49,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _adaptiveDifficultyDelta = adaptiveDelta;
       _poolError = result.poolError;
       _weeklyWeekKey = weekKey;
-      _weeklyTargets = weeklyPlan?.targets ?? {};
-      _weeklyDone = weeklyProgress.done;
+      _weeklyTargets = weeklyTargets;
+      _weeklyDone = weeklyDone;
       _loading = false;
     });
     await _restoreActiveTimerIfNeeded();
@@ -262,11 +273,20 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final weeklyPlan = WeeklyPlan(weekKey: weekKey, targets: cleaned);
     await _repo.saveWeeklyPlan(weeklyPlan);
     final progress = await _repo.getWeeklyProgress(weekKey: weekKey);
+    final filteredDone = _filterWeeklyDoneByTargets(
+      done: progress.done,
+      targets: cleaned,
+    );
+    if (!_intMapEquals(filteredDone, progress.done)) {
+      await _repo.saveWeeklyProgress(
+        WeeklyProgress(weekKey: weekKey, done: filteredDone),
+      );
+    }
     if (!mounted) return;
     _updateState(() {
       _weeklyWeekKey = weekKey;
       _weeklyTargets = cleaned;
-      _weeklyDone = progress.done;
+      _weeklyDone = filteredDone;
     });
 
     final total = cleaned.values.fold<int>(0, (sum, value) => sum + value);
@@ -285,6 +305,31 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
   int _weeklyTargetTotal() =>
       _weeklyTargets.values.fold<int>(0, (s, v) => s + v);
+
+  Map<String, int> _filterWeeklyDoneByTargets({
+    required Map<String, int> done,
+    required Map<String, int> targets,
+  }) {
+    if (done.isEmpty || targets.isEmpty) return const <String, int>{};
+    final filtered = <String, int>{};
+    for (final entry in done.entries) {
+      final target = targets[entry.key] ?? 0;
+      if (target <= 0) continue;
+      final value = entry.value;
+      if (value <= 0) continue;
+      filtered[entry.key] = value;
+    }
+    return filtered;
+  }
+
+  bool _intMapEquals(Map<String, int> a, Map<String, int> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
 
   double get _progress {
     if (_today.isEmpty) return 0;
@@ -1456,7 +1501,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           label: 'Health x10',
           description: 'Complete 10 Health tasks.',
           icon: Icons.favorite_rounded,
-          color: Color(0xFFEF4444),
+          color: Color(0xFF3B82F6),
         );
       default:
         return const BadgeInfo(
@@ -1578,7 +1623,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       bestStreak: best,
       categoryCounts: counts,
     );
-    if (_weeklyTargets.isNotEmpty) {
+    final categoryTarget = _weeklyTargets[task.category] ?? 0;
+    if (categoryTarget > 0) {
       final progress = await _repo.incrementWeeklyProgress(
         weekKey: weekKey,
         category: task.category,
