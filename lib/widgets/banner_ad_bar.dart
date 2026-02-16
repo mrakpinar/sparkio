@@ -12,8 +12,7 @@ class BannerAdBar extends StatefulWidget {
   State<BannerAdBar> createState() => _BannerAdBarState();
 }
 
-class _BannerAdBarState extends State<BannerAdBar>
-    with WidgetsBindingObserver {
+class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
   BannerAd? _banner;
   bool _hideAds = false;
   Timer? _retryTimer;
@@ -61,7 +60,7 @@ class _BannerAdBarState extends State<BannerAdBar>
   void _loadBanner() {
     _retryTimer?.cancel();
     _banner = BannerAd(
-      adUnitId: AdService.bannerUnitId,
+      adUnitId: AdService.effectiveBannerUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(

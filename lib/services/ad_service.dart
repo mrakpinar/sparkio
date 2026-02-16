@@ -18,8 +18,12 @@ class AdService {
   static const String interstitialUnitId =
       'ca-app-pub-9113236771764468/2007155466';
   static const String rewardedUnitId = 'ca-app-pub-9113236771764468/3431422934';
+  static const String _bannerTestUnitId =
+      'ca-app-pub-3940256099942544/6300978111';
   static const String _interstitialTestUnitId =
       'ca-app-pub-3940256099942544/1033173712';
+  static const String _rewardedTestUnitId =
+      'ca-app-pub-3940256099942544/5224354917';
 
   static const _kLastInterstitialDate = 'last_interstitial_date_v1';
   static const _kLaunchGateDate = 'launch_interstitial_gate_date_v1';
@@ -36,8 +40,12 @@ class AdService {
 
   bool get interstitialReady => _interstitial != null;
   bool get rewardedReady => _rewarded != null;
+  static String get effectiveBannerUnitId =>
+      kReleaseMode ? bannerUnitId : _bannerTestUnitId;
   String get _effectiveInterstitialUnitId =>
-      kDebugMode ? _interstitialTestUnitId : interstitialUnitId;
+      kReleaseMode ? interstitialUnitId : _interstitialTestUnitId;
+  String get _effectiveRewardedUnitId =>
+      kReleaseMode ? rewardedUnitId : _rewardedTestUnitId;
 
   void _track(String event, [Map<String, Object?> params = const {}]) {
     unawaited(AnalyticsService.instance.logEvent(event, params: params));
@@ -135,7 +143,7 @@ class AdService {
     if (_rewarded != null) return;
 
     RewardedAd.load(
-      adUnitId: rewardedUnitId,
+      adUnitId: _effectiveRewardedUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
@@ -217,7 +225,9 @@ class AdService {
       return false;
     }
 
-    final ad = await _takeReadyInterstitial(waitUpTo: const Duration(seconds: 3));
+    final ad = await _takeReadyInterstitial(
+      waitUpTo: const Duration(seconds: 3),
+    );
     if (ad == null) {
       // ignore: avoid_print
       print('AD: interstitial not ready, reloading');
@@ -291,7 +301,9 @@ class AdService {
     if (adFree) {
       _launchInterstitialPending = false;
       // ignore: avoid_print
-      print('AD: launch interstitial pending cancelled (premium/no-ads active)');
+      print(
+        'AD: launch interstitial pending cancelled (premium/no-ads active)',
+      );
       _track('interstitial_skipped', {'reason': 'ad_free_pending_launch'});
       return;
     }
@@ -335,7 +347,9 @@ class AdService {
     if (hideAdsForScreenshots) return false;
     if (!kDebugMode) return false;
     if (_interstitialShowing) return false;
-    final ad = await _takeReadyInterstitial(waitUpTo: const Duration(seconds: 5));
+    final ad = await _takeReadyInterstitial(
+      waitUpTo: const Duration(seconds: 5),
+    );
     if (ad == null) {
       _loadInterstitial();
       // ignore: avoid_print
