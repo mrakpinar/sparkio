@@ -15,6 +15,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final result = await _controller.bootstrap();
     final profileName = await _repo.getProfileName();
     final earnedBadgesCount = (await _repo.getEarnedBadges()).length;
+    final xpProgress = await _repo.getXpProgress();
     final completionRate = await _controller.getRecentCompletionRate(days: 7);
     final adaptiveDelta = _controller.adaptationDeltaFromCompletionRate(
       completionRate,
@@ -50,6 +51,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _dailyAddCount = result.dailyAddCount;
       _adaptiveDifficultyDelta = adaptiveDelta;
       _earnedBadgesCount = earnedBadgesCount;
+      _totalXp = xpProgress.totalXp;
+      _level = xpProgress.level;
+      _xpInLevel = xpProgress.xpInLevel;
+      _xpToNextLevel = xpProgress.xpToNextLevel;
       _profileName = profileName ?? '';
       _poolError = result.poolError;
       _weeklyWeekKey = weekKey;
@@ -131,17 +136,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     _updateState(() => _dailyMoodPrompting = true);
     try {
-      final selected = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          return DailyMoodSheet(
-            onSelect: (mood) => Navigator.of(sheetContext).pop(mood),
-            onSkip: () => Navigator.of(sheetContext).pop(),
-          );
-        },
-      );
+      final selected = await _showDailyMoodSheet();
 
       if (!mounted) return;
 
@@ -155,11 +150,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       await _repo.setDailyMood(dateKey: dateKey, mood: selected);
       _track('daily_mood_selected', {'mood': selected});
       await _applyMoodToTodayTasks(selected);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Got it — tailored one task for you.')),
-      );
     } finally {
       if (mounted) {
         _updateState(() => _dailyMoodPrompting = false);
@@ -175,28 +165,13 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     _updateState(() => _dailyMoodPrompting = true);
     try {
-      final selected = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          return DailyMoodSheet(
-            onSelect: (mood) => Navigator.of(sheetContext).pop(mood),
-            onSkip: () => Navigator.of(sheetContext).pop(),
-          );
-        },
-      );
+      final selected = await _showDailyMoodSheet();
 
       if (!mounted || selected == null) return;
       final dateKey = _todayKey();
       await _repo.setDailyMood(dateKey: dateKey, mood: selected);
       _track('daily_mood_selected_debug', {'mood': selected});
       await _applyMoodToTodayTasks(selected);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debug mood selection applied.')),
-      );
     } finally {
       if (mounted) {
         _updateState(() => _dailyMoodPrompting = false);
@@ -204,6 +179,57 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         _dailyMoodPrompting = false;
       }
     }
+  }
+
+  Future<String?> _showDailyMoodSheet() {
+    return showGeneralDialog<String>(
+      context: context,
+      barrierLabel: 'Daily mood prompt',
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 430),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return SafeArea(
+          top: false,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: DailyMoodSheet(
+              onSelect: (mood) => Navigator.of(dialogContext).pop(mood),
+              onSkip: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+        final t = Curves.easeOutQuart.transform(animation.value);
+        final blurSigma = 14 * t;
+        final overlayOpacity = 0.16 + (0.4 * t);
+        final riseOffset = 34 * (1 - t);
+        final sheetScale = 0.985 + (0.015 * t);
+        return Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              IgnorePointer(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(
+                    sigmaX: blurSigma,
+                    sigmaY: blurSigma,
+                  ),
+                  child: Container(
+                    color: Colors.black.withOpacity(overlayOpacity),
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: Offset(0, riseOffset),
+                child: Transform.scale(scale: sheetScale, child: child),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _applyMoodToTodayTasks(String mood) async {
@@ -448,12 +474,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     unawaited(AnalyticsService.instance.logEvent(event, params: params));
   }
 
-  List<String> get _successMessages => const [
-    'Well done ',
-    'Small step, big win.',
-    'Keep going ',
-  ];
-
   Future<void> _syncPremiumTopics([bool? premiumActive]) async {
     try {
       await _controller.syncNotificationTopics(
@@ -464,83 +484,366 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
   }
 
-  String _pickSuccessMessage() {
-    final rng = Random();
-    return _successMessages[rng.nextInt(_successMessages.length)];
+  int _taskXpReward(Task task) {
+    final base = switch (task.difficulty) {
+      'hard' => 8,
+      'medium' => 6,
+      _ => 5,
+    };
+    return task.isSpecial ? base + 2 : base;
   }
 
-  Future<void> _showSuccessPulse(String message) async {
+  String _remainingSparkCopy(int remaining) {
+    if (remaining <= 0) return 'You can pause here. See you tomorrow.';
+    if (remaining == 1) return 'One more if you feel like it.';
+    if (remaining == 2) return 'Two more if you feel like it.';
+    return '$remaining more if you feel like it.';
+  }
+
+  Future<void> _showTaskCompletionMomentum({
+    required Task task,
+    required int completedToday,
+    required String completionChainId,
+    required int remainingActionCount,
+  }) async {
     if (!mounted) return;
 
-    final overlay = Overlay.of(context);
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+    const dailyGoal = 3;
+    final done = completedToday.clamp(0, dailyGoal);
+    final remaining = (dailyGoal - done).clamp(0, dailyGoal);
+    final xp = _taskXpReward(task);
+    _track('completion_reinforcement_shown', {
+      'chain_id': completionChainId,
+      'task_id': task.id,
+      'completed_today': done,
+      'remaining_actions': remainingActionCount,
+    });
 
     final controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 180),
-    );
-    final curved = CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOutBack,
+      duration: const Duration(milliseconds: 1320),
     );
 
     late OverlayEntry entry;
+    var dismissed = false;
+    final closeCompleter = Completer<void>();
+
+    Future<void> dismissOverlay({bool animateToEnd = true}) async {
+      if (dismissed) return;
+      dismissed = true;
+      if (animateToEnd) {
+        try {
+          if (controller.status != AnimationStatus.completed) {
+            await controller.animateTo(
+              1.0,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeInOut,
+            );
+          }
+        } catch (_) {}
+      }
+      if (entry.mounted) {
+        entry.remove();
+      }
+      controller.dispose();
+      if (!closeCompleter.isCompleted) {
+        closeCompleter.complete();
+      }
+    }
+
     entry = OverlayEntry(
       builder: (context) {
-        return IgnorePointer(
-          child: Center(
-            child: FadeTransition(
-              opacity: controller,
-              child: ScaleTransition(
-                scale: curved,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.shadow.withOpacity(0.2),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle_rounded),
-                      const SizedBox(width: 10),
-                      Text(
-                        message,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        return AnimatedBuilder(
+          animation: controller,
+          builder: (context, child) {
+            final t = controller.value;
+            final intro = Curves.easeOutCubic.transform(
+              (t / 0.36).clamp(0.0, 1.0),
+            );
+            final outroT = ((t - 0.84) / 0.16).clamp(0.0, 1.0);
+            final fadeOut = t < 0.86
+                ? 1.0
+                : 1 -
+                      Curves.easeIn.transform(
+                        ((t - 0.86) / 0.14).clamp(0.0, 1.0),
+                      );
+            final burst = Curves.easeOut.transform((t / 0.28).clamp(0.0, 1.0));
+            final xpFloat = Curves.easeOut.transform(
+              ((t - 0.24) / 0.28).clamp(0.0, 1.0),
+            );
+            final ringProgress = ui.lerpDouble(
+              ((done - 1).clamp(0, dailyGoal) / dailyGoal),
+              done / dailyGoal,
+              Curves.easeOutCubic.transform((t / 0.54).clamp(0.0, 1.0)),
+            )!;
+            final breathePhase = (t / 0.78).clamp(0.0, 1.0);
+            final glowBreath = sin(breathePhase * pi * 2).abs();
+            final backdropGlow =
+                (0.05 + (glowBreath * 0.08)) * (1 - (outroT * 0.7));
+            final cardScale = ui.lerpDouble(
+              ui.lerpDouble(0.92, 1.0, intro)!,
+              0.965,
+              Curves.easeIn.transform(outroT),
+            )!;
+            final ctaOpacity = Curves.easeOut.transform(
+              ((t - 0.28) / 0.2).clamp(0.0, 1.0),
+            );
+
+            return Opacity(
+              opacity: fadeOut,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(0, -0.25),
+                          radius: 1.08,
+                          colors: [
+                            scheme.primary.withOpacity(backdropGlow),
+                            Colors.transparent,
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  Center(
+                    child: Transform.translate(
+                      offset: Offset(0, ui.lerpDouble(24, 0, intro)!),
+                      child: Transform.scale(
+                        scale: cardScale,
+                        child: Container(
+                          width: min(
+                            MediaQuery.of(context).size.width - 28,
+                            382,
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color.alphaBlend(
+                                  scheme.primary.withOpacity(0.18),
+                                  scheme.surface,
+                                ),
+                                Color.alphaBlend(
+                                  scheme.secondary.withOpacity(0.1),
+                                  scheme.surface,
+                                ),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: scheme.outline.withOpacity(0.24),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: scheme.primary.withOpacity(0.2),
+                                blurRadius: 22,
+                                spreadRadius: -4,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      CustomPaint(
+                                        size: const Size(72, 72),
+                                        painter: _SoftBurstPainter(
+                                          progress: burst,
+                                          color: scheme.primary,
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              scheme.primary.withOpacity(0.28),
+                                              scheme.secondary.withOpacity(
+                                                0.22,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: _DrawnCheckIcon(
+                                            progress: burst,
+                                            color: scheme.onPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      task.title,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.24,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Progress, not pressure.',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tiny actions compound.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant.withOpacity(
+                                    0.9,
+                                  ),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Row(
+                                    children: [
+                                      _MomentumRing(
+                                        progress: ringProgress,
+                                        color: scheme.primary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '$done / $dailyGoal sparks today',
+                                              style: theme.textTheme.titleSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _remainingSparkCopy(remaining),
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: scheme
+                                                        .onSurfaceVariant
+                                                        .withOpacity(0.88),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Positioned(
+                                    left: 26,
+                                    top: -2 - (xpFloat * 18),
+                                    child: Opacity(
+                                      opacity: 1 - xpFloat,
+                                      child: Text(
+                                        '+$xp XP',
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(
+                                              color: scheme.primary.withOpacity(
+                                                0.95,
+                                              ),
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Opacity(
+                                opacity: ctaOpacity,
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton(
+                                        onPressed: () {
+                                          _track(
+                                            'completion_reinforcement_cta',
+                                            {
+                                              'chain_id': completionChainId,
+                                              'action': 'continue',
+                                              'remaining_actions':
+                                                  remainingActionCount,
+                                            },
+                                          );
+                                          unawaited(dismissOverlay());
+                                        },
+                                        child: const Text('Continue'),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    TextButton(
+                                      onPressed: () {
+                                        _track('completion_reinforcement_cta', {
+                                          'chain_id': completionChainId,
+                                          'action': 'done_for_now',
+                                          'remaining_actions':
+                                              remainingActionCount,
+                                        });
+                                        unawaited(dismissOverlay());
+                                      },
+                                      child: const Text("I'm done for now"),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
 
+    unawaited(HapticFeedback.selectionClick());
     overlay.insert(entry);
-    await controller.forward();
-    await Future.delayed(const Duration(milliseconds: 700));
-    await controller.reverse();
-    entry.remove();
-    controller.dispose();
+    unawaited(() async {
+      try {
+        await controller.animateTo(
+          0.82,
+          duration: const Duration(milliseconds: 920),
+          curve: Curves.easeOutCubic,
+        );
+      } catch (_) {}
+    }());
+    await closeCompleter.future;
   }
 
   void _openMenu() {
@@ -556,16 +859,22 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       showDebugTools: _showDebugTools,
       profileName: _profileName,
       currentStreak: _streak,
+      currentLevel: _level,
+      totalXp: _totalXp,
+      xpInLevel: _xpInLevel,
+      xpToNextLevel: _xpToNextLevel,
       earnedBadgeCount: _earnedBadgesCount,
       badgeGoalCount: _HomeScreenState._badgeGoalCount,
       weeklyDoneCount: _weeklyDoneTotal(),
       weeklyGoalCount: _weeklyTargetTotal(),
       onToggleTheme: _toggleTheme,
+      onOpenAddSpark: _openAddTaskSheet,
       onEditProfile: _openProfileEditor,
       onOpenBadges: _openBadges,
       onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
       onOpenContact: _openContact,
       onSendTestNotification: _sendTestNotification,
+      onOpenDailyMoodSheet: _openDailyMoodSheetDebug,
     );
   }
 
@@ -1178,26 +1487,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _openShareSheet() async {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final earnedBadgeIds = await _repo.getEarnedBadges();
-    final orderedBadgeIds = _shareBadgeOrder
-        .where(earnedBadgeIds.contains)
-        .toList();
-    for (final id in earnedBadgeIds) {
-      if (!orderedBadgeIds.contains(id)) {
-        orderedBadgeIds.add(id);
-      }
-    }
-    final shareBadges = orderedBadgeIds
-        .take(4)
-        .map(_badgeInfo)
-        .map(
-          (info) => ShareBadgeChipData(
-            label: info.label,
-            icon: info.icon,
-            color: info.color,
-          ),
-        )
-        .toList();
+    final primaryHsl = HSLColor.fromColor(scheme.primary);
+    final shareButtonAccent = primaryHsl
+        .withSaturation((primaryHsl.saturation * 0.9).clamp(0.0, 1.0))
+        .toColor();
+    final shareButtonBackground = Color.alphaBlend(
+      shareButtonAccent.withOpacity(0.48),
+      scheme.surface,
+    );
 
     await showModalBottomSheet(
       context: context,
@@ -1266,10 +1563,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                 .where((t) => _completed[t.id] == true)
                                 .length,
                             totalCount: _today.length,
-                            dateLabel: DateFormat(
-                              'EEE, MMM d',
-                            ).format(DateTime.now()),
-                            badges: shareBadges,
                           ),
                         ),
                       ),
@@ -1281,8 +1574,22 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _shareImage,
-                    icon: const Icon(Icons.ios_share_rounded),
+                    icon: const Icon(Icons.ios_share_rounded, size: 20),
                     label: const Text('Share'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: shareButtonBackground,
+                      foregroundColor: scheme.onSurface.withOpacity(0.92),
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      side: BorderSide(color: scheme.outline.withOpacity(0.26)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      textStyle: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ),
               ],
@@ -1292,19 +1599,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       },
     );
   }
-
-  static const List<String> _shareBadgeOrder = [
-    'total_100',
-    'total_50',
-    'total_10',
-    'streak_7',
-    'streak_3',
-    'cat_mind_10',
-    'cat_body_10',
-    'cat_growth_10',
-    'cat_calm_10',
-    'cat_health_10',
-  ];
 
   Future<String> _resolveAddTaskCtaVariant() async {
     final existing = await _repo.getAddTaskCtaVariant();
@@ -1636,6 +1930,53 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     );
   }
 
+  String _levelTitleForUi(int level) {
+    if (level >= 20) return 'Flow Master';
+    if (level >= 14) return 'Momentum Maker';
+    if (level >= 9) return 'Consistency Builder';
+    if (level >= 5) return 'Habit Starter';
+    return 'First Spark';
+  }
+
+  Future<void> _showLevelUpOverlay({
+    required int previousLevel,
+    required XpProgress progress,
+  }) async {
+    if (!mounted) return;
+    final newLevel = progress.level;
+    final levelTitle = _levelTitleForUi(newLevel);
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Level up',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, _, _) {
+        return Center(
+          child: _LevelUpOverlayCard(
+            previousLevel: previousLevel,
+            newLevel: newLevel,
+            levelTitle: levelTitle,
+            totalXp: progress.totalXp,
+            xpInLevel: progress.xpInLevel,
+            xpToNextLevel: progress.xpToNextLevel,
+            onClose: () => Navigator.of(dialogContext).maybePop(),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, _, child) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: slide, child: child),
+        );
+      },
+    );
+  }
+
   BadgeInfo _badgeInfo(String id) {
     switch (id) {
       case 'total_10':
@@ -1742,6 +2083,26 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _activeTimerRemaining = duration;
       _activeTimerFinished = false;
     });
+    if (_awaitingSecondAction &&
+        _pendingCompletionTaskId != null &&
+        _pendingCompletionTaskId != task.id) {
+      final elapsedSec = _pendingCompletionAt == null
+          ? null
+          : DateTime.now().difference(_pendingCompletionAt!).inSeconds;
+      _track('completion_second_action_started', {
+        'chain_id': _pendingCompletionChainId,
+        'completed_today_at_entry': _pendingCompletionDoneCount,
+        if (elapsedSec != null) 'elapsed_sec': elapsedSec,
+        'task_id': task.id,
+      });
+      _updateState(() {
+        _awaitingSecondAction = false;
+        _pendingCompletionChainId = null;
+        _pendingCompletionTaskId = null;
+        _pendingCompletionAt = null;
+        _pendingCompletionDoneCount = 0;
+      });
+    }
     _track('task_started', {
       'task_id': task.id,
       'category': task.category,
@@ -1809,13 +2170,40 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final weekKey = _repo.currentWeekKey();
     final beforeWeekDone = _weeklyDoneTotal();
     final weekTarget = _weeklyTargetTotal();
+    final xpReward = _taskXpReward(task);
+    final previousLevel = _level;
     await HapticFeedback.lightImpact();
-    await _showSuccessPulse(_pickSuccessMessage());
     if (_activeTimerTask?.id == task.id) {
       await _cancelTaskTimer(task);
     }
     await _repo.incrementCompleted(task.category);
+    final xpProgress = await _repo.addXp(xpReward);
     final newDaily = await _repo.incrementDailyCompleted(_todayKey());
+    final remainingActionCount = _today
+        .where((item) => _completed[item.id] != true)
+        .length;
+    final completionChainId =
+        '${DateTime.now().millisecondsSinceEpoch}_${task.id}';
+    if (mounted) {
+      _updateState(() {
+        _todayCompleted = newDaily;
+        _totalXp = xpProgress.totalXp;
+        _level = xpProgress.level;
+        _xpInLevel = xpProgress.xpInLevel;
+        _xpToNextLevel = xpProgress.xpToNextLevel;
+        _awaitingSecondAction = remainingActionCount > 0;
+        _pendingCompletionChainId = completionChainId;
+        _pendingCompletionTaskId = task.id;
+        _pendingCompletionAt = DateTime.now();
+        _pendingCompletionDoneCount = newDaily;
+      });
+    }
+    await _showTaskCompletionMomentum(
+      task: task,
+      completedToday: newDaily,
+      completionChainId: completionChainId,
+      remainingActionCount: remainingActionCount,
+    );
     await _repo.setLastCompletedTask(
       title: task.title,
       category: task.category,
@@ -1863,13 +2251,28 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       'category': task.category,
       'duration_min': task.durationMinutes,
       'from_timer': completedFromTimer,
+      'xp_earned': xpReward,
+      'xp_total': xpProgress.totalXp,
+      'level': xpProgress.level,
     });
+    if (xpProgress.level > previousLevel) {
+      _track('level_up', {
+        'previous_level': previousLevel,
+        'new_level': xpProgress.level,
+        'total_xp': xpProgress.totalXp,
+      });
+      if (mounted) {
+        await _showLevelUpOverlay(
+          previousLevel: previousLevel,
+          progress: xpProgress,
+        );
+      }
+    }
     if (mounted && newBadges.isNotEmpty) {
       _updateState(() => _earnedBadgesCount += newBadges.length);
       _showBadgeUnlocked(newBadges.first);
       unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
     }
-    if (mounted) _updateState(() => _todayCompleted = newDaily);
   }
 
   int _taskTimerNotificationId(String taskId) {
@@ -2037,117 +2440,202 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     final choice = await showDialog<_RefreshChoice>(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.56),
       builder: (context) {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          child: Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
+            ),
+            backgroundColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
                         gradient: LinearGradient(
-                          colors: [scheme.primary, scheme.primaryContainer],
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Fresh set, fresh momentum',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color.alphaBlend(
+                              scheme.primary.withOpacity(0.055),
+                              scheme.surface,
+                            ),
+                            Color.alphaBlend(
+                              scheme.secondary.withOpacity(0.028),
+                              scheme.surface,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () =>
-                          Navigator.of(context).pop(_RefreshChoice.cancel),
-                      icon: const Icon(Icons.close_rounded),
-                      splashRadius: 18,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Pick how you want to unlock a new set today.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
                   ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: [
-                        scheme.primary.withOpacity(0.18),
-                        scheme.secondary.withOpacity(0.08),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: scheme.outline),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.campaign_rounded),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Limited offer: 30 min Premium + 1 bonus task',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+                  Positioned(
+                    left: -46,
+                    right: -46,
+                    top: -84,
+                    height: 210,
+                    child: IgnorePointer(
+                      child: ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(
+                          sigmaX: 14,
+                          sigmaY: 14,
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(0, -1.0),
+                              radius: 1.24,
+                              colors: [
+                                scheme.primary.withOpacity(0.13),
+                                Colors.transparent,
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () =>
-                        Navigator.of(context).pop(_RefreshChoice.premium),
-                    icon: const Icon(Icons.star_rounded),
-                    label: const Text('Go Premium'),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _DialogParticlePainter(opacity: 0.02),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        Navigator.of(context).pop(_RefreshChoice.rewarded),
-                    icon: const Icon(Icons.play_circle_fill_rounded),
-                    label: const Text('Unlock with ad'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            _DialogSparkIcon(
+                              primary: scheme.primary,
+                              secondary: scheme.primaryContainer,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Start a new set',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.22,
+                                  color: scheme.onSurface.withOpacity(0.94),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(
+                                context,
+                              ).pop(_RefreshChoice.cancel),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                size: 20,
+                                color: scheme.onSurfaceVariant.withOpacity(
+                                  0.54,
+                                ),
+                              ),
+                              splashRadius: 16,
+                              style: IconButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(34, 34),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: Colors.transparent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Take a fresh moment.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant.withOpacity(0.9),
+                            height: 1.36,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 16,
+                              color: scheme.onSurfaceVariant.withOpacity(0.7),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Includes a bonus task with Premium.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant.withOpacity(
+                                    0.76,
+                                  ),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.42,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _RefreshChoiceButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pop(_RefreshChoice.premium),
+                            icon: Icons.workspace_premium_rounded,
+                            label: 'Continue with Premium',
+                            emphasized: true,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _RefreshChoiceButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pop(_RefreshChoice.rewarded),
+                            icon: Icons.play_circle_outline_rounded,
+                            label: 'Watch a short ad',
+                            emphasized: false,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+          builder: (context, t, child) {
+            final sigma = 10 + (t * 0.5);
+            return Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, (1 - t) * 12),
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                    child: child,
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -2380,7 +2868,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         SnackBar(
           content: Text(
             newVal
-                ? "Daily reminder enabled (09:00)."
+                ? "Daily reminder enabled (12:00)."
                 : "Daily reminder disabled.",
           ),
         ),
@@ -2441,6 +2929,61 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
   }
 
+  Future<void> _debugAddThreeTasks() async {
+    final scheme = Theme.of(context).colorScheme;
+    try {
+      final pool = await _loadEffectivePool();
+      final lastSeenDate = await _repo.getLastSeenDate();
+      final lastSeenIds = await _repo.getLastSeenTaskIds();
+      final avoidIds = lastSeenDate == _todayKey()
+          ? lastSeenIds.toSet()
+          : <String>{};
+      final currentIds = _today.map((t) => t.id).toSet();
+      final picked = _controller.pickTasksNoRepeat(
+        pool: pool,
+        count: 3,
+        seedKey: 'debug_add_${DateTime.now().millisecondsSinceEpoch}',
+        avoidIds: currentIds.union(avoidIds),
+      );
+
+      if (picked.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No extra tasks available.')),
+          );
+        }
+        return;
+      }
+
+      final updated = [..._today, ...picked];
+      await _repo.saveSelectedTasks(updated);
+      await _controller.updateLastSeen(dateKey: _todayKey(), tasks: picked);
+
+      if (!mounted) return;
+      _updateState(() {
+        _today = updated;
+        for (final task in picked) {
+          _completed[task.id] = false;
+        }
+      });
+      unawaited(_syncHomeWidgetSnapshot());
+      _track('debug_add_tasks', {'count': picked.length});
+      final noun = picked.length == 1 ? 'task' : 'tasks';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${picked.length} debug $noun added.')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Unable to add debug tasks.'),
+            backgroundColor: scheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _ensureProfileNamePrompt({bool forceIfMissing = false}) async {
     if (!mounted) return;
     final existing = await _repo.getProfileName();
@@ -2462,53 +3005,369 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       context: context,
       barrierDismissible: !forceRequired,
       builder: (dialogContext) {
-        final scheme = Theme.of(dialogContext).colorScheme;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Text('Your profile'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              initialValue: draftName,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              maxLength: 24,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'Enter your first name',
-                counterText: '',
+        final theme = Theme.of(dialogContext);
+        final scheme = theme.colorScheme;
+        var fieldFocused = false;
+        return StatefulBuilder(
+          builder: (dialogContext, setModalState) {
+            final baseFieldColor = Color.alphaBlend(
+              scheme.primary.withOpacity(
+                theme.brightness == Brightness.dark ? 0.08 : 0.04,
               ),
-              validator: (value) {
-                final text = value?.trim() ?? '';
-                if (text.isEmpty) return 'Please enter your name';
-                if (text.length < 2) return 'Name is too short';
-                return null;
-              },
-              onChanged: (value) => draftName = value,
-              onFieldSubmitted: (_) {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.of(dialogContext).pop(draftName.trim());
-                }
-              },
-            ),
-          ),
-          actions: [
-            if (!forceRequired)
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).maybePop(),
-                child: const Text('Cancel'),
+              scheme.surfaceContainerHighest.withOpacity(
+                theme.brightness == Brightness.dark ? 0.62 : 0.9,
               ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: scheme.primary),
-              onPressed: () {
-                if (!(formKey.currentState?.validate() ?? false)) return;
-                Navigator.of(dialogContext).pop(draftName.trim());
-              },
-              child: const Text('Save'),
-            ),
-          ],
+            );
+            final grainOpacity = theme.brightness == Brightness.dark
+                ? 0.055
+                : 0.04;
+            final barrierBlur = fieldFocused ? 15.3 : 13.3;
+            final keyboardVisible =
+                MediaQuery.of(dialogContext).viewInsets.bottom > 0;
+            return Material(
+              type: MaterialType.transparency,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(
+                          sigmaX: barrierBlur,
+                          sigmaY: barrierBlur,
+                        ),
+                        child: ColoredBox(
+                          color: Colors.black.withOpacity(
+                            theme.brightness == Brightness.dark ? 0.18 : 0.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween<double>(begin: 0, end: 1),
+                      builder: (context, openT, child) {
+                        return AnimatedPadding(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          padding: EdgeInsets.only(
+                            bottom: keyboardVisible ? 20 : 0,
+                          ),
+                          child: Transform.scale(
+                            scale: 0.97 + (0.03 * openT),
+                            child: Opacity(opacity: openT, child: child),
+                          ),
+                        );
+                      },
+                      child: Dialog(
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        insetPadding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 24,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 420),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    scheme.surface.withOpacity(0.96),
+                                    scheme.surface.withOpacity(0.92),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(
+                                    theme.brightness == Brightness.dark
+                                        ? 0.1
+                                        : 0.14,
+                                  ),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: scheme.primary.withOpacity(0.13),
+                                    blurRadius: 24,
+                                    spreadRadius: -8,
+                                    offset: const Offset(0, 12),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          gradient: RadialGradient(
+                                            center: const Alignment(0, -1.12),
+                                            radius: 1.3,
+                                            colors: [
+                                              scheme.primary.withOpacity(0.04),
+                                              Colors.transparent,
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: CustomPaint(
+                                        painter: _SurfaceGrainPainter(
+                                          opacity: grainOpacity,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      18,
+                                      20,
+                                      14,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Text(
+                                          'What should we call you?',
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Form(
+                                          key: formKey,
+                                          child: TweenAnimationBuilder<double>(
+                                            duration: const Duration(
+                                              milliseconds: 260,
+                                            ),
+                                            curve: Curves.easeOutCubic,
+                                            tween: Tween<double>(
+                                              begin: 0,
+                                              end: 1,
+                                            ),
+                                            builder: (context, glowT, child) {
+                                              final idleGlow = 0.042 * glowT;
+                                              final focusGlow = fieldFocused
+                                                  ? (0.175 * glowT)
+                                                  : 0.0;
+                                              return AnimatedContainer(
+                                                duration: const Duration(
+                                                  milliseconds: 180,
+                                                ),
+                                                curve: Curves.easeOutCubic,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topCenter,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [
+                                                      Colors.white.withOpacity(
+                                                        theme.brightness ==
+                                                                Brightness.dark
+                                                            ? 0.06
+                                                            : 0.085,
+                                                      ),
+                                                      baseFieldColor,
+                                                    ],
+                                                  ),
+                                                  border: Border.all(
+                                                    color: Colors.white
+                                                        .withOpacity(
+                                                          theme.brightness ==
+                                                                  Brightness
+                                                                      .dark
+                                                              ? 0.06
+                                                              : 0.08,
+                                                        ),
+                                                    width: 1,
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: scheme.primary
+                                                          .withOpacity(
+                                                            idleGlow,
+                                                          ),
+                                                      blurRadius: 15,
+                                                      spreadRadius: -7,
+                                                      offset: const Offset(
+                                                        0,
+                                                        4,
+                                                      ),
+                                                    ),
+                                                    if (fieldFocused)
+                                                      BoxShadow(
+                                                        color: scheme.primary
+                                                            .withOpacity(
+                                                              focusGlow,
+                                                            ),
+                                                        blurRadius: 20,
+                                                        spreadRadius: -5,
+                                                        offset: const Offset(
+                                                          0,
+                                                          6,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                child: child,
+                                              );
+                                            },
+                                            child: Focus(
+                                              onFocusChange: (value) {
+                                                if (value == fieldFocused) {
+                                                  return;
+                                                }
+                                                setModalState(
+                                                  () => fieldFocused = value,
+                                                );
+                                              },
+                                              child: TextFormField(
+                                                initialValue: draftName,
+                                                autofocus: true,
+                                                enableInteractiveSelection:
+                                                    false,
+                                                textCapitalization:
+                                                    TextCapitalization.words,
+                                                maxLength: 24,
+                                                style: theme.textTheme.bodyLarge
+                                                    ?.copyWith(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                cursorColor: Color.alphaBlend(
+                                                  scheme.primary.withOpacity(
+                                                    0.62,
+                                                  ),
+                                                  scheme.onSurfaceVariant
+                                                      .withOpacity(0.42),
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText:
+                                                      'Enter your first name',
+                                                  counterText: '',
+                                                  hintStyle: theme
+                                                      .textTheme
+                                                      .bodyLarge
+                                                      ?.copyWith(
+                                                        fontSize: 16,
+                                                        color: scheme
+                                                            .onSurfaceVariant
+                                                            .withOpacity(0.62),
+                                                      ),
+                                                  border: InputBorder.none,
+                                                  enabledBorder:
+                                                      InputBorder.none,
+                                                  focusedBorder:
+                                                      InputBorder.none,
+                                                  errorBorder: InputBorder.none,
+                                                  focusedErrorBorder:
+                                                      InputBorder.none,
+                                                  contentPadding:
+                                                      const EdgeInsets.fromLTRB(
+                                                        2,
+                                                        14,
+                                                        2,
+                                                        14,
+                                                      ),
+                                                ),
+                                                validator: (value) {
+                                                  final text =
+                                                      value?.trim() ?? '';
+                                                  if (text.isEmpty) {
+                                                    return 'Please enter your name';
+                                                  }
+                                                  if (text.length < 2) {
+                                                    return 'Name is too short';
+                                                  }
+                                                  return null;
+                                                },
+                                                onChanged: (value) =>
+                                                    draftName = value,
+                                                onFieldSubmitted: (_) {
+                                                  if (formKey.currentState
+                                                          ?.validate() ??
+                                                      false) {
+                                                    Navigator.of(
+                                                      dialogContext,
+                                                    ).pop(draftName.trim());
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            if (!forceRequired)
+                                              TextButton(
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor: scheme
+                                                      .onSurfaceVariant
+                                                      .withOpacity(0.7),
+                                                ),
+                                                onPressed: () => Navigator.of(
+                                                  dialogContext,
+                                                ).maybePop(),
+                                                child: const Text('Cancel'),
+                                              ),
+                                            if (!forceRequired)
+                                              const SizedBox(width: 8),
+                                            FilledButton(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: scheme.primary,
+                                              ),
+                                              onPressed: () {
+                                                if (!(formKey.currentState
+                                                        ?.validate() ??
+                                                    false)) {
+                                                  return;
+                                                }
+                                                Navigator.of(
+                                                  dialogContext,
+                                                ).pop(draftName.trim());
+                                              },
+                                              child: const Text('Done'),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -2522,6 +3381,525 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 }
 
 enum _RatePromptAction { later, rateNow }
+
+class _DialogSparkIcon extends StatefulWidget {
+  const _DialogSparkIcon({required this.primary, required this.secondary});
+
+  final Color primary;
+  final Color secondary;
+
+  @override
+  State<_DialogSparkIcon> createState() => _DialogSparkIconState();
+}
+
+class _DialogSparkIconState extends State<_DialogSparkIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1050),
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final progress = Curves.easeOutCubic.transform(_controller.value);
+        final pulse = sin(progress * pi).clamp(0.0, 1.0).toDouble();
+        final glow = 0.16 + (pulse * 0.24);
+        final scale = 1.0 + (pulse * 0.018);
+        return Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  widget.primary,
+                  Color.alphaBlend(
+                    widget.secondary.withOpacity(0.45),
+                    widget.primary,
+                  ),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.14),
+                width: 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.primary.withOpacity(glow),
+                  blurRadius: 16 + (pulse * 7),
+                  spreadRadius: -6 + (pulse * 1.4),
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Stack(
+                children: [
+                  const Center(
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RefreshChoiceButton extends StatefulWidget {
+  const _RefreshChoiceButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.emphasized,
+  });
+
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+  final bool emphasized;
+
+  @override
+  State<_RefreshChoiceButton> createState() => _RefreshChoiceButtonState();
+}
+
+class _RefreshChoiceButtonState extends State<_RefreshChoiceButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = widget.emphasized ? scheme.primary : scheme.secondary;
+    final base = widget.emphasized ? scheme.primaryContainer : scheme.surface;
+    final fg = widget.emphasized
+        ? scheme.onPrimaryContainer
+        : scheme.onSurface.withOpacity(0.88);
+    final borderOpacity = widget.emphasized ? 0.18 : 0.06;
+    final grainOpacity = widget.emphasized ? 0.02 : 0.016;
+    final glowOpacity = widget.emphasized
+        ? (_pressed ? 0.24 : 0.18)
+        : (_pressed ? 0.13 : 0.07);
+    final topTintOpacity = widget.emphasized ? 0.15 : 0.04;
+    final bottomTintOpacity = widget.emphasized ? 0.07 : 0.025;
+
+    return AnimatedScale(
+      scale: _pressed ? 1.01 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onPressed,
+          onHighlightChanged: (value) {
+            if (_pressed == value) return;
+            setState(() => _pressed = value);
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: tint.withOpacity(borderOpacity),
+                width: 0.9,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.alphaBlend(tint.withOpacity(topTintOpacity), base),
+                  Color.alphaBlend(tint.withOpacity(bottomTintOpacity), base),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: tint.withOpacity(glowOpacity),
+                  blurRadius: 16 + (_pressed ? 4 : 0),
+                  spreadRadius: -9 + (_pressed ? 1.2 : 0),
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0, -1.12),
+                            radius: 1.3,
+                            colors: [
+                              Colors.white.withOpacity(
+                                widget.emphasized ? 0.13 : 0.06,
+                              ),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 1,
+                        color: Colors.white.withOpacity(
+                          widget.emphasized ? 0.07 : 0.05,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white.withOpacity(0.04),
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.045),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _SurfaceGrainPainter(opacity: grainOpacity),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 13,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(widget.icon, size: 18, color: fg),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.label,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: fg,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SurfaceGrainPainter extends CustomPainter {
+  const _SurfaceGrainPainter({required this.opacity});
+
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0) return;
+    final random = Random(19);
+    final count = (size.width * size.height / 320).round().clamp(26, 80);
+    final paint = Paint();
+    for (var i = 0; i < count; i++) {
+      final x = random.nextDouble() * size.width;
+      final y = random.nextDouble() * size.height;
+      final r = 0.35 + random.nextDouble() * 0.75;
+      final alpha = opacity * (0.4 + random.nextDouble() * 0.6);
+      paint.color = (i % 2 == 0)
+          ? Colors.white.withOpacity(alpha)
+          : Colors.black.withOpacity(alpha * 0.86);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SurfaceGrainPainter oldDelegate) {
+    return oldDelegate.opacity != opacity;
+  }
+}
+
+class _DialogParticlePainter extends CustomPainter {
+  const _DialogParticlePainter({required this.opacity});
+
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0) return;
+    final random = Random(27);
+    final count = (size.width * size.height / 420).round().clamp(30, 95);
+    final paint = Paint();
+    for (var i = 0; i < count; i++) {
+      final x = random.nextDouble() * size.width;
+      final y = random.nextDouble() * size.height;
+      final r = 0.35 + (random.nextDouble() * 0.75);
+      final alpha = opacity * (0.35 + (random.nextDouble() * 0.65));
+      paint.color = i.isEven
+          ? Colors.white.withOpacity(alpha * 0.95)
+          : Colors.black.withOpacity(alpha * 0.72);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DialogParticlePainter oldDelegate) {
+    return oldDelegate.opacity != opacity;
+  }
+}
+
+class _DrawnCheckIcon extends StatelessWidget {
+  const _DrawnCheckIcon({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Curves.easeOut.transform(progress.clamp(0.0, 1.0));
+    return SizedBox(
+      width: 26,
+      height: 26,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        widthFactor: t,
+        child: Icon(Icons.check_rounded, size: 24, color: color),
+      ),
+    );
+  }
+}
+
+class _SoftBurstPainter extends CustomPainter {
+  const _SoftBurstPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = Curves.easeOut.transform(progress.clamp(0.0, 1.0));
+    if (t <= 0) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()..style = PaintingStyle.fill;
+    const count = 9;
+    for (var i = 0; i < count; i++) {
+      final angle = (pi * 2 / count) * i;
+      final distance = ui.lerpDouble(8, 26, t)!;
+      final dot = Offset(
+        center.dx + cos(angle) * distance,
+        center.dy + sin(angle) * distance,
+      );
+      final dotSize = ui.lerpDouble(3.4, 1.2, t)!;
+      paint.color = color.withOpacity((1 - t) * 0.22);
+      canvas.drawCircle(dot, dotSize, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SoftBurstPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
+}
+
+class _MomentumRing extends StatelessWidget {
+  const _MomentumRing({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = progress.clamp(0.0, 1.0);
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: CircularProgressIndicator(
+              value: p,
+              strokeWidth: 4.5,
+              backgroundColor: color.withOpacity(0.16),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          Icon(
+            Icons.bolt_rounded,
+            size: 18,
+            color: Color.alphaBlend(color.withOpacity(0.2), scheme.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LevelUpOverlayCard extends StatelessWidget {
+  const _LevelUpOverlayCard({
+    required this.previousLevel,
+    required this.newLevel,
+    required this.levelTitle,
+    required this.totalXp,
+    required this.xpInLevel,
+    required this.xpToNextLevel,
+    required this.onClose,
+  });
+
+  final int previousLevel;
+  final int newLevel;
+  final String levelTitle;
+  final int totalXp;
+  final int xpInLevel;
+  final int xpToNextLevel;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final safeXpToNext = xpToNextLevel <= 0 ? 1 : xpToNextLevel;
+    final clampedInLevel = xpInLevel.clamp(0, safeXpToNext);
+    final levelProgress = (clampedInLevel / safeXpToNext).clamp(0.0, 1.0);
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: min(MediaQuery.of(context).size.width - 32, 360),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: scheme.outline.withOpacity(0.22)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: scheme.primary.withOpacity(0.14),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: scheme.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Level up',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Lv $previousLevel → $newLevel',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurface.withOpacity(0.62),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You reached level $newLevel · $levelTitle',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurface.withOpacity(0.88),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total XP: $totalXp',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.85),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: levelProgress,
+                minHeight: 3,
+                backgroundColor: scheme.onSurface.withOpacity(0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  scheme.primary.withOpacity(0.6),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$clampedInLevel/$safeXpToNext XP to next level',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurface.withOpacity(0.58),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: onClose,
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _AllDoneOverlay extends StatelessWidget {
   const _AllDoneOverlay({required this.scheme, required this.onViewStats});
@@ -2547,21 +3925,35 @@ class _AllDoneOverlayBody extends StatefulWidget {
 
 class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
     with TickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
+  late final AnimationController _sparkleController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat();
-  late final AnimationController _pulseController = AnimationController(
+    duration: const Duration(milliseconds: 260),
+  )..forward();
+  late final AnimationController _settleController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1200),
-    lowerBound: 0.94,
-    upperBound: 1.06,
-  )..repeat(reverse: true);
+    duration: const Duration(milliseconds: 680),
+  )..forward();
+  late final Animation<double> _cardScale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 0.965,
+        end: 1.01,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 58,
+    ),
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 1.02,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+      weight: 42,
+    ),
+  ]).animate(_settleController);
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _controller.dispose();
+    _settleController.dispose();
+    _sparkleController.dispose();
     super.dispose();
   }
 
@@ -2575,40 +3967,69 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
           Positioned.fill(
             child: IgnorePointer(
               child: AnimatedBuilder(
-                animation: _controller,
-                builder: (_, _) => CustomPaint(
-                  painter: _ConfettiFullPainter(
-                    t: _controller.value,
-                    primary: scheme.primary,
-                    secondary: scheme.secondary,
-                  ),
-                ),
+                animation: _sparkleController,
+                builder: (_, _) {
+                  final t = _sparkleController.value;
+                  final fadeIn = Curves.easeOut.transform(
+                    (t / 0.55).clamp(0.0, 1.0),
+                  );
+                  final fadeOut = t <= 0.55
+                      ? 1.0
+                      : 1 -
+                            Curves.easeIn.transform(
+                              ((t - 0.55) / 0.45).clamp(0.0, 1.0),
+                            );
+                  final opacity = (fadeIn * fadeOut * 0.08).clamp(0.0, 1.0);
+                  if (opacity <= 0.001) return const SizedBox.shrink();
+                  return Opacity(
+                    opacity: opacity,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(0, -0.18),
+                          radius: 1.08,
+                          colors: [
+                            scheme.primary.withOpacity(0.15),
+                            scheme.secondary.withOpacity(0.04),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
           ScaleTransition(
-            scale: _pulseController,
+            scale: _cardScale,
             child: Container(
               width: MediaQuery.of(context).size.width * 0.92,
               constraints: const BoxConstraints(maxWidth: 460),
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    scheme.primary.withOpacity(0.22),
-                    scheme.secondary.withOpacity(0.18),
-                    scheme.surface.withOpacity(0.96),
+                    Color.alphaBlend(
+                      scheme.primary.withOpacity(0.1),
+                      scheme.surface,
+                    ),
+                    Color.alphaBlend(
+                      scheme.primary.withOpacity(0.05),
+                      scheme.surface,
+                    ),
+                    scheme.surface.withOpacity(0.98),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: scheme.outline.withOpacity(0.35)),
+                border: Border.all(color: scheme.outline.withOpacity(0.24)),
                 boxShadow: [
                   BoxShadow(
-                    color: scheme.primary.withOpacity(0.35),
-                    blurRadius: 32,
-                    spreadRadius: 2,
+                    color: scheme.primary.withOpacity(0.24),
+                    blurRadius: 26,
+                    spreadRadius: -2,
                     offset: const Offset(0, 18),
                   ),
                 ],
@@ -2616,100 +4037,88 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: SweepGradient(
-                        colors: [
-                          scheme.primary,
-                          scheme.secondary,
-                          scheme.primary,
-                        ],
-                        startAngle: 0,
-                        endAngle: 6.28,
-                        transform: GradientRotation(
-                          _pulseController.value * 6.28,
+                  AnimatedBuilder(
+                    animation: _settleController,
+                    builder: (context, child) {
+                      final pulse = sin(
+                        _settleController.value * pi,
+                      ).clamp(0.0, 1.0);
+                      final glowOpacity = 0.14 + (pulse * 0.1);
+                      final iconScale = 1.0 + (pulse * 0.018);
+                      return Transform.scale(
+                        scale: iconScale,
+                        child: Container(
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                scheme.primary.withOpacity(0.74),
+                                Color.alphaBlend(
+                                  scheme.secondary.withOpacity(0.24),
+                                  scheme.primary,
+                                ),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: scheme.primary.withOpacity(glowOpacity),
+                                blurRadius: 22 + (pulse * 10),
+                                spreadRadius: -4 + (pulse * 2),
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: scheme.surface,
+                            ),
+                            child: Icon(
+                              Icons.task_alt_rounded,
+                              size: 54,
+                              color: scheme.primary,
+                            ),
+                          ),
                         ),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: scheme.primary.withOpacity(0.45),
-                          blurRadius: 28,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Container(
-                      margin: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: scheme.surface,
-                      ),
-                      child: Icon(
-                        Icons.celebration_rounded,
-                        size: 64,
-                        color: scheme.primary,
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
                   Text(
-                    'All done!',
+                    "You're set for today",
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
-                    'You finished every spark today.\nStreak +1, progress saved.',
+                    'Streak +1. See you tomorrow.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: scheme.onSurfaceVariant,
                       height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 14),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      TextButton.icon(
+                      FilledButton.icon(
                         onPressed: () => Navigator.of(context).maybePop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: scheme.onSurface,
-                        ),
+                        icon: const Icon(Icons.check_rounded, size: 18),
                         label: Text(
                           'Close',
                           style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: scheme.onSurface,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 11,
-                          ),
-                          backgroundColor: scheme.surfaceVariant.withOpacity(
-                            0.6,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: widget.onViewStats,
-                        icon: const Icon(Icons.bar_chart_rounded),
-                        label: const Text('View stats'),
-                        style: ElevatedButton.styleFrom(
+                        style: FilledButton.styleFrom(
                           backgroundColor: scheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
@@ -2718,6 +4127,25 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: widget.onViewStats,
+                        icon: const Icon(Icons.insights_rounded, size: 17),
+                        label: const Text('View progress'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.onSurface.withOpacity(0.88),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          side: BorderSide(
+                            color: scheme.outline.withOpacity(0.28),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
@@ -2730,55 +4158,5 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
         ],
       ),
     );
-  }
-}
-
-class _ConfettiFullPainter extends CustomPainter {
-  const _ConfettiFullPainter({
-    required this.t,
-    required this.primary,
-    required this.secondary,
-  });
-
-  final double t;
-  final Color primary;
-  final Color secondary;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    final spots = [
-      const Offset(0.1, 0.2),
-      const Offset(0.8, 0.25),
-      const Offset(0.3, 0.6),
-      const Offset(0.6, 0.7),
-      const Offset(0.2, 0.85),
-      const Offset(0.9, 0.55),
-    ];
-    for (var i = 0; i < spots.length; i++) {
-      final phase = (t + i * 0.17) % 1.0;
-      final dx = spots[i].dx * size.width;
-      final dy = (spots[i].dy * size.height) + (40 * phase);
-      final alpha = (1 - phase).clamp(0.2, 1.0);
-      paint.color = (i.isEven ? primary : secondary).withOpacity(alpha * 0.6);
-      canvas.save();
-      canvas.translate(dx, dy);
-      canvas.rotate(phase * 6.28);
-      final w = 10 + 6 * (1 - phase);
-      final h = 4 + 4 * (1 - phase);
-      final r = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: w, height: h),
-        const Radius.circular(2),
-      );
-      canvas.drawRRect(r, paint);
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ConfettiFullPainter oldDelegate) {
-    return oldDelegate.t != t ||
-        oldDelegate.primary != primary ||
-        oldDelegate.secondary != secondary;
   }
 }

@@ -1,16 +1,6 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-
-class ShareBadgeChipData {
-  const ShareBadgeChipData({
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-}
 
 class StreakShareCard extends StatelessWidget {
   const StreakShareCard({
@@ -18,277 +8,255 @@ class StreakShareCard extends StatelessWidget {
     required this.streak,
     required this.doneCount,
     required this.totalCount,
-    required this.dateLabel,
-    this.badges = const <ShareBadgeChipData>[],
   });
 
   final int streak;
   final int doneCount;
   final int totalCount;
-  final String dateLabel;
-  final List<ShareBadgeChipData> badges;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final headline = theme.textTheme.titleLarge?.copyWith(
-      color: Colors.white,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 0.8,
-    );
-    final sub = theme.textTheme.bodyMedium?.copyWith(color: Colors.white70);
+    final day = streak > 0 ? streak : 1;
+    final dayLabel = 'DAY $day';
+    final proofLabel = '$doneCount of $totalCount sparks completed';
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0A1A34), Color(0xFF14305A), Color(0xFF1B88A0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF132743), Color(0xFF161F36), Color(0xFF241932)],
+          stops: [0.0, 0.58, 1.0],
         ),
       ),
-      child: Stack(
-        children: [
-          // Main glow blob - slightly larger and more visible
-          Positioned(
-            right: -50,
-            top: -40,
-            child: _GlowBlob(size: 200, color: Colors.white.withOpacity(0.16)),
-          ),
-          // Bottom left glow - repositioned
-          Positioned(
-            left: -40,
-            bottom: -60,
-            child: _GlowBlob(size: 200, color: Colors.white.withOpacity(0.1)),
-          ),
-          // Accent dots - repositioned for better visibility
-          Positioned(
-            right: 32,
-            top: 130,
-            child: _TinyDot(color: Colors.white.withOpacity(0.7)),
-          ),
-          Positioned(
-            right: 52,
-            top: 155,
-            child: _TinyDot(color: Colors.white.withOpacity(0.5), size: 4),
-          ),
-          Positioned(
-            right: 68,
-            top: 175,
-            child: _TinyDot(color: Colors.white.withOpacity(0.35), size: 3),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with icon and name
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      padding: const EdgeInsets.all(9),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0.08, -0.82),
+                      radius: 1.14,
+                      colors: [
+                        const Color(0xFF7B9FFF).withOpacity(0.18),
+                        const Color(0xFF7D71F6).withOpacity(0.1),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.38, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -86,
+              top: -114,
+              child: IgnorePointer(
+                child: SizedBox(
+                  width: 332,
+                  height: 332,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF8EA6FF).withOpacity(0.13),
+                          const Color(0xFF7B6FF6).withOpacity(0.1),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.46, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -92,
+              top: 214,
+              child: IgnorePointer(
+                child: Transform.rotate(
+                  angle: -0.24,
+                  child: Container(
+                    width: 244,
+                    height: 132,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF8CA8FF).withOpacity(0.055),
+                          Colors.transparent,
                         ],
                       ),
-                      child: Image.asset('assets/icon/sparkio_icon.png'),
-                    ),
-                    const SizedBox(width: 12),
-                    Text('SPARKIO', style: headline),
-                  ],
-                ),
-                const Spacer(),
-                // Streak label
-                Text(
-                  'STREAK',
-                  style: sub?.copyWith(
-                    letterSpacing: 1.8,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Streak number and days
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '$streak',
-                      style: theme.textTheme.displayLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 80,
-                        height: 0.95,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        'days',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF84A1FF).withOpacity(0.045),
+                          blurRadius: 56,
+                          spreadRadius: 6,
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -84,
+              bottom: 146,
+              child: IgnorePointer(
+                child: Transform.rotate(
+                  angle: 0.18,
+                  child: Container(
+                    width: 208,
+                    height: 114,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF7B6FF6).withOpacity(0.05),
+                          Colors.transparent,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7D70F6).withOpacity(0.04),
+                          blurRadius: 52,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.02),
+                        Colors.black.withOpacity(0.08),
+                        Colors.black.withOpacity(0.2),
+                      ],
+                      stops: const [0.0, 0.34, 0.72, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _StoryGrainPainter(opacity: 0.035)),
+              ),
+            ),
+            Positioned(
+              right: 14,
+              top: 12,
+              child: Text(
+                'Sparkio',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: Colors.white.withOpacity(0.52),
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Spacer(flex: 6),
+                  Text(
+                    dayLabel,
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: const Color(0xFFF2F4FF).withOpacity(0.9),
+                      fontSize: 62,
+                      height: 0.94,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Showing up.',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white.withOpacity(0.84),
+                      fontSize: 22,
+                      height: 1.1,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const Spacer(flex: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: Colors.white.withOpacity(0.07),
+                      border: Border.all(color: Colors.white.withOpacity(0.14)),
+                    ),
+                    child: Text(
+                      proofLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withOpacity(0.84),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
+                        fontSize: 13,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                // Task completion pill
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.25),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    '$doneCount / $totalCount tasks completed',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Description
-                Text(
-                  'Daily micro-tasks to build focus and habits',
-                  style: sub?.copyWith(fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                // Date
-                Text(
-                  dateLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withOpacity(0.55),
-                    fontSize: 13,
-                  ),
-                ),
-                // Badges section
-                if (badges.isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                  Text(
-                    'Badges',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.7),
-                      letterSpacing: 1.3,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: badges
-                        .take(4)
-                        .map((badge) => _ShareBadgeChip(badge: badge))
-                        .toList(),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ShareBadgeChip extends StatelessWidget {
-  const _ShareBadgeChip({required this.badge});
-
-  final ShareBadgeChipData badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.13),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.26), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 19,
-            height: 19,
-            decoration: BoxDecoration(
-              color: badge.color.withOpacity(0.25),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(badge.icon, size: 12, color: badge.color),
-          ),
-          const SizedBox(width: 7),
-          Text(
-            badge.label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlowBlob extends StatelessWidget {
-  const _GlowBlob({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color, Colors.transparent],
-          stops: const [0.0, 0.8],
+          ],
         ),
       ),
     );
   }
 }
 
-class _TinyDot extends StatelessWidget {
-  const _TinyDot({required this.color, this.size = 6});
+class _StoryGrainPainter extends CustomPainter {
+  const _StoryGrainPainter({required this.opacity});
 
-  final Color color;
-  final double size;
+  final double opacity;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-    );
+  void paint(Canvas canvas, Size size) {
+    const step = 11.0;
+    final lightPaint = Paint()..style = PaintingStyle.fill;
+    final darkPaint = Paint()..style = PaintingStyle.fill;
+
+    for (double y = 0; y < size.height; y += step) {
+      for (double x = 0; x < size.width; x += step) {
+        final hash = math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        final noise = hash - hash.floorToDouble();
+        final dotOpacity = noise * opacity;
+        if (dotOpacity < 0.01) continue;
+        final paint = noise > 0.5 ? lightPaint : darkPaint;
+        final channel = noise > 0.5 ? 255 : 0;
+        paint.color = Color.fromRGBO(channel, channel, channel, dotOpacity);
+        final offsetX = x + (noise - 0.5) * 2.0;
+        final offsetY = y + (0.5 - noise) * 2.0;
+        canvas.drawRect(Rect.fromLTWH(offsetX, offsetY, 1, 1), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StoryGrainPainter oldDelegate) {
+    return oldDelegate.opacity != opacity;
   }
 }

@@ -4,12 +4,14 @@ class HomeDebugTimerSliver extends StatelessWidget {
   const HomeDebugTimerSliver({
     super.key,
     required this.onPressed,
+    required this.onAddThreeTasks,
     required this.onOpenDailyMood,
     required this.instantEnabled,
     required this.onToggleInstant,
   });
 
   final VoidCallback onPressed;
+  final VoidCallback onAddThreeTasks;
   final VoidCallback onOpenDailyMood;
   final bool instantEnabled;
   final ValueChanged<bool> onToggleInstant;
@@ -27,6 +29,21 @@ class HomeDebugTimerSliver extends StatelessWidget {
               onPressed: onPressed,
               icon: const Icon(Icons.timer_rounded),
               label: const Text('Test task timer (30s)'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: scheme.onSurface,
+                side: BorderSide(color: scheme.outline.withOpacity(0.28)),
+                backgroundColor: scheme.surface.withOpacity(0.55),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onAddThreeTasks,
+              icon: const Icon(Icons.playlist_add_rounded),
+              label: const Text('Add 3 tasks (debug)'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 foregroundColor: scheme.onSurface,

@@ -3,22 +3,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui' show ImageFilter;
 
-class ModernDrawer extends StatelessWidget {
+class ModernDrawer extends StatefulWidget {
   const ModernDrawer({
     super.key,
     required this.isDark,
     required this.showDebugTools,
     required this.profileName,
     required this.currentStreak,
+    required this.currentLevel,
+    required this.totalXp,
+    required this.xpInLevel,
+    required this.xpToNextLevel,
     required this.earnedBadgeCount,
     required this.badgeGoalCount,
     required this.weeklyDoneCount,
     required this.weeklyGoalCount,
     required this.onToggleTheme,
+    required this.onOpenAddSpark,
     required this.onEditProfile,
     required this.onOpenBadges,
     required this.onOpenContact,
     required this.onSendTestNotification,
+    required this.onOpenDailyMoodSheet,
     required this.onOpenWeeklyPlan,
   });
 
@@ -26,26 +32,77 @@ class ModernDrawer extends StatelessWidget {
   final bool showDebugTools;
   final String profileName;
   final int currentStreak;
+  final int currentLevel;
+  final int totalXp;
+  final int xpInLevel;
+  final int xpToNextLevel;
   final int earnedBadgeCount;
   final int badgeGoalCount;
   final int weeklyDoneCount;
   final int weeklyGoalCount;
   final VoidCallback onToggleTheme;
+  final Future<void> Function() onOpenAddSpark;
   final Future<void> Function() onEditProfile;
   final VoidCallback onOpenBadges;
   final VoidCallback onOpenContact;
   final Future<void> Function() onSendTestNotification;
+  final Future<void> Function() onOpenDailyMoodSheet;
   final VoidCallback onOpenWeeklyPlan;
+
+  @override
+  State<ModernDrawer> createState() => _ModernDrawerState();
+}
+
+class _ModernDrawerState extends State<ModernDrawer>
+    with SingleTickerProviderStateMixin {
+  static const _entryDurationMs = 320;
+  late final AnimationController _entryController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: _entryDurationMs),
+  )..forward();
+
+  @override
+  void dispose() {
+    _entryController.dispose();
+    super.dispose();
+  }
+
+  Animation<double> _interval(double start, {double span = 0.34}) {
+    final safeStart = start.clamp(0.0, 0.94).toDouble();
+    final safeEnd = (safeStart + span).clamp(safeStart + 0.05, 1.0).toDouble();
+    return CurvedAnimation(
+      parent: _entryController,
+      curve: Interval(safeStart, safeEnd, curve: Curves.easeOutCubic),
+    );
+  }
+
+  Widget _buildStaggeredItem({required int index, required Widget child}) {
+    const listStart = 20 / _entryDurationMs;
+    const listStep = 0.045;
+    return _DrawerEntryReveal(
+      animation: _interval(listStart + (index * listStep)),
+      beginOffsetY: 12,
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final effectiveDark = isDark || theme.brightness == Brightness.dark;
-    final safeBadgeGoal = badgeGoalCount <= 0 ? 1 : badgeGoalCount;
-    final badgeProgress = (earnedBadgeCount / safeBadgeGoal).clamp(0.0, 1.0);
+    final effectiveDark = widget.isDark || theme.brightness == Brightness.dark;
+    final safeBadgeGoal = widget.badgeGoalCount <= 0
+        ? 1
+        : widget.badgeGoalCount;
+    final badgeProgress = (widget.earnedBadgeCount / safeBadgeGoal).clamp(
+      0.0,
+      1.0,
+    );
     final badgeFilledDots = (badgeProgress * 5).round().clamp(0, 5);
-    final badgeDots = '${'●' * badgeFilledDots}${'○' * (5 - badgeFilledDots)}';
+    const filledDot = '\u25CF';
+    const emptyDot = '\u25CB';
+    final badgeDots =
+        '${filledDot * badgeFilledDots}${emptyDot * (5 - badgeFilledDots)}';
 
     Future<void> closeDrawer() async {
       final scaffold = Scaffold.maybeOf(context);
@@ -67,6 +124,119 @@ class ModernDrawer extends StatelessWidget {
       await action();
     }
 
+    final drawerItems = <Widget>[
+      _SectionHeader(title: 'Your space', icon: Icons.dark_mode_rounded),
+      const SizedBox(height: 8),
+      _SectionCard(
+        children: [
+          _ThemeQuickAccessCard(
+            isDark: widget.isDark,
+            onToggleTheme: widget.onToggleTheme,
+          ),
+        ],
+      ),
+      const _SectionDivider(),
+      _SectionHeader(title: 'You', icon: Icons.person_rounded),
+      const SizedBox(height: 8),
+      _SectionCard(
+        children: [
+          _ModernMenuCard(
+            icon: Icons.account_circle_rounded,
+            iconColor: scheme.primary,
+            title: widget.profileName.isEmpty
+                ? 'Set your name'
+                : widget.profileName,
+            subtitle: 'Edit your profile name',
+            onTap: () => runAsyncMenuAction(widget.onEditProfile),
+          ),
+        ],
+      ),
+      const _SectionDivider(),
+      _SectionHeader(title: 'Things you can do', icon: Icons.bolt_rounded),
+      const SizedBox(height: 8),
+      _SectionCard(
+        children: [
+          _ModernMenuCard(
+            icon: Icons.auto_awesome_rounded,
+            iconColor: scheme.tertiary,
+            title: 'Create my spark',
+            subtitle: 'Add a custom habit',
+            isSubtle: true,
+            onTap: () => runAsyncMenuAction(widget.onOpenAddSpark),
+          ),
+        ],
+      ),
+      const _SectionDivider(),
+      _SectionHeader(title: 'Your journey', icon: Icons.insights_rounded),
+      const SizedBox(height: 8),
+      _SectionCard(
+        children: [
+          _ModernMenuCard(
+            icon: Icons.emoji_events_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            title: 'Badges',
+            subtitle: '${widget.earnedBadgeCount}/$safeBadgeGoal unlocked',
+            meta: _CardMetaPreview(
+              text: '$badgeDots  ${widget.earnedBadgeCount}/$safeBadgeGoal',
+            ),
+            isMuted: true,
+            onTap: () => runMenuAction(widget.onOpenBadges),
+          ),
+          _ModernMenuCard(
+            icon: Icons.calendar_view_week_rounded,
+            iconColor: scheme.primary,
+            title: 'Weekly plan',
+            subtitle: widget.weeklyGoalCount > 0
+                ? '${widget.weeklyDoneCount}/${widget.weeklyGoalCount} goals'
+                : 'Set goals for this week',
+            meta: _CardMetaPreview(
+              text: widget.weeklyGoalCount > 0
+                  ? '${widget.weeklyDoneCount}/${widget.weeklyGoalCount} goals'
+                  : 'No goals',
+            ),
+            onTap: () => runMenuAction(widget.onOpenWeeklyPlan),
+          ),
+        ],
+      ),
+      if (widget.showDebugTools && kDebugMode) ...[
+        const _SectionDivider(),
+        _SectionHeader(title: 'Debug', icon: Icons.developer_mode_rounded),
+        const SizedBox(height: 8),
+        _SectionCard(
+          children: [
+            _ModernMenuCard(
+              icon: Icons.notifications_rounded,
+              iconColor: scheme.tertiary,
+              title: 'Send test reminder (1 min)',
+              subtitle: 'Debug only',
+              onTap: () => runAsyncMenuAction(widget.onSendTestNotification),
+            ),
+            _ModernMenuCard(
+              icon: Icons.psychology_rounded,
+              iconColor: scheme.primary,
+              title: 'Open daily mood sheet',
+              subtitle: 'Debug only',
+              onTap: () => runAsyncMenuAction(widget.onOpenDailyMoodSheet),
+            ),
+          ],
+        ),
+      ],
+      const _SectionDivider(),
+      _SectionHeader(title: 'Need help?', icon: Icons.support_agent_rounded),
+      const SizedBox(height: 8),
+      _SectionCard(
+        children: [
+          _ModernMenuCard(
+            icon: Icons.mail_outline_rounded,
+            iconColor: scheme.secondary,
+            title: 'Talk to us',
+            subtitle: 'We reply in <24h',
+            onTap: () => runMenuAction(widget.onOpenContact),
+          ),
+        ],
+      ),
+    ];
+
     return Drawer(
       width: 326,
       shape: const RoundedRectangleBorder(
@@ -79,131 +249,70 @@ class ModernDrawer extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-                child: _DrawerHero(
-                  isDark: effectiveDark,
-                  profileName: profileName,
-                  currentStreak: currentStreak,
-                  onQuickEdit: () => runAsyncMenuAction(onEditProfile),
-                  onClose: () => Navigator.of(context).maybePop(),
+                child: _DrawerEntryReveal(
+                  animation: _interval(0.0, span: 0.36),
+                  beginOffsetY: 10,
+                  child: _DrawerHero(
+                    isDark: effectiveDark,
+                    profileName: widget.profileName,
+                    currentStreak: widget.currentStreak,
+                    currentLevel: widget.currentLevel,
+                    totalXp: widget.totalXp,
+                    xpInLevel: widget.xpInLevel,
+                    xpToNextLevel: widget.xpToNextLevel,
+                    onQuickEdit: () => runAsyncMenuAction(widget.onEditProfile),
+                    onClose: () => Navigator.of(context).maybePop(),
+                  ),
                 ),
               ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
                   children: [
-                    _SectionHeader(
-                      title: 'Appearance',
-                      icon: Icons.dark_mode_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    _SectionCard(
-                      children: [
-                        _ThemeQuickAccessCard(
-                          isDark: isDark,
-                          onToggleTheme: onToggleTheme,
-                        ),
-                      ],
-                    ),
-                    const _SectionDivider(),
-                    _SectionHeader(
-                      title: 'Profile',
-                      icon: Icons.person_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    _SectionCard(
-                      children: [
-                        _ModernMenuCard(
-                          icon: Icons.account_circle_rounded,
-                          iconColor: scheme.primary,
-                          title: profileName.isEmpty
-                              ? 'Set your name'
-                              : profileName,
-                          subtitle: 'Edit your profile name',
-                          onTap: () => runAsyncMenuAction(onEditProfile),
-                        ),
-                      ],
-                    ),
-                    const _SectionDivider(),
-                    _SectionHeader(
-                      title: 'Progress',
-                      icon: Icons.insights_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    _SectionCard(
-                      children: [
-                        _ModernMenuCard(
-                          icon: Icons.emoji_events_rounded,
-                          iconColor: const Color(0xFFF59E0B),
-                          title: 'Badges',
-                          subtitle: '$earnedBadgeCount/$safeBadgeGoal unlocked',
-                          meta: _CardMetaPreview(
-                            text:
-                                '$badgeDots  $earnedBadgeCount/$safeBadgeGoal',
-                          ),
-                          onTap: () => runMenuAction(onOpenBadges),
-                        ),
-                        const SizedBox(height: 10),
-                        _ModernMenuCard(
-                          icon: Icons.calendar_view_week_rounded,
-                          iconColor: scheme.primary,
-                          title: 'Weekly plan',
-                          subtitle: weeklyGoalCount > 0
-                              ? '$weeklyDoneCount/$weeklyGoalCount goals'
-                              : 'Set goals for this week',
-                          meta: _CardMetaPreview(
-                            text: weeklyGoalCount > 0
-                                ? '$weeklyDoneCount/$weeklyGoalCount goals'
-                                : 'No goals',
-                          ),
-                          onTap: () => runMenuAction(onOpenWeeklyPlan),
-                        ),
-                      ],
-                    ),
-                    if (showDebugTools && kDebugMode) ...[
-                      const _SectionDivider(),
-                      _SectionHeader(
-                        title: 'Debug',
-                        icon: Icons.developer_mode_rounded,
-                      ),
-                      const SizedBox(height: 8),
-                      _SectionCard(
-                        children: [
-                          _ModernMenuCard(
-                            icon: Icons.notifications_rounded,
-                            iconColor: scheme.tertiary,
-                            title: 'Send test reminder (1 min)',
-                            subtitle: 'Debug only',
-                            onTap: () =>
-                                runAsyncMenuAction(onSendTestNotification),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const _SectionDivider(),
-                    _SectionHeader(
-                      title: 'Support',
-                      icon: Icons.support_agent_rounded,
-                    ),
-                    const SizedBox(height: 8),
-                    _SectionCard(
-                      children: [
-                        _ModernMenuCard(
-                          icon: Icons.mail_outline_rounded,
-                          iconColor: scheme.secondary,
-                          title: 'Talk to us',
-                          subtitle: 'We reply in <24h',
-                          onTap: () => runMenuAction(onOpenContact),
-                        ),
-                      ],
-                    ),
+                    for (var i = 0; i < drawerItems.length; i++)
+                      _buildStaggeredItem(index: i, child: drawerItems[i]),
                   ],
                 ),
               ),
-              _QuickSettingsHintBar(isDark: effectiveDark),
+              _DrawerEntryReveal(
+                animation: _interval(0.72, span: 0.2),
+                beginOffsetY: 8,
+                child: const _QuickSettingsCaption(),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DrawerEntryReveal extends StatelessWidget {
+  const _DrawerEntryReveal({
+    required this.animation,
+    required this.child,
+    this.beginOffsetY = 10,
+  });
+
+  final Animation<double> animation;
+  final Widget child;
+  final double beginOffsetY;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final t = animation.value;
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * beginOffsetY),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
@@ -213,6 +322,10 @@ class _DrawerHero extends StatelessWidget {
     required this.isDark,
     required this.profileName,
     required this.currentStreak,
+    required this.currentLevel,
+    required this.totalXp,
+    required this.xpInLevel,
+    required this.xpToNextLevel,
     required this.onQuickEdit,
     required this.onClose,
   });
@@ -220,23 +333,19 @@ class _DrawerHero extends StatelessWidget {
   final bool isDark;
   final String profileName;
   final int currentStreak;
+  final int currentLevel;
+  final int totalXp;
+  final int xpInLevel;
+  final int xpToNextLevel;
   final Future<void> Function() onQuickEdit;
   final VoidCallback onClose;
 
-  ({int level, String badge}) _levelInfo() {
-    if (currentStreak >= 21) {
-      return (level: 5, badge: 'Elite Spark');
-    }
-    if (currentStreak >= 10) {
-      return (level: 4, badge: 'Momentum Maker');
-    }
-    if (currentStreak >= 5) {
-      return (level: 3, badge: 'Consistent Builder');
-    }
-    if (currentStreak >= 2) {
-      return (level: 2, badge: 'Habit Starter');
-    }
-    return (level: 1, badge: 'First Spark');
+  String _levelTitle(int level) {
+    if (level >= 20) return 'Flow Master';
+    if (level >= 14) return 'Momentum Maker';
+    if (level >= 9) return 'Consistency Builder';
+    if (level >= 5) return 'Habit Starter';
+    return 'First Spark';
   }
 
   @override
@@ -248,10 +357,17 @@ class _DrawerHero extends StatelessWidget {
     final streakLabel = currentStreak > 0
         ? '$currentStreak-day streak 🔥'
         : 'Start your streak today 🔥';
-    final level = _levelInfo();
-    final surface = Color.alphaBlend(
-      scheme.primary.withOpacity(0.08),
-      scheme.surface,
+    final safeLevel = currentLevel <= 0 ? 1 : currentLevel;
+    final safeXpToNext = xpToNextLevel <= 0 ? 1 : xpToNextLevel;
+    final clampedXpInLevel = xpInLevel.clamp(0, safeXpToNext);
+    final levelTitle = _levelTitle(safeLevel);
+    final surfaceStart = Color.alphaBlend(
+      scheme.primary.withOpacity(isDark ? 0.045 : 0.03),
+      scheme.surface.withOpacity(isDark ? 0.96 : 0.99),
+    );
+    final surfaceEnd = Color.alphaBlend(
+      scheme.secondary.withOpacity(isDark ? 0.02 : 0.012),
+      scheme.surface.withOpacity(isDark ? 0.95 : 0.985),
     );
     return GestureDetector(
       onLongPress: () {
@@ -262,7 +378,18 @@ class _DrawerHero extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: surface,
+          gradient: LinearGradient(
+            colors: [surfaceStart, surfaceEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.16 : 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,11 +401,15 @@ class _DrawerHero extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
                   colors: [
-                    scheme.primary.withOpacity(isDark ? 0.45 : 0.32),
-                    scheme.secondary.withOpacity(isDark ? 0.38 : 0.24),
+                    scheme.primary.withOpacity(isDark ? 0.3 : 0.22),
+                    scheme.secondary.withOpacity(isDark ? 0.2 : 0.14),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: scheme.outline.withOpacity(isDark ? 0.2 : 0.12),
+                  width: 0.8,
                 ),
               ),
               child: Center(
@@ -308,28 +439,24 @@ class _DrawerHero extends StatelessWidget {
                     streakLabel,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
+                  Text(
+                    'Level $safeLevel - $levelTitle',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant.withOpacity(0.8),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 10.5,
                     ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: Color.alphaBlend(
-                        scheme.primary.withOpacity(isDark ? 0.2 : 0.12),
-                        scheme.surface,
-                      ),
-                    ),
-                    child: Text(
-                      'Level ${level.level} • ${level.badge}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$clampedXpInLevel/$safeXpToNext XP · $totalXp total XP',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant.withOpacity(0.68),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -428,9 +555,28 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final mergedChildren = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      mergedChildren.add(children[i]);
+      if (i != children.length - 1) {
+        mergedChildren.add(const SizedBox(height: 6));
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(children: children),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Color.alphaBlend(
+            scheme.primary.withOpacity(0.028),
+            scheme.surface.withOpacity(0.94),
+          ),
+        ),
+        child: Column(children: mergedChildren),
+      ),
     );
   }
 }
@@ -499,13 +645,15 @@ class _ThemeQuickAccessCard extends StatelessWidget {
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: scheme.onSurface,
+                          letterSpacing: 0.1,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Tap or swipe horizontally to toggle',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
+                          color: scheme.onSurfaceVariant.withOpacity(0.82),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -513,11 +661,20 @@ class _ThemeQuickAccessCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Transform.scale(
-                  scale: 1.04,
+                  scale: 0.98,
                   child: Switch(
                     value: isDark,
                     onChanged: (_) => onToggleTheme(),
-                    activeColor: scheme.primary,
+                    activeColor: Color.alphaBlend(
+                      scheme.primary.withOpacity(0.68),
+                      scheme.surface,
+                    ),
+                    activeTrackColor: scheme.primary.withOpacity(0.24),
+                    inactiveTrackColor: scheme.surfaceContainerHighest
+                        .withOpacity(0.42),
+                    inactiveThumbColor: scheme.onSurfaceVariant.withOpacity(
+                      0.72,
+                    ),
                   ),
                 ),
               ],
@@ -557,100 +714,22 @@ class _CardMetaPreview extends StatelessWidget {
   }
 }
 
-class _QuickSettingsHintBar extends StatefulWidget {
-  const _QuickSettingsHintBar({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  State<_QuickSettingsHintBar> createState() => _QuickSettingsHintBarState();
-}
-
-class _QuickSettingsHintBarState extends State<_QuickSettingsHintBar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _QuickSettingsCaption extends StatelessWidget {
+  const _QuickSettingsCaption();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
-    final iconColor = scheme.primary;
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final pulse = 0.85 + (_controller.value * 0.35);
-        return Container(
-          margin: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              colors: widget.isDark
-                  ? [
-                      Color.alphaBlend(
-                        scheme.primary.withOpacity(0.18),
-                        scheme.surface,
-                      ),
-                      Color.alphaBlend(
-                        scheme.secondary.withOpacity(0.1),
-                        scheme.surface,
-                      ),
-                    ]
-                  : [
-                      Color.alphaBlend(
-                        scheme.primary.withOpacity(0.12),
-                        scheme.surface,
-                      ),
-                      Color.alphaBlend(
-                        scheme.secondary.withOpacity(0.08),
-                        scheme.surface,
-                      ),
-                    ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withOpacity(widget.isDark ? 0.16 : 0.1),
-                blurRadius: 14 + (pulse * 3),
-                spreadRadius: 0.2 + (pulse * 0.2),
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Transform.rotate(
-                angle: (_controller.value - 0.5) * 0.08,
-                child: Transform.scale(
-                  scale: 0.95 + (_controller.value * 0.12),
-                  child: Icon(Icons.tune_rounded, size: 18, color: iconColor),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Quick settings and progress controls.',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+      child: Text(
+        'Quick settings and progress controls.',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: scheme.onSurfaceVariant.withOpacity(0.66),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 }
@@ -662,6 +741,8 @@ class _ModernMenuCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.meta,
+    this.isSubtle = false,
+    this.isMuted = false,
     required this.onTap,
   });
 
@@ -670,27 +751,40 @@ class _ModernMenuCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget? meta;
+  final bool isSubtle;
+  final bool isMuted;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final cardColor = Color.alphaBlend(
-      scheme.primary.withOpacity(0.03),
-      scheme.surface,
-    );
+    final effectiveIconColor = isMuted
+        ? iconColor.withOpacity(0.72)
+        : iconColor;
+    final iconSurfaceOpacity = isSubtle ? 0.1 : 0.16;
+    final resolvedIconSurfaceOpacity = isMuted
+        ? (iconSurfaceOpacity * 0.62)
+        : iconSurfaceOpacity;
+    final subtitleOpacity = isSubtle ? 0.8 : 1.0;
+    final resolvedSubtitleOpacity = isMuted
+        ? subtitleOpacity * 0.78
+        : subtitleOpacity;
+    final titleOpacity = isMuted ? 0.86 : 1.0;
+    final trailingOpacity = isSubtle ? 0.58 : 1.0;
+    final resolvedTrailingOpacity = isMuted
+        ? trailingOpacity * 0.56
+        : trailingOpacity;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: cardColor,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: isSubtle ? 8 : 10,
           ),
           child: Row(
             children: [
@@ -700,11 +794,11 @@ class _ModernMenuCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   color: Color.alphaBlend(
-                    iconColor.withOpacity(0.16),
+                    iconColor.withOpacity(resolvedIconSurfaceOpacity),
                     scheme.surface,
                   ),
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
+                child: Icon(icon, color: effectiveIconColor, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -713,25 +807,40 @@ class _ModernMenuCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onSurface,
-                      ),
+                      style:
+                          (isSubtle
+                                  ? theme.textTheme.bodyMedium
+                                  : theme.textTheme.titleSmall)
+                              ?.copyWith(
+                                fontWeight: isSubtle
+                                    ? FontWeight.w600
+                                    : FontWeight.w700,
+                                color: scheme.onSurface.withOpacity(
+                                  titleOpacity,
+                                ),
+                              ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        color: scheme.onSurfaceVariant.withOpacity(
+                          resolvedSubtitleOpacity,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (meta != null) ...[const SizedBox(width: 8), meta!],
+              if (meta != null) ...[
+                const SizedBox(width: 8),
+                Opacity(opacity: isMuted ? 0.78 : 1, child: meta!),
+              ],
               Icon(
                 Icons.chevron_right_rounded,
-                color: scheme.onSurfaceVariant,
+                color: scheme.onSurfaceVariant.withOpacity(
+                  resolvedTrailingOpacity,
+                ),
                 size: 20,
               ),
             ],

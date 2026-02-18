@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 class HomeAppBar extends StatelessWidget {
@@ -33,10 +35,8 @@ class HomeAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final topText = theme.textTheme;
-    final hour = DateTime.now().hour;
-    final greeting = hour < 12
-        ? 'Good Morning'
-        : (hour < 18 ? 'Good Afternoon' : 'Good Evening');
+    final cleanName = userName.trim();
+    final displayName = cleanName.isEmpty ? 'Friend' : cleanName;
 
     return SliverAppBar(
       backgroundColor: scheme.background,
@@ -45,7 +45,7 @@ class HomeAppBar extends StatelessWidget {
       snap: true,
       pinned: false,
       centerTitle: false,
-      toolbarHeight: 88,
+      toolbarHeight: 74,
       titleSpacing: 16,
       automaticallyImplyLeading: false,
       title: Row(
@@ -73,21 +73,12 @@ class HomeAppBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '$greeting, $userName 👋',
-                  style: topText.titleLarge?.copyWith(
+                  '$displayName \u{1F44B}',
+                  style: topText.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.1,
-                    fontSize: 16,
-                    color: scheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  "Let's build your streak today ⚡",
-                  style: topText.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                    letterSpacing: 0.05,
+                    fontSize: 20,
+                    color: scheme.onSurface.withOpacity(0.94),
                   ),
                 ),
               ],
@@ -107,7 +98,7 @@ class HomeAppBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _ModernIconButton(
-          icon: Icons.bookmark_border_rounded,
+          icon: Icons.workspace_premium_rounded,
           tooltip: 'Perks',
           onTap: onOpenPerks,
           isDark: isDark,
@@ -131,7 +122,7 @@ class HomeAppBar extends StatelessWidget {
 
 enum _ActionTone { spark, premium, menu }
 
-class _ModernIconButton extends StatelessWidget {
+class _ModernIconButton extends StatefulWidget {
   const _ModernIconButton({
     this.icon,
     required this.tooltip,
@@ -151,74 +142,114 @@ class _ModernIconButton extends StatelessWidget {
   final bool isLoading;
 
   @override
+  State<_ModernIconButton> createState() => _ModernIconButtonState();
+}
+
+class _ModernIconButtonState extends State<_ModernIconButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final palette = _paletteForTone(tone);
+    final palette = _paletteForTone(widget.tone);
 
-    final backgroundColor = filled
+    final backgroundColor = widget.filled
         ? Color.alphaBlend(
-            palette.$1.withOpacity(isDark ? 0.28 : 0.2),
-            scheme.surface,
+            palette.$1.withOpacity(widget.isDark ? 0.16 : 0.12),
+            scheme.surface.withOpacity(widget.isDark ? 0.56 : 0.62),
           )
-        : scheme.surface.withOpacity(isDark ? 0.76 : 1);
+        : scheme.surface.withOpacity(widget.isDark ? 0.52 : 0.62);
 
-    final iconColor = filled ? palette.$1 : scheme.onSurface.withOpacity(0.9);
+    final iconColor = widget.filled
+        ? palette.$1.withOpacity(0.96)
+        : scheme.onSurface.withOpacity(0.88);
 
-    final disabledColor = isDark
+    final disabledColor = widget.isDark
         ? Colors.white.withOpacity(0.3)
         : scheme.onSurface.withOpacity(0.3);
+    final glowLevel = (_hovered ? 0.28 : 0.0) + (_pressed ? 0.22 : 0.0);
+    final isInteractive = widget.onTap != null;
 
     return Tooltip(
-      message: tooltip,
+      message: widget.tooltip,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
+          onHover: (value) {
+            if (_hovered == value) return;
+            setState(() => _hovered = value);
+          },
+          onHighlightChanged: (value) {
+            if (_pressed == value) return;
+            setState(() => _pressed = value);
+          },
           borderRadius: BorderRadius.circular(13),
           splashColor: scheme.primary.withOpacity(0.08),
           highlightColor: scheme.primary.withOpacity(0.03),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Center(
-              child: isLoading
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          filled
-                              ? Colors.white
-                              : (isDark ? palette.$1 : scheme.primary),
-                        ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(13),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: [
+                    if (isInteractive)
+                      BoxShadow(
+                        color: palette.$1.withOpacity(0.06 + glowLevel),
+                        blurRadius: 10 + (glowLevel * 18),
+                        spreadRadius: -2 + (glowLevel * 2),
                       ),
-                    )
-                  : Icon(
-                      icon,
-                      size: 22,
-                      color: onTap == null ? disabledColor : iconColor,
-                    ),
+                  ],
+                ),
+                child: Center(
+                  child: widget.isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              widget.filled
+                                  ? Colors.white
+                                  : (widget.isDark
+                                        ? palette.$1
+                                        : scheme.primary),
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          widget.icon,
+                          size: 22,
+                          color: widget.onTap == null
+                              ? disabledColor
+                              : iconColor,
+                        ),
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  (Color, Color) _paletteForTone(_ActionTone tone) {
-    switch (tone) {
-      case _ActionTone.spark:
-        return (const Color(0xFF3E8BFF), const Color(0xFF3E8BFF));
-      case _ActionTone.premium:
-        return (const Color(0xFF8B5CF6), const Color(0xFF8B5CF6));
-      case _ActionTone.menu:
-        return (const Color(0xFF64748B), const Color(0xFF64748B));
-    }
+(Color, Color) _paletteForTone(_ActionTone tone) {
+  switch (tone) {
+    case _ActionTone.spark:
+      return (const Color(0xFF3E8BFF), const Color(0xFF3E8BFF));
+    case _ActionTone.premium:
+      return (const Color(0xFF8B5CF6), const Color(0xFF8B5CF6));
+    case _ActionTone.menu:
+      return (const Color(0xFF64748B), const Color(0xFF64748B));
   }
 }

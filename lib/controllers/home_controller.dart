@@ -548,7 +548,7 @@ class HomeController {
         final allowed = await _notifications.areNotificationsEnabled();
         if (!allowed) return false;
         final scheduled = await _notifications.scheduleDailyReminder(
-          hour: 9,
+          hour: 12,
           minute: 0,
         );
         return scheduled;

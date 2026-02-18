@@ -198,7 +198,7 @@ class NotificationService {
     await init();
   }
 
-  Future<bool> scheduleDailyReminder({int hour = 9, int minute = 0}) async {
+  Future<bool> scheduleDailyReminder({int hour = 12, int minute = 0}) async {
     await _ensureInitialized();
     try {
       await _ensureExactAlarmPermission();

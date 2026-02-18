@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/task_repository.dart';
@@ -85,29 +87,34 @@ class StatsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: scheme.background,
-      body: FutureBuilder<_StatsData>(
-        future: _load(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snapshot.data!;
-          final favoriteLabel = _label(data.favorite);
-          final favoriteColor = _categoryColor(context, data.favorite);
-          final favoriteIcon = _categoryIcon(data.favorite);
+      body: Stack(
+        children: [
+          Positioned.fill(child: _StatsAmbientBackground(scheme: scheme)),
+          FutureBuilder<_StatsData>(
+            future: _load(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final data = snapshot.data!;
+              final favoriteLabel = _label(data.favorite);
+              final favoriteColor = _categoryColor(context, data.favorite);
+              final favoriteIcon = _categoryIcon(data.favorite);
 
-          return _StatsBody(
-            scheme: scheme,
-            theme: theme,
-            data: data,
-            favoriteLabel: favoriteLabel,
-            favoriteColor: favoriteColor,
-            favoriteIcon: favoriteIcon,
-            labelResolver: _label,
-            iconResolver: _categoryIcon,
-            colorResolver: (key) => _categoryColor(context, key),
-          );
-        },
+              return _StatsBody(
+                scheme: scheme,
+                theme: theme,
+                data: data,
+                favoriteLabel: favoriteLabel,
+                favoriteColor: favoriteColor,
+                favoriteIcon: favoriteIcon,
+                labelResolver: _label,
+                iconResolver: _categoryIcon,
+                colorResolver: (key) => _categoryColor(context, key),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -192,7 +199,7 @@ class _StatsBodyState extends State<_StatsBody> {
                 children: [
                   Expanded(
                     child: _StatCard(
-                      title: 'Completed',
+                      title: 'Sparks lit',
                       value: data.total.toString(),
                       icon: Icons.task_alt_rounded,
                       color: scheme.primary,
@@ -201,9 +208,9 @@ class _StatsBodyState extends State<_StatsBody> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _StatCard(
-                      title: 'Best streak',
+                      title: 'Your rhythm',
                       value: data.bestStreak.toString(),
-                      subtitle: 'days',
+                      subtitle: 'day streak',
                       icon: Icons.local_fire_department_rounded,
                       color: const Color(0xFFF97316),
                     ),
@@ -225,9 +232,9 @@ class _StatsBodyState extends State<_StatsBody> {
               if (data.weeklyTarget > 0) ...[
                 const SizedBox(height: 12),
                 _StatCard(
-                  title: 'Weekly plan',
+                  title: 'This week',
                   value: '${data.weeklyDone}/${data.weeklyTarget}',
-                  subtitle: 'done',
+                  subtitle: 'sparks',
                   icon: Icons.calendar_view_week_rounded,
                   color: scheme.primary,
                   isWide: true,
@@ -265,7 +272,7 @@ class _StatsBodyState extends State<_StatsBody> {
               const SizedBox(height: 12),
               if (topCategories.isEmpty)
                 _EmptyCard(
-                  message: 'Complete tasks to see your focus areas.',
+                  message: 'Your patterns will appear here.',
                   icon: Icons.auto_awesome_rounded,
                 )
               else
@@ -304,23 +311,10 @@ class _StatsBodyState extends State<_StatsBody> {
                 icon: Icons.workspace_premium_rounded,
               ),
               const SizedBox(height: 12),
-              if (badges.isEmpty)
-                _EmptyCard(
-                  message: 'Keep going to earn your first badge!',
-                  icon: Icons.emoji_events_rounded,
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: badges.map((badge) {
-                    return _BadgeChip(
-                      label: badge.label,
-                      icon: badge.icon,
-                      color: badge.color,
-                    );
-                  }).toList(),
-                ),
+              _MilestoneLane(
+                badges: badges,
+                emptyMessage: 'Your first milestone is closer than you think.',
+              ),
             ]),
           ),
         ),
@@ -444,6 +438,91 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _StatsAmbientBackground extends StatelessWidget {
+  const _StatsAmbientBackground({required this.scheme});
+
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: scheme.background),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -1.02),
+                  radius: 1.18,
+                  colors: [
+                    Color.alphaBlend(
+                      scheme.primary.withOpacity(0.22),
+                      scheme.background,
+                    ),
+                    Color.alphaBlend(
+                      scheme.secondary.withOpacity(0.12),
+                      scheme.background,
+                    ),
+                    scheme.background,
+                  ],
+                  stops: const [0.0, 0.38, 1.0],
+                ),
+              ),
+            ),
+            CustomPaint(
+              painter: _NoisePainter(
+                opacity: 0.04,
+                lightColor: Colors.white,
+                darkColor: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoisePainter extends CustomPainter {
+  const _NoisePainter({
+    required this.opacity,
+    required this.lightColor,
+    required this.darkColor,
+  });
+
+  final double opacity;
+  final Color lightColor;
+  final Color darkColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final random = math.Random(24);
+    final dotCount = (size.width * size.height / 760).round().clamp(260, 900);
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var i = 0; i < dotCount; i++) {
+      final x = random.nextDouble() * size.width;
+      final y = random.nextDouble() * size.height;
+      final radius = 0.22 + (random.nextDouble() * 0.85);
+      final alpha = opacity * (0.42 + (random.nextDouble() * 0.58));
+      final color = random.nextBool()
+          ? lightColor.withOpacity(alpha * 0.58)
+          : darkColor.withOpacity(alpha * 0.5);
+      paint.color = color;
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _NoisePainter oldDelegate) {
+    return oldDelegate.opacity != opacity ||
+        oldDelegate.lightColor != lightColor ||
+        oldDelegate.darkColor != darkColor;
+  }
+}
+
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
@@ -474,92 +553,106 @@ class _StatCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: scheme.surface,
+            color: Color.alphaBlend(color.withOpacity(0.08), scheme.surface),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.3), width: 2),
+            border: Border.all(color: color.withOpacity(0.14), width: 1),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: color.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: -6,
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [color.withOpacity(0.68), color.withOpacity(0.9)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(-0.9, -1.0),
+                          radius: 1.28,
+                          colors: [color.withOpacity(0.18), Colors.transparent],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        TweenAnimationBuilder<int>(
-                          tween: IntTween(
-                            begin: 0,
-                            end: int.tryParse(value) ?? 0,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              color.withOpacity(0.52),
+                              color.withOpacity(0.84),
+                            ],
                           ),
-                          duration: const Duration(milliseconds: 600),
-                          builder: (context, val, child) {
-                            final displayValue = int.tryParse(value) != null
-                                ? val.toString()
-                                : value;
-                            return Text(
-                              displayValue,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: color,
-                              ),
-                            );
-                          },
-                        ),
-                        if (subtitle != null) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            subtitle!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(0.26),
+                              blurRadius: 14,
+                              spreadRadius: -4,
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
+                          ],
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 24),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                _AnimatedMetricValue(
+                                  value: value,
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: color,
+                                      ),
+                                ),
+                                if (subtitle != null) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    subtitle!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (onTap != null)
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              if (onTap != null)
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: scheme.onSurfaceVariant,
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -630,6 +723,35 @@ class _WeeklyProgressRow extends StatelessWidget {
   }
 }
 
+class _AnimatedMetricValue extends StatelessWidget {
+  const _AnimatedMetricValue({required this.value, required this.style});
+
+  final String value;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = int.tryParse(value);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) {
+        final display = parsed == null
+            ? value
+            : (parsed * t).round().clamp(0, parsed).toString();
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 6),
+            child: Text(display, style: style),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _BarChart extends StatefulWidget {
   const _BarChart({required this.series, required this.maxValue});
 
@@ -640,8 +762,19 @@ class _BarChart extends StatefulWidget {
   State<_BarChart> createState() => _BarChartState();
 }
 
-class _BarChartState extends State<_BarChart> {
+class _BarChartState extends State<_BarChart>
+    with SingleTickerProviderStateMixin {
   int? _selectedIndex;
+  late final AnimationController _shimmerController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 7600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -695,30 +828,127 @@ class _BarChartState extends State<_BarChart> {
                           : const SizedBox(height: 0),
                     ),
                     const SizedBox(height: 6),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(
-                        begin: 0,
-                        end: widget.maxValue == 0
-                            ? 0
-                            : day.count / widget.maxValue,
-                      ),
-                      duration: const Duration(milliseconds: 600),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, child) {
-                        final height = 80 * value;
-                        return Container(
-                          height: height.clamp(8, 80),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                scheme.primary.withOpacity(0.45),
-                                scheme.primary.withOpacity(0.82),
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
+                    AnimatedBuilder(
+                      animation: _shimmerController,
+                      builder: (context, _) {
+                        final shimmerT =
+                            (_shimmerController.value + (i * 0.13)) % 1.0;
+                        final shimmerY = -1.2 + (shimmerT * 2.4);
+                        return TweenAnimationBuilder<double>(
+                          tween: Tween<double>(
+                            begin: 0,
+                            end: widget.maxValue == 0
+                                ? 0
+                                : day.count / widget.maxValue,
                           ),
+                          duration: const Duration(milliseconds: 600),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) {
+                            final barHeight = (80 * value)
+                                .clamp(8, 80)
+                                .toDouble();
+                            final glowOpacity =
+                                (0.1 + (value * 0.18) + (selected ? 0.08 : 0.0))
+                                    .clamp(0.0, 0.34)
+                                    .toDouble();
+                            return SizedBox(
+                              height: 84,
+                              child: Stack(
+                                alignment: Alignment.bottomCenter,
+                                children: [
+                                  Container(
+                                    width: 22,
+                                    height: 84,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: scheme.surfaceVariant.withOpacity(
+                                        0.34,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 22,
+                                    height: barHeight,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          scheme.primary.withOpacity(0.68),
+                                          Color.alphaBlend(
+                                            const Color(
+                                              0xFF22D3EE,
+                                            ).withOpacity(0.28),
+                                            scheme.primary,
+                                          ),
+                                          const Color(0xFF7DD3FC),
+                                        ],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: scheme.primary.withOpacity(
+                                            glowOpacity,
+                                          ),
+                                          blurRadius: 14 + (value * 10),
+                                          spreadRadius: -4 + (value * 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Align(
+                                          alignment: Alignment.topCenter,
+                                          child: Container(
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Colors.white.withOpacity(
+                                                    0.42,
+                                                  ),
+                                                  Colors.white.withOpacity(0.0),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned.fill(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              gradient: LinearGradient(
+                                                begin: Alignment(
+                                                  0,
+                                                  shimmerY - 0.32,
+                                                ),
+                                                end: Alignment(
+                                                  0,
+                                                  shimmerY + 0.32,
+                                                ),
+                                                colors: [
+                                                  Colors.white.withOpacity(0.0),
+                                                  Colors.white.withOpacity(
+                                                    0.14,
+                                                  ),
+                                                  Colors.white.withOpacity(0.0),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -726,8 +956,12 @@ class _BarChartState extends State<_BarChart> {
                     Text(
                       day.label,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? scheme.onSurface.withOpacity(0.86)
+                            : scheme.onSurfaceVariant.withOpacity(0.72),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 10,
+                        letterSpacing: 0.12,
                       ),
                     ),
                   ],
@@ -741,17 +975,34 @@ class _BarChartState extends State<_BarChart> {
   }
 }
 
-class _HeatRow extends StatelessWidget {
+class _HeatRow extends StatefulWidget {
   const _HeatRow({required this.series, required this.maxValue});
 
   final List<_DayStat> series;
   final int maxValue;
 
   @override
+  State<_HeatRow> createState() => _HeatRowState();
+}
+
+class _HeatRowState extends State<_HeatRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breatheController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 6200),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _breatheController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    if (series.isEmpty) {
+    if (widget.series.isEmpty) {
       return _EmptyCard(
         message: 'Build a streak to see your consistency.',
         icon: Icons.bolt_rounded,
@@ -765,36 +1016,102 @@ class _HeatRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: scheme.outline.withOpacity(0.3)),
       ),
-      child: Row(
-        children: series.map((day) {
-          final intensity = maxValue == 0
-              ? 0.1
-              : 0.2 + 0.8 * (day.count / maxValue);
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                children: [
-                  Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withOpacity(intensity),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+      child: AnimatedBuilder(
+        animation: _breatheController,
+        builder: (context, _) {
+          final breathe = Curves.easeInOut.transform(_breatheController.value);
+          return Row(
+            children: List.generate(widget.series.length, (index) {
+              final day = widget.series[index];
+              final normalized = widget.maxValue == 0
+                  ? 0.0
+                  : (day.count / widget.maxValue);
+              final isActive = day.count > 0;
+              final phase = (breathe + (index * 0.11)) % 1.0;
+              final pulse = (math.sin(phase * math.pi * 2) * 0.5) + 0.5;
+              final fillOpacity = isActive
+                  ? (0.24 + (0.64 * normalized) + (pulse * 0.06))
+                        .clamp(0.24, 0.9)
+                        .toDouble()
+                  : (0.08 + (pulse * 0.02)).toDouble();
+              final glowOpacity = isActive
+                  ? (0.14 + (0.2 * normalized) + (pulse * 0.08))
+                        .clamp(0.14, 0.36)
+                        .toDouble()
+                  : 0.0;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 24,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(
+                            color: scheme.outline.withOpacity(0.16),
+                          ),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6.5),
+                                  color: scheme.onSurfaceVariant.withOpacity(
+                                    0.06,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6.5),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      scheme.primary.withOpacity(
+                                        (fillOpacity + 0.08).clamp(0.0, 1.0),
+                                      ),
+                                      scheme.primary.withOpacity(fillOpacity),
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    if (isActive)
+                                      BoxShadow(
+                                        color: scheme.primary.withOpacity(
+                                          glowOpacity,
+                                        ),
+                                        blurRadius: 10 + (normalized * 6),
+                                        spreadRadius: -3 + (normalized * 1.6),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        day.label,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isActive
+                              ? scheme.onSurface.withOpacity(0.82)
+                              : scheme.onSurfaceVariant.withOpacity(0.66),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    day.label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            }),
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -905,31 +1222,39 @@ class _RecentWinCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: Color.alphaBlend(color.withOpacity(0.06), scheme.surface),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFFF59E0B).withOpacity(0.14),
+            blurRadius: 20,
+            spreadRadius: -5,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color.withOpacity(0.68), color.withOpacity(0.88)],
+                colors: [color.withOpacity(0.7), color.withOpacity(0.92)],
               ),
               borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF59E0B).withOpacity(0.26),
+                  blurRadius: 16,
+                  spreadRadius: -3,
+                ),
+              ],
             ),
             child: Icon(
               iconResolver(item!.category),
               color: Colors.white,
-              size: 24,
+              size: 28,
             ),
           ),
           const SizedBox(width: 14),
@@ -950,6 +1275,14 @@ class _RecentWinCard extends StatelessWidget {
                   '${labelResolver(item!.category)} • ${DateFormat('MMM d').format(item!.completedAt)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'You showed up yesterday.',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant.withOpacity(0.86),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -997,6 +1330,123 @@ class _BadgeChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MilestoneLane extends StatelessWidget {
+  const _MilestoneLane({required this.badges, required this.emptyMessage});
+
+  final List<_Badge> badges;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isEmpty = badges.isEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outline.withOpacity(0.26)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            emptyMessage,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (isEmpty)
+            Row(
+              children: const [
+                _ComingSoonMilestone(
+                  icon: Icons.bolt_rounded,
+                  label: 'First spark',
+                ),
+                SizedBox(width: 8),
+                _ComingSoonMilestone(
+                  icon: Icons.local_fire_department_rounded,
+                  label: '3-day rhythm',
+                ),
+                SizedBox(width: 8),
+                _ComingSoonMilestone(
+                  icon: Icons.emoji_events_rounded,
+                  label: '10 sparks',
+                ),
+                SizedBox(width: 8),
+                _ComingSoonMilestone(
+                  icon: Icons.workspace_premium_rounded,
+                  label: 'Momentum',
+                ),
+              ],
+            )
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: badges.map((badge) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _BadgeChip(
+                      label: badge.label,
+                      icon: badge.icon,
+                      color: badge.color,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComingSoonMilestone extends StatelessWidget {
+  const _ComingSoonMilestone({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: scheme.surfaceVariant.withOpacity(0.38),
+          border: Border.all(color: scheme.outline.withOpacity(0.18)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: scheme.onSurfaceVariant.withOpacity(0.7),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.7),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

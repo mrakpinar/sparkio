@@ -117,6 +117,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _dailyAddCount = 0;
   int _adaptiveDifficultyDelta = 0;
   int _earnedBadgesCount = 0;
+  int _totalXp = 0;
+  int _level = 1;
+  int _xpInLevel = 0;
+  int _xpToNextLevel = 40;
   String _profileName = '';
   String _weeklyWeekKey = '';
   Map<String, int> _weeklyTargets = {};
@@ -127,6 +131,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Task? _activeTimerTask;
   Duration _activeTimerRemaining = Duration.zero;
   bool _activeTimerFinished = false;
+  bool _awaitingSecondAction = false;
+  String? _pendingCompletionChainId;
+  String? _pendingCompletionTaskId;
+  DateTime? _pendingCompletionAt;
+  int _pendingCompletionDoneCount = 0;
   Timer? _activeTimerTicker;
   Timer? _premiumTicker;
 
@@ -176,7 +185,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final doneCount = _today.where((t) => _completed[t.id] == true).length;
+    final hasCompletedFirstTask = doneCount > 0;
     final remainingCount = _today.where((t) => _completed[t.id] != true).length;
     final allDone = _today.isNotEmpty && remainingCount == 0;
     final dateLabel = DateFormat('EEE, MMM d').format(DateTime.now());
@@ -216,131 +228,122 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final headerWeeklyTarget = screenshotHeaderMode
         ? _headerPresetWeeklyTarget
         : weeklyTarget;
-    final scheme = Theme.of(context).colorScheme;
-
+    final homeAmbientGlow = scheme.primary.withOpacity(
+      theme.brightness == Brightness.dark ? 0.08 : 0.06,
+    );
     return Scaffold(
       key: _scaffoldKey,
-      bottomNavigationBar: BannerAdBar(onOpenRemoveAds: _openSubscribeSheet),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab-add-task',
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          _openAddTaskSheet();
-        },
-        elevation: 0,
-        highlightElevation: 0,
-        backgroundColor: const Color(0xFF06B6D4),
-        splashColor: const Color(0xFF67E8F9),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: const Icon(Icons.add_rounded, size: 24, color: Colors.white),
-        label: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Add Spark',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              '+ New Habit',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 10,
-                color: scheme.onPrimary.withOpacity(0.9),
-              ),
-            ),
-          ],
-        ),
-      ),
+      bottomNavigationBar: hasCompletedFirstTask
+          ? BannerAdBar(onOpenRemoveAds: _openSubscribeSheet)
+          : null,
       endDrawer: _buildEndDrawer(),
-      body: _loading
-          ? const HomeSkeleton()
-          : CustomScrollView(
-              slivers: [
-                ValueListenableBuilder<ThemeMode>(
-                  valueListenable: ThemeService.instance.mode,
-                  builder: (context, mode, _) {
-                    final isDark = mode == ThemeMode.dark;
-                    return HomeAppBar(
-                      userName: _profileName.isEmpty ? 'Friend' : _profileName,
-                      isDark: isDark,
-                      reminderEnabled: _reminderEnabled,
-                      refreshing: _refreshing,
-                      onContact: _openInstagramContact,
-                      onToggleTheme: () => ThemeService.instance.toggle(),
-                      onToggleReminder: _toggleReminder,
-                      onSendTestNotification: _sendTestNotification,
-                      onRefresh: _refreshing ? null : _refreshTasks,
-                      onOpenPerks: _openPerksSheet,
-                      onOpenMenu: _openMenu,
-                    );
-                  },
-                ),
-                HomeHeaderSliver(
-                  progress: headerProgress,
-                  doneCount: headerDoneCount,
-                  totalCount: headerTotalCount,
-                  todayCompleted: headerTodayCompleted,
-                  streak: headerStreak,
-                  focusLabel: headerFocusLabel,
-                  dateLabel: dateLabel,
-                  onShare: _openShareSheet,
-                  onOpenStats: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const StatsScreen()),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.96, -1.04),
+                    radius: 1.28,
+                    colors: [homeAmbientGlow, Colors.transparent],
+                    stops: const [0.0, 1.0],
                   ),
-                  adaptiveLabel: headerAdaptiveLabel,
-                  weeklyDone: headerWeeklyDone,
-                  weeklyTarget: headerWeeklyTarget,
-                  onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
                 ),
-                if (_showDebugTools && kDebugMode)
-                  HomeDebugTimerSliver(
-                    onPressed: _sendTaskTimerTest,
-                    onOpenDailyMood: _openDailyMoodSheetDebug,
-                    instantEnabled: _debugInstantComplete,
-                    onToggleInstant: (v) =>
-                        _updateState(() => _debugInstantComplete = v),
-                  ),
-                if (_poolError != null)
-                  HomePoolErrorSliver(
-                    message: 'Sunucuya baglanilamadi, tekrar dene.',
-                    onRetry: _retryLoadPool,
-                  ),
-                if (allDone) const HomeAllDoneSliver(),
-                HomeTaskListSliver(
-                  tasks: _today,
-                  completed: _completed,
-                  activeTimerTaskId: _activeTimerTask?.id,
-                  activeTimerRemaining: _activeTimerTask != null
-                      ? _activeTimerRemaining
-                      : null,
-                  activeTimerDone: _activeTimerFinished,
-                  onCancelTimer: (task) => _cancelTaskTimer(task),
-                  onCompleteTimer: _activeTimerFinished
-                      ? (task) async {
-                          if (_activeTimerTask == null ||
-                              _activeTimerTask!.id != task.id) {
-                            return;
-                          }
-                          await _cancelTaskTimer(task);
-                          setState(() => _completed[task.id] = true);
-                          await _repo.saveCompletedMap(_completed);
-                          await _markTaskDone(task);
-                          await _applyStreakIfAllDone();
-                        }
-                      : null,
-                  canSkip: true,
-                  onToggle: _toggle,
-                  onSkip: (task) =>
-                      _skipOneTask(bypassLimit: false, taskId: task.id),
-                ),
-              ],
+              ),
             ),
+          ),
+          _loading
+              ? const HomeSkeleton()
+              : CustomScrollView(
+                  slivers: [
+                    ValueListenableBuilder<ThemeMode>(
+                      valueListenable: ThemeService.instance.mode,
+                      builder: (context, mode, _) {
+                        final isDark = mode == ThemeMode.dark;
+                        return HomeAppBar(
+                          userName: _profileName.isEmpty
+                              ? 'Friend'
+                              : _profileName,
+                          isDark: isDark,
+                          reminderEnabled: _reminderEnabled,
+                          refreshing: _refreshing,
+                          onContact: _openInstagramContact,
+                          onToggleTheme: () => ThemeService.instance.toggle(),
+                          onToggleReminder: _toggleReminder,
+                          onSendTestNotification: _sendTestNotification,
+                          onRefresh: _refreshing ? null : _refreshTasks,
+                          onOpenPerks: _openPerksSheet,
+                          onOpenMenu: _openMenu,
+                        );
+                      },
+                    ),
+                    HomeHeaderSliver(
+                      userName: _profileName.isEmpty ? 'Friend' : _profileName,
+                      progress: headerProgress,
+                      doneCount: headerDoneCount,
+                      totalCount: headerTotalCount,
+                      todayCompleted: headerTodayCompleted,
+                      streak: headerStreak,
+                      focusLabel: headerFocusLabel,
+                      dateLabel: dateLabel,
+                      onShare: _openShareSheet,
+                      onOpenStats: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const StatsScreen()),
+                      ),
+                      adaptiveLabel: headerAdaptiveLabel,
+                      weeklyDone: headerWeeklyDone,
+                      weeklyTarget: headerWeeklyTarget,
+                      onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
+                    ),
+                    if (_showDebugTools && kDebugMode)
+                      HomeDebugTimerSliver(
+                        onPressed: _sendTaskTimerTest,
+                        onAddThreeTasks: _debugAddThreeTasks,
+                        onOpenDailyMood: _openDailyMoodSheetDebug,
+                        instantEnabled: _debugInstantComplete,
+                        onToggleInstant: (v) =>
+                            _updateState(() => _debugInstantComplete = v),
+                      ),
+                    if (_poolError != null)
+                      HomePoolErrorSliver(
+                        message: 'Sunucuya baglanilamadi, tekrar dene.',
+                        onRetry: _retryLoadPool,
+                      ),
+                    if (allDone) const HomeAllDoneSliver(),
+                    HomeTaskListSliver(
+                      tasks: _today,
+                      completed: _completed,
+                      dimmed: allDone,
+                      activeTimerTaskId: _activeTimerTask?.id,
+                      activeTimerRemaining: _activeTimerTask != null
+                          ? _activeTimerRemaining
+                          : null,
+                      activeTimerDone: _activeTimerFinished,
+                      onCancelTimer: (task) => _cancelTaskTimer(task),
+                      onCompleteTimer: _activeTimerFinished
+                          ? (task) async {
+                              if (_activeTimerTask == null ||
+                                  _activeTimerTask!.id != task.id) {
+                                return;
+                              }
+                              await _cancelTaskTimer(task);
+                              setState(() => _completed[task.id] = true);
+                              await _repo.saveCompletedMap(_completed);
+                              await _markTaskDone(task);
+                              await _applyStreakIfAllDone();
+                            }
+                          : null,
+                      canSkip: true,
+                      onToggle: _toggle,
+                      onSkip: (task) =>
+                          _skipOneTask(bypassLimit: false, taskId: task.id),
+                    ),
+                  ],
+                ),
+        ],
+      ),
     );
   }
 }

@@ -8,6 +8,7 @@ class HomeTaskListSliver extends StatelessWidget {
     super.key,
     required this.tasks,
     required this.completed,
+    this.dimmed = false,
     this.activeTimerTaskId,
     this.activeTimerRemaining,
     this.activeTimerDone = false,
@@ -20,6 +21,7 @@ class HomeTaskListSliver extends StatelessWidget {
 
   final List<Task> tasks;
   final Map<String, bool> completed;
+  final bool dimmed;
   final String? activeTimerTaskId;
   final Duration? activeTimerRemaining;
   final bool activeTimerDone;
@@ -42,23 +44,28 @@ class HomeTaskListSliver extends StatelessWidget {
           final task = tasks[i];
           final checked = completed[task.id] ?? false;
           final isActive = activeTimerTaskId == task.id;
-          return TaskCard(
-            key: ValueKey(task.id),
-            task: task,
-            checked: checked,
-            onTap: () => onToggle(task),
-            onSkip: () => onSkip(task),
-            canSkip: canSkip,
-            progress: progress,
-            isTimerActive: isActive,
-            timerRemaining: isActive ? activeTimerRemaining : null,
-            timerDone: isActive ? activeTimerDone : false,
-            onCancelTimer: isActive && onCancelTimer != null
-                ? () => onCancelTimer!(task)
-                : null,
-            onCompleteTimer: isActive && onCompleteTimer != null
-                ? () => onCompleteTimer!(task)
-                : null,
+          return AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            opacity: dimmed ? 0.95 : 1.0,
+            child: TaskCard(
+              key: ValueKey(task.id),
+              task: task,
+              checked: checked,
+              onTap: () => onToggle(task),
+              onSkip: () => onSkip(task),
+              canSkip: canSkip,
+              progress: progress,
+              isTimerActive: isActive,
+              timerRemaining: isActive ? activeTimerRemaining : null,
+              timerDone: isActive ? activeTimerDone : false,
+              onCancelTimer: isActive && onCancelTimer != null
+                  ? () => onCancelTimer!(task)
+                  : null,
+              onCompleteTimer: isActive && onCompleteTimer != null
+                  ? () => onCompleteTimer!(task)
+                  : null,
+            ),
           );
         }, childCount: tasks.length),
       ),

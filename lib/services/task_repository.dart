@@ -29,6 +29,8 @@ class TaskRepository {
   static const _kTotalCompleted = 'total_completed_v1';
   static const _kBestStreak = 'best_streak_v1';
   static const _kCategoryCounts = 'category_counts_v1';
+  static const _kTotalXp = 'total_xp_v1';
+  static const _kXpBackfillDone = 'xp_backfill_done_v1';
   static const _kRemoteCache = 'remote_task_cache_v1';
   static const _kLastCompletedTitle = 'last_completed_title_v1';
   static const _kLastCompletedCategory = 'last_completed_category_v1';
@@ -456,6 +458,73 @@ class TaskRepository {
     await sp.setString(_kCategoryCounts, jsonEncode(counts));
   }
 
+  int xpForNextLevel(int level) {
+    final safeLevel = level < 1 ? 1 : level;
+    // Increasing XP requirement per level: 40, 60, 80, 100...
+    return 40 + ((safeLevel - 1) * 20);
+  }
+
+  int xpNeededForLevel(int level) {
+    if (level <= 1) return 0;
+    var total = 0;
+    for (var l = 1; l < level; l++) {
+      total += xpForNextLevel(l);
+    }
+    return total;
+  }
+
+  XpProgress computeXpProgress(int totalXp) {
+    var level = 1;
+    var remaining = totalXp < 0 ? 0 : totalXp;
+    while (remaining >= xpForNextLevel(level)) {
+      remaining -= xpForNextLevel(level);
+      level += 1;
+    }
+    final xpToNextLevel = xpForNextLevel(level);
+    return XpProgress(
+      totalXp: totalXp < 0 ? 0 : totalXp,
+      level: level,
+      xpInLevel: remaining,
+      xpToNextLevel: xpToNextLevel,
+    );
+  }
+
+  Future<int> getTotalXp() async {
+    final sp = await SharedPreferences.getInstance();
+    final stored = sp.getInt(_kTotalXp);
+    if (stored != null) return stored;
+
+    // One-time backfill so existing users don't lose progress after XP launch.
+    final alreadyBackfilled = sp.getBool(_kXpBackfillDone) ?? false;
+    if (alreadyBackfilled) return 0;
+    final historicalCompleted = sp.getInt(_kTotalCompleted) ?? 0;
+    final seeded = historicalCompleted * 5;
+    await sp.setInt(_kTotalXp, seeded);
+    await sp.setBool(_kXpBackfillDone, true);
+    return seeded;
+  }
+
+  Future<void> setTotalXp(int value) async {
+    final sp = await SharedPreferences.getInstance();
+    final safeValue = value < 0 ? 0 : value;
+    await sp.setInt(_kTotalXp, safeValue);
+    await sp.setBool(_kXpBackfillDone, true);
+  }
+
+  Future<XpProgress> getXpProgress() async {
+    final totalXp = await getTotalXp();
+    return computeXpProgress(totalXp);
+  }
+
+  Future<XpProgress> addXp(int delta) async {
+    final sp = await SharedPreferences.getInstance();
+    final current = await getTotalXp();
+    final next = (current + delta).clamp(0, 1 << 31).toInt();
+    await sp.setInt(_kTotalXp, next);
+    await sp.setBool(_kXpBackfillDone, true);
+    return computeXpProgress(next);
+  }
+
   Future<void> setBestStreakIfHigher(int value) async {
     final sp = await SharedPreferences.getInstance();
     final best = sp.getInt(_kBestStreak) ?? 0;
@@ -831,4 +900,21 @@ class ActiveTaskTimer {
     required this.taskTitle,
     required this.endAt,
   });
+}
+
+class XpProgress {
+  const XpProgress({
+    required this.totalXp,
+    required this.level,
+    required this.xpInLevel,
+    required this.xpToNextLevel,
+  });
+
+  final int totalXp;
+  final int level;
+  final int xpInLevel;
+  final int xpToNextLevel;
+
+  double get levelProgress =>
+      xpToNextLevel <= 0 ? 1 : (xpInLevel / xpToNextLevel).clamp(0.0, 1.0);
 }
