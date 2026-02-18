@@ -1,20 +1,9 @@
 import 'package:flutter/material.dart';
+
 import '../models/task.dart';
+import '../theme/task_category_style.dart';
 
 class TaskCard extends StatelessWidget {
-  final Task task;
-  final bool checked;
-  final bool isTimerActive;
-  final Duration? timerRemaining;
-  final bool timerDone;
-  final VoidCallback? onCancelTimer;
-  final VoidCallback? onCompleteTimer;
-  final VoidCallback onTap;
-  final VoidCallback? onSkip;
-  final bool canSkip;
-  final double? progress;
-  final String progressLabel;
-
   const TaskCard({
     super.key,
     required this.task,
@@ -31,58 +20,18 @@ class TaskCard extends StatelessWidget {
     this.progressLabel = 'Daily progress',
   });
 
-  IconData _iconFor(String c) {
-    switch (c) {
-      case 'body':
-        return Icons.fitness_center_rounded;
-      case 'mind':
-        return Icons.psychology_rounded;
-      case 'growth':
-        return Icons.trending_up_rounded;
-      case 'calm':
-        return Icons.spa_rounded;
-      case 'health':
-        return Icons.favorite_rounded;
-      default:
-        return Icons.check_circle_outline_rounded;
-    }
-  }
-
-  String _labelFor(String c) {
-    switch (c) {
-      case 'body':
-        return 'Body';
-      case 'mind':
-        return 'Mind';
-      case 'growth':
-        return 'Growth';
-      case 'calm':
-        return 'Calm';
-      case 'health':
-        return 'Health';
-      default:
-        return 'Task';
-    }
-  }
-
-  Color _colorFor(BuildContext context, String c) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    switch (c) {
-      case 'body':
-        return const Color(0xFFF97316); // Orange
-      case 'mind':
-        return const Color(0xFF8B5CF6); // Violet
-      case 'growth':
-        return const Color(0xFF22C55E); // Green
-      case 'calm':
-        return const Color(0xFF06B6D4); // Cyan
-      case 'health':
-        return const Color(0xFF3B82F6); // Blue
-      default:
-        return isDark ? scheme.primary : scheme.primary;
-    }
-  }
+  final Task task;
+  final bool checked;
+  final bool isTimerActive;
+  final Duration? timerRemaining;
+  final bool timerDone;
+  final VoidCallback? onCancelTimer;
+  final VoidCallback? onCompleteTimer;
+  final VoidCallback onTap;
+  final VoidCallback? onSkip;
+  final bool canSkip;
+  final double? progress;
+  final String progressLabel;
 
   String _difficultyLabel(String d) {
     switch (d) {
@@ -95,6 +44,17 @@ class TaskCard extends StatelessWidget {
     }
   }
 
+  Color _difficultyColor(String d) {
+    switch (d) {
+      case 'hard':
+        return const Color(0xFFEF4444);
+      case 'medium':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF10B981);
+    }
+  }
+
   String _formatDuration(Duration d) {
     final totalSeconds = d.inSeconds.clamp(0, 360000);
     final minutes = totalSeconds ~/ 60;
@@ -102,707 +62,424 @@ class TaskCard extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  int _xpReward(Task t) {
+    final base = switch (t.difficulty) {
+      'hard' => 8,
+      'medium' => 6,
+      _ => 5,
+    };
+    return t.isSpecial ? base + 2 : base;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final catColor = _colorFor(context, task.category);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = TaskCategoryStyle.color(
+      task.category,
+      fallback: scheme.primary,
+    );
+    const timerAccent = Color(0xFF38BDF8);
+    const skipAccent = Color(0xFF22D3EE);
+
     final hasInlineTimer = timerRemaining != null;
     final timerActive = (isTimerActive || hasInlineTimer) && !checked;
-    final inlineRemaining = timerRemaining ?? Duration.zero;
+    final remaining = timerRemaining ?? Duration.zero;
     final totalSeconds = (task.durationMinutes * 60).clamp(1, 360000);
-    final inlineProgress = hasInlineTimer
-        ? 1 - (inlineRemaining.inSeconds / totalSeconds)
+    final timerProgress = hasInlineTimer
+        ? 1 - (remaining.inSeconds / totalSeconds)
         : 0.0;
-    final activeAccent = Color.lerp(catColor, scheme.primary, 0.4) ?? catColor;
-    final cardRadius = BorderRadius.circular(24);
-    final inactiveGradient = isDark
-        ? const LinearGradient(
-            colors: [Color(0xFF091326), Color(0xFF0D1A2E), Color(0xFF0F1F33)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    final xp = _xpReward(task);
+    final status = checked
+        ? _TaskStatusType.done
+        : (task.isSpecial
+              ? _TaskStatusType.streakBonus
+              : _TaskStatusType.pending);
+
+    final background = timerActive
+        ? Color.alphaBlend(
+            accent.withOpacity(isDark ? 0.14 : 0.08),
+            isDark ? const Color(0xFF121A2A) : scheme.surface,
           )
-        : LinearGradient(
-            colors: [
-              scheme.surface,
-              Color.lerp(scheme.surface, scheme.surfaceContainerHigh, 0.35) ??
-                  scheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          );
-    final activeGradient = isDark
-        ? LinearGradient(
-            colors: [
-              const Color(0xFF0B1930),
-              Color.alphaBlend(
-                activeAccent.withOpacity(0.18),
-                const Color(0xFF10223D),
-              ),
-              Color.alphaBlend(
-                activeAccent.withOpacity(0.12),
-                const Color(0xFF122944),
-              ),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-        : LinearGradient(
-            colors: [
-              Color.alphaBlend(
-                activeAccent.withOpacity(0.08),
-                const Color(0xFFF6FAFF),
-              ),
-              Color.alphaBlend(
-                activeAccent.withOpacity(0.06),
-                const Color(0xFFEDF5FF),
-              ),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        : Color.alphaBlend(
+            (isDark ? const Color(0xFF1D2A44) : scheme.primary).withOpacity(
+              isDark ? 0.1 : 0.02,
+            ),
+            isDark ? const Color(0xFF121A2A) : scheme.surface,
           );
 
     return AnimatedSize(
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 220),
-        opacity: checked ? 0 : 1,
+        duration: const Duration(milliseconds: 180),
+        opacity: checked ? 0.72 : 1,
         child: AnimatedSlide(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOut,
-          offset: checked ? const Offset(0.03, -0.02) : Offset.zero,
-          child: AnimatedScale(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOut,
-            scale: checked ? 0.98 : (timerActive ? 1.01 : 1.0),
-            child: Align(
-              heightFactor: checked ? 0 : 1,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 220),
+          offset: checked ? const Offset(0.01, 0) : Offset.zero,
+          curve: Curves.easeOutCubic,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: (timerActive || checked) ? null : onTap,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    gradient: checked
-                        ? null
-                        : (timerActive ? activeGradient : inactiveGradient),
-                    color: checked
-                        ? (isDark
-                              ? const Color(0xFF0D1B2E).withOpacity(0.82)
-                              : scheme.surfaceVariant.withOpacity(0.5))
-                        : null,
-                    borderRadius: cardRadius,
-                    border: Border.all(
-                      color: checked
-                          ? scheme.primary.withOpacity(0.35)
-                          : timerActive
-                          ? activeAccent.withOpacity(isDark ? 0.78 : 0.55)
-                          : (isDark
-                                ? const Color(0xFF2C4A7A).withOpacity(0.48)
-                                : scheme.outline.withOpacity(0.35)),
-                      width: timerActive ? 1.8 : 1,
-                    ),
-                    boxShadow: [
-                      if (timerActive)
-                        BoxShadow(
-                          color: activeAccent.withOpacity(isDark ? 0.22 : 0.14),
-                          blurRadius: isDark ? 24 : 16,
-                          spreadRadius: isDark ? 1.2 : 0.4,
-                          offset: const Offset(0, 10),
-                        ),
-                      if (isDark || timerActive)
-                        BoxShadow(
-                          color: checked
-                              ? scheme.primary.withOpacity(0.1)
-                              : Colors.black.withOpacity(
-                                  timerActive ? 0.34 : 0.22,
-                                ),
-                          blurRadius: checked ? 10 : (timerActive ? 18 : 12),
-                          offset: Offset(
-                            0,
-                            checked ? 3 : (timerActive ? 10 : 6),
+                    color: background,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 2,
+                        bottom: 2,
+                        child: Container(
+                          width: 3.5,
+                          decoration: BoxDecoration(
+                            color: accent.withOpacity(checked ? 0.45 : 0.95),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: cardRadius,
-                      onTap: timerActive ? null : onTap,
-                      splashColor: catColor.withOpacity(0.1),
-                      highlightColor: catColor.withOpacity(0.05),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (timerActive) ...[
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: activeAccent.withOpacity(
-                                    isDark ? 0.18 : 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: activeAccent.withOpacity(
-                                      isDark ? 0.55 : 0.4,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      timerDone
-                                          ? Icons.check_circle_rounded
-                                          : Icons.bolt_rounded,
-                                      size: 16,
-                                      color: timerDone
-                                          ? scheme.tertiary
-                                          : activeAccent,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      timerDone
-                                          ? 'Timer finished'
-                                          : 'Timer active',
-                                      style: textTheme.labelMedium?.copyWith(
-                                        color: isDark
-                                            ? Colors.white.withOpacity(0.95)
-                                            : scheme.onSurface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      timerDone
-                                          ? 'Ready to complete'
-                                          : (hasInlineTimer
-                                                ? _formatDuration(
-                                                    inlineRemaining,
-                                                  )
-                                                : 'LIVE'),
-                                      style: textTheme.labelMedium?.copyWith(
-                                        color: timerDone
-                                            ? scheme.tertiary
-                                            : activeAccent,
-                                        fontWeight: FontWeight.w800,
-                                        fontFeatures: const [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Icon container
                                 Container(
-                                  width: 52,
-                                  height: 52,
+                                  width: 44,
+                                  height: 44,
                                   decoration: BoxDecoration(
-                                    color: catColor.withOpacity(
-                                      timerActive
-                                          ? (isDark ? 0.18 : 0.2)
-                                          : (isDark ? 0.1 : 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: accent.withOpacity(
+                                      isDark ? 0.2 : 0.14,
                                     ),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: timerActive
-                                          ? activeAccent.withOpacity(
-                                              isDark ? 0.6 : 0.45,
-                                            )
-                                          : catColor.withOpacity(
-                                              isDark ? 0.15 : 0.2,
-                                            ),
-                                      width: timerActive ? 1.4 : 1,
-                                    ),
-                                    boxShadow: timerActive
-                                        ? [
-                                            BoxShadow(
-                                              color: activeAccent.withOpacity(
-                                                isDark ? 0.28 : 0.16,
-                                              ),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ]
-                                        : null,
                                   ),
                                   child: Icon(
-                                    _iconFor(task.category),
-                                    size: 26,
-                                    color: catColor,
+                                    TaskCategoryStyle.icon(task.category),
+                                    color: accent,
+                                    size: 22,
                                   ),
                                 ),
-                                const SizedBox(width: 14),
-
-                                // Content
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      // Category badge
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: catColor.withOpacity(
-                                            isDark ? 0.12 : 0.15,
+                                      Row(
+                                        children: [
+                                          _PillTag(
+                                            text: TaskCategoryStyle.label(
+                                              task.category,
+                                            ).toUpperCase(),
+                                            color: accent,
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: catColor.withOpacity(
-                                              isDark ? 0.25 : 0.3,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 6,
-                                              height: 6,
-                                              decoration: BoxDecoration(
-                                                color: catColor,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
+                                          if (timerActive) ...[
                                             const SizedBox(width: 6),
-                                            Text(
-                                              _labelFor(
-                                                task.category,
-                                              ).toUpperCase(),
-                                              style: textTheme.labelSmall
-                                                  ?.copyWith(
-                                                    color: catColor,
-                                                    letterSpacing: 1.1,
-                                                    fontWeight: FontWeight.w800,
-                                                    fontSize: 10,
-                                                  ),
+                                            _PillTag(
+                                              text: timerDone ? 'DONE' : 'LIVE',
+                                              color: timerDone
+                                                  ? scheme.tertiary
+                                                  : timerAccent,
                                             ),
                                           ],
-                                        ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 10),
-
-                                      // Title
+                                      const SizedBox(height: 8),
                                       Text(
                                         task.title,
-                                        style: textTheme.titleMedium?.copyWith(
-                                          decoration: checked
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                          decorationColor: scheme.onSurface
-                                              .withOpacity(0.5),
-                                          decorationThickness: 2,
-                                          color: checked
-                                              ? scheme.onSurface.withOpacity(
-                                                  0.5,
-                                                )
-                                              : (isDark
-                                                    ? Colors.white.withOpacity(
-                                                        0.95,
-                                                      )
-                                                    : scheme.onSurface),
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.3,
-                                        ),
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                              letterSpacing: 0.1,
+                                              height: 1.3,
+                                              decoration: checked
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                            ),
                                       ),
-                                      const SizedBox(height: 10),
-
-                                      // Meta chips
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.bolt_rounded,
+                                            size: 14,
+                                            color: checked
+                                                ? const Color(0xFF22C55E)
+                                                : accent,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            checked
+                                                ? 'Earned +$xp XP'
+                                                : '+$xp XP reward',
+                                            style: theme.textTheme.labelMedium
+                                                ?.copyWith(
+                                                  color: checked
+                                                      ? const Color(0xFF22C55E)
+                                                      : accent,
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
                                       Wrap(
                                         spacing: 6,
                                         runSpacing: 6,
                                         children: [
-                                          _ModernMetaChip(
+                                          _MetricChip(
                                             icon: Icons.schedule_rounded,
-                                            label: '${task.durationMinutes}m',
-                                            color: const Color(0xFF3B82F6),
+                                            label:
+                                                '${task.durationMinutes} min',
+                                            color: const Color(0xFF14B8A6),
                                           ),
-                                          _ModernMetaChip(
-                                            icon: Icons
-                                                .signal_cellular_alt_rounded,
+                                          _MetricChip(
+                                            icon: Icons.bolt_rounded,
                                             label: _difficultyLabel(
                                               task.difficulty,
                                             ),
-                                            color: const Color(0xFF10B981),
+                                            color: _difficultyColor(
+                                              task.difficulty,
+                                            ),
                                           ),
                                           if (task.aiSuggested)
-                                            _ModernMetaChip(
+                                            const _MetaChip(
                                               icon: Icons.auto_awesome_rounded,
                                               label: 'AI',
-                                              color: const Color(0xFF8B5CF6),
+                                            ),
+                                          if (task.isCustom)
+                                            const _MetaChip(
+                                              icon: Icons.edit_rounded,
+                                              label: 'Custom',
                                             ),
                                           if (task.premiumOnly)
-                                            _ModernMetaChip(
+                                            const _MetaChip(
                                               icon: Icons
                                                   .workspace_premium_rounded,
                                               label: 'Premium',
-                                              color: const Color(0xFFFBBF24),
                                             ),
                                           if (task.isSpecial)
-                                            _ModernMetaChip(
+                                            const _MetaChip(
                                               icon: Icons.star_rounded,
                                               label: 'Special',
-                                              color: const Color(0xFFF97316),
                                             ),
                                         ],
                                       ),
-
-                                      // Inline timer
-                                      if (hasInlineTimer) ...[
-                                        const SizedBox(height: 12),
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: isDark
-                                                ? const Color(
-                                                    0xFF0D1B2E,
-                                                  ).withOpacity(0.6)
-                                                : scheme.surfaceVariant
-                                                      .withOpacity(0.6),
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            border: Border.all(
-                                              color:
-                                                  (timerDone
-                                                          ? scheme.tertiary
-                                                          : scheme.primary)
-                                                      .withOpacity(0.4),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 42,
-                                                height: 42,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  gradient: LinearGradient(
-                                                    colors: timerDone
-                                                        ? [
-                                                            scheme.tertiary,
-                                                            scheme.tertiary
-                                                                .withOpacity(
-                                                                  0.6,
-                                                                ),
-                                                          ]
-                                                        : [
-                                                            scheme.primary,
-                                                            scheme.primary
-                                                                .withOpacity(
-                                                                  0.6,
-                                                                ),
-                                                          ],
-                                                  ),
-                                                ),
-                                                child: Icon(
-                                                  timerDone
-                                                      ? Icons.check_rounded
-                                                      : Icons.timer_rounded,
-                                                  color: scheme.onPrimary,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      timerDone
-                                                          ? 'Time is up'
-                                                          : 'Counting down',
-                                                      style: textTheme
-                                                          .labelMedium
-                                                          ?.copyWith(
-                                                            color: scheme
-                                                                .onSurfaceVariant,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                          ),
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      timerDone
-                                                          ? '00:00'
-                                                          : _formatDuration(
-                                                              inlineRemaining,
-                                                            ),
-                                                      style: textTheme
-                                                          .titleLarge
-                                                          ?.copyWith(
-                                                            fontFeatures: const [
-                                                              FontFeature.tabularFigures(),
-                                                            ],
-                                                            letterSpacing: 1.2,
-                                                            fontWeight:
-                                                                FontWeight.w800,
-                                                            color: timerDone
-                                                                ? scheme
-                                                                      .tertiary
-                                                                : scheme
-                                                                      .primary,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            minHeight: 8,
-                                            value: inlineProgress.clamp(
-                                              0.0,
-                                              1.0,
-                                            ),
-                                            backgroundColor: scheme
-                                                .outlineVariant
-                                                .withOpacity(0.3),
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  timerDone
-                                                      ? scheme.tertiary
-                                                      : scheme.primary,
-                                                ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: onCancelTimer,
-                                                icon: const Icon(
-                                                  Icons.stop_circle_rounded,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Cancel timer',
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  foregroundColor:
-                                                      scheme.onSurface,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: FilledButton.icon(
-                                                onPressed: timerDone
-                                                    ? onCompleteTimer
-                                                    : null,
-                                                icon: Icon(
-                                                  timerDone
-                                                      ? Icons.check_rounded
-                                                      : Icons.hourglass_bottom,
-                                                  size: 18,
-                                                ),
-                                                label: Text(
-                                                  timerDone
-                                                      ? 'Mark complete'
-                                                      : 'Running',
-                                                ),
-                                                style: FilledButton.styleFrom(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  backgroundColor: timerDone
-                                                      ? scheme.tertiary
-                                                      : scheme
-                                                            .surfaceContainerHigh,
-                                                  foregroundColor: timerDone
-                                                      ? scheme.onTertiary
-                                                      : scheme.onSurface,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-
-                                      // Skip button
-                                      if (!checked && onSkip != null) ...[
-                                        const SizedBox(height: 10),
-                                        TextButton.icon(
-                                          onPressed: canSkip ? onSkip : null,
-                                          icon: Icon(
-                                            Icons.fast_forward_rounded,
-                                            size: 16,
-                                          ),
-                                          label: Text(
-                                            canSkip
-                                                ? 'Skip this task'
-                                                : 'Skip limit reached',
-                                          ),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                            foregroundColor: canSkip
-                                                ? (isDark
-                                                      ? const Color(0xFF06B6D4)
-                                                      : scheme.secondary)
-                                                : (isDark
-                                                      ? Colors.white
-                                                            .withOpacity(0.4)
-                                                      : scheme.onSurfaceVariant
-                                                            .withOpacity(0.5)),
-                                            backgroundColor: canSkip
-                                                ? (isDark
-                                                      ? const Color(
-                                                          0xFF06B6D4,
-                                                        ).withOpacity(0.12)
-                                                      : scheme.secondary
-                                                            .withOpacity(0.08))
-                                                : (isDark
-                                                      ? const Color(
-                                                          0xFF1E3A5F,
-                                                        ).withOpacity(0.2)
-                                                      : scheme.surfaceVariant
-                                                            .withOpacity(0.3)),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              side: BorderSide(
-                                                color: canSkip
-                                                    ? (isDark
-                                                          ? const Color(
-                                                              0xFF06B6D4,
-                                                            ).withOpacity(0.3)
-                                                          : scheme.secondary
-                                                                .withOpacity(
-                                                                  0.2,
-                                                                ))
-                                                    : (isDark
-                                                          ? const Color(
-                                                              0xFF1E3A5F,
-                                                            ).withOpacity(0.3)
-                                                          : scheme.outline
-                                                                .withOpacity(
-                                                                  0.15,
-                                                                )),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ),
-
-                                const SizedBox(width: 12),
-
-                                // Checkbox
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    gradient: checked
-                                        ? LinearGradient(
-                                            colors: [
-                                              scheme.primary,
-                                              scheme.primary.withOpacity(0.75),
-                                            ],
-                                          )
-                                        : null,
-                                    color: checked
-                                        ? null
-                                        : (isDark
-                                              ? const Color(
-                                                  0xFF1E3A5F,
-                                                ).withOpacity(0.3)
-                                              : scheme.surfaceVariant
-                                                    .withOpacity(0.4)),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: checked
-                                          ? scheme.primary
-                                          : timerActive
-                                          ? activeAccent.withOpacity(0.8)
-                                          : (isDark
-                                                ? const Color(
-                                                    0xFF3B82F6,
-                                                  ).withOpacity(0.4)
-                                                : scheme.outline.withOpacity(
-                                                    0.3,
-                                                  )),
-                                      width: checked
-                                          ? 2
-                                          : (timerActive ? 1.8 : 1.5),
-                                    ),
-                                    boxShadow: checked || timerActive
-                                        ? <BoxShadow>[
-                                            BoxShadow(
-                                              color:
-                                                  (checked
-                                                          ? scheme.primary
-                                                          : activeAccent)
-                                                      .withOpacity(0.3),
-                                              blurRadius: timerActive ? 12 : 8,
-                                              offset: const Offset(0, 2),
+                                const SizedBox(width: 8),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    _TaskStatusChip(status: status),
+                                    if (!checked &&
+                                        !timerActive &&
+                                        onSkip != null) ...[
+                                      const SizedBox(height: 8),
+                                      IconButton(
+                                        onPressed: canSkip ? onSkip : null,
+                                        tooltip: canSkip
+                                            ? 'Skip task'
+                                            : 'Skip limit reached',
+                                        icon: const Icon(
+                                          Icons.fast_forward_rounded,
+                                          size: 19,
+                                        ),
+                                        style: IconButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          foregroundColor: canSkip
+                                              ? skipAccent
+                                              : scheme.onSurfaceVariant
+                                                    .withOpacity(0.6),
+                                          backgroundColor: canSkip
+                                              ? skipAccent.withOpacity(0.12)
+                                              : scheme.surfaceContainerHighest
+                                                    .withOpacity(0.18),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
                                             ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: AnimatedScale(
-                                    duration: const Duration(milliseconds: 160),
-                                    scale: checked ? 1.0 : 0.0,
-                                    child: Icon(
-                                      Icons.check_rounded,
-                                      size: 18,
-                                      color: scheme.onPrimary,
-                                    ),
-                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
                             ),
+                            if (timerActive) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  color: Color.alphaBlend(
+                                    accent.withOpacity(isDark ? 0.12 : 0.06),
+                                    scheme.surface,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                timerDone
+                                                    ? 'Timer finished'
+                                                    : 'Timer running',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelLarge
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                timerDone
+                                                    ? 'You can mark this task complete.'
+                                                    : 'Keep going until the timer ends.',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: scheme
+                                                          .onSurfaceVariant,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                            color: scheme.surface,
+                                          ),
+                                          child: Text(
+                                            timerDone
+                                                ? '00:00'
+                                                : _formatDuration(remaining),
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: timerDone
+                                                      ? scheme.tertiary
+                                                      : timerAccent,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (hasInlineTimer) ...[
+                                      const SizedBox(height: 12),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        child: LinearProgressIndicator(
+                                          value: timerProgress.clamp(0.0, 1.0),
+                                          minHeight: 8,
+                                          backgroundColor: scheme.surfaceVariant
+                                              .withOpacity(0.75),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                timerDone
+                                                    ? scheme.tertiary
+                                                    : timerAccent,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (!timerDone &&
+                                        onCancelTimer != null) ...[
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: onCancelTimer,
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Stop timer'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFFF59E8B,
+                                            ),
+                                            backgroundColor: Color.alphaBlend(
+                                              const Color(
+                                                0xFFFECACA,
+                                              ).withOpacity(0.16),
+                                              scheme.surfaceContainerHighest
+                                                  .withOpacity(0.58),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (timerDone &&
+                                        onCompleteTimer != null) ...[
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: onCompleteTimer,
+                                          icon: const Icon(
+                                            Icons.check_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Mark complete'),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 11,
+                                            ),
+                                            backgroundColor: scheme.tertiary,
+                                            foregroundColor: scheme.onTertiary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -814,33 +491,38 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-class _ModernMetaChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
+enum _TaskStatusType { pending, done, streakBonus }
 
-  const _ModernMetaChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+class _TaskStatusChip extends StatelessWidget {
+  const _TaskStatusChip({required this.status});
+
+  final _TaskStatusType status;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    IconData icon;
+    String label;
+    Color color;
+    switch (status) {
+      case _TaskStatusType.done:
+        icon = Icons.check_circle_rounded;
+        label = 'Done';
+        color = const Color(0xFF22C55E);
+      case _TaskStatusType.streakBonus:
+        icon = Icons.local_fire_department_rounded;
+        label = 'Streak bonus';
+        color = const Color(0xFFF59E0B);
+      case _TaskStatusType.pending:
+        icon = Icons.hourglass_top_rounded;
+        label = 'Pending';
+        color = const Color(0xFF7C83FF);
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withOpacity(isDark ? 0.16 : 0.14),
-            color.withOpacity(isDark ? 0.08 : 0.07),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(isDark ? 0.26 : 0.28)),
+        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.15),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -851,12 +533,118 @@ class _ModernMetaChip extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 11,
-              letterSpacing: 0.3,
+              fontWeight: FontWeight.w400,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        color: scheme.surfaceContainerHighest.withOpacity(0.24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w400,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 5, 10, 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.13),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.16),
+            ),
+            child: Icon(icon, size: 10, color: color),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w400,
+              color: Color.alphaBlend(
+                color.withOpacity(0.12),
+                scheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PillTag extends StatelessWidget {
+  const _PillTag({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.14),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w400,
+          letterSpacing: 0.35,
+        ),
       ),
     );
   }

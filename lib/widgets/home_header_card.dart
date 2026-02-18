@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class HomeHeaderCard extends StatelessWidget {
+class HomeHeaderCard extends StatefulWidget {
   const HomeHeaderCard({
     super.key,
     required this.progress,
@@ -33,43 +33,73 @@ class HomeHeaderCard extends StatelessWidget {
   final VoidCallback onOpenWeeklyPlan;
 
   @override
+  State<HomeHeaderCard> createState() => _HomeHeaderCardState();
+}
+
+class _HomeHeaderCardState extends State<HomeHeaderCard> {
+  bool _detailsExpanded = false;
+
+  bool get _hasDetails =>
+      widget.focusLabel.isNotEmpty ||
+      widget.adaptiveLabel.isNotEmpty ||
+      widget.weeklyTarget > 0;
+
+  Color _focusColor(BuildContext context, String label) {
+    final value = label.toLowerCase();
+    if (value.contains('mind') || value.contains('calm')) {
+      return const Color(0xFF8B5CF6);
+    }
+    if (value.contains('body')) {
+      return const Color(0xFF4F7CFF);
+    }
+    if (value.contains('growth')) {
+      return const Color(0xFF22D3EE);
+    }
+    if (value.contains('health')) {
+      return const Color(0xFF60A5FA);
+    }
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  String _progressHeadline() {
+    final p = widget.progress.clamp(0.0, 1.0);
+    if (p >= 1) return 'Crushed it today!';
+    if (p >= 0.33) return 'Almost there!';
+    if (p > 0) return 'Great start. Keep going!';
+    return "Let's kick things off!";
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final percent = (progress * 100).clamp(0, 100).round();
+    final baseCardColor = Color.alphaBlend(
+      Colors.black.withOpacity(
+        theme.brightness == Brightness.dark ? 0.24 : 0.06,
+      ),
+      scheme.surface,
+    );
+    final cardColor = Color.alphaBlend(
+      scheme.primary.withOpacity(
+        theme.brightness == Brightness.dark ? 0.08 : 0.04,
+      ),
+      baseCardColor,
+    );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [
-              scheme.primary.withOpacity(0.10),
-              scheme.secondary.withOpacity(0.05),
-              scheme.surface,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(color: scheme.outline.withOpacity(0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: scheme.shadow.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(22),
+          color: cardColor,
         ),
         child: Column(
           children: [
-            // Main content section
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header row
                   Row(
                     children: [
                       Expanded(
@@ -79,246 +109,161 @@ class HomeHeaderCard extends StatelessWidget {
                             Text(
                               "Today's Sparks",
                               style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 29 / 1.6,
+                                letterSpacing: 0.24,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
-                              "Small actions. Big change.",
+                              'Small actions. Big change.',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Circular progress indicator
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              scheme.primary.withOpacity(0.07),
-                              scheme.secondary.withOpacity(0.035),
-                            ],
-                          ),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            SizedBox(
-                              width: 64,
-                              height: 64,
-                              child: CircularProgressIndicator(
-                                value: progress,
-                                strokeWidth: 4,
-                                backgroundColor: scheme.surfaceVariant,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  scheme.primary,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              "$percent%",
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _ProgressRing(progress: widget.progress),
                     ],
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // Progress bar
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      backgroundColor: scheme.surfaceVariant,
-                      valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+                  const SizedBox(height: 12),
+                  _AnimatedGradientProgressBar(
+                    progress: widget.progress,
+                    glowColor: const Color(0xFF7C83FF),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _progressHeadline(),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFF9FD6FF),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  // Stats row
+                  const SizedBox(height: 12),
+                  _StreakSpotlight(streak: widget.streak),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      // Completed count
                       Expanded(
-                        child: _StatChip(
+                        flex: 8,
+                        child: _StatTile(
                           icon: Icons.check_circle_rounded,
-                          label: '$doneCount / $totalCount',
+                          label: '${widget.doneCount} / ${widget.totalCount}',
                           subtitle: 'Completed',
-                          color: scheme.primary,
+                          color: const Color(0xFF7C83FF),
+                          emphasis: true,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // Today count
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: _StatChip(
-                          icon: Icons.today_rounded,
-                          label: '$todayCompleted',
+                        flex: 4,
+                        child: _StatTile(
+                          icon: Icons.calendar_today_rounded,
+                          label: '${widget.todayCompleted}',
                           subtitle: 'Today',
-                          color: scheme.secondary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Streak
-                      Expanded(
-                        child: _StatChip(
-                          icon: Icons.local_fire_department_rounded,
-                          label: '$streak',
-                          subtitle: 'Streak',
-                          color: Color(0xFFF97316),
+                          color: const Color(0xFF4F7CFF),
+                          compact: true,
                         ),
                       ),
                     ],
                   ),
-
-                  // Focus label
-                  if (focusLabel.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            scheme.secondary.withOpacity(0.10),
-                            scheme.secondary.withOpacity(0.035),
-                          ],
+                  if (_hasDetails) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() => _detailsExpanded = !_detailsExpanded);
+                        },
+                        icon: Icon(
+                          _detailsExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 18,
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: scheme.secondary.withOpacity(0.3),
+                        label: Text(
+                          _detailsExpanded ? 'Hide details' : 'Show details',
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _focusIconData(focusLabel),
-                            size: 16,
-                            color: scheme.secondary,
+                        style: TextButton.styleFrom(
+                          foregroundColor: scheme.onSurfaceVariant,
+                          backgroundColor: scheme.surfaceContainerHighest
+                              .withOpacity(0.24),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Today focus: $focusLabel',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: scheme.secondary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ],
-
-                  if (adaptiveLabel.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.tertiary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: scheme.tertiary.withOpacity(0.25),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.tune_rounded,
-                            size: 15,
-                            color: scheme.tertiary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            adaptiveLabel,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: scheme.tertiary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  if (weeklyTarget > 0) ...[
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: onOpenWeeklyPlan,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.primary.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: scheme.primary.withOpacity(0.22),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.calendar_view_week_rounded,
-                              size: 15,
-                              color: scheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'This week: $weeklyDone/$weeklyTarget',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: scheme.primary,
-                                fontWeight: FontWeight.w700,
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: _detailsExpanded
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (widget.focusLabel.isNotEmpty) ...[
+                                    _InfoPill(
+                                      icon: _focusIconData(widget.focusLabel),
+                                      text: 'Today focus: ${widget.focusLabel}',
+                                      color: _focusColor(
+                                        context,
+                                        widget.focusLabel,
+                                      ),
+                                    ),
+                                  ],
+                                  if (widget.adaptiveLabel.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    _InfoPill(
+                                      icon: Icons.tune_rounded,
+                                      text: widget.adaptiveLabel,
+                                      color: const Color(0xFF21D4FD),
+                                    ),
+                                  ],
+                                  if (widget.weeklyTarget > 0) ...[
+                                    const SizedBox(height: 8),
+                                    InkWell(
+                                      onTap: widget.onOpenWeeklyPlan,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: _InfoPill(
+                                        icon: Icons.calendar_view_week_rounded,
+                                        text:
+                                            'This week: ${widget.weeklyDone}/${widget.weeklyTarget}',
+                                        color: const Color(0xFF8B5CF6),
+                                        trailing: const Icon(
+                                          Icons.edit_rounded,
+                                          size: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.edit_rounded,
-                              size: 14,
-                              color: scheme.primary.withOpacity(0.9),
-                            ),
-                          ],
-                        ),
-                      ),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ],
                 ],
               ),
             ),
-
-            // Action buttons section
             Container(
               decoration: BoxDecoration(
-                color: scheme.surfaceVariant.withOpacity(0.3),
+                color: scheme.surfaceContainerHighest.withOpacity(0.22),
                 borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+                  bottomLeft: Radius.circular(22),
+                  bottomRight: Radius.circular(22),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  // Date label
                   Icon(
                     Icons.calendar_today_rounded,
                     size: 14,
@@ -326,48 +271,38 @@ class HomeHeaderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    dateLabel,
+                    widget.dateLabel,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
-                  // Stats button
                   TextButton.icon(
-                    onPressed: onOpenStats,
-                    icon: Icon(
-                      Icons.insights_rounded,
-                      size: 16,
-                      color: scheme.primary,
-                    ),
-                    label: Text(
-                      'View stats',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    onPressed: widget.onOpenStats,
+                    icon: const Icon(Icons.insights_rounded, size: 16),
+                    label: const Text('View stats'),
                     style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFFFFF),
+                      backgroundColor: const Color(
+                        0xFF9D65FF,
+                      ).withOpacity(0.14),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
-                      backgroundColor: scheme.primary.withOpacity(0.09),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Share button
                   IconButton(
-                    onPressed: onShare,
+                    onPressed: widget.onShare,
                     icon: const Icon(Icons.share_rounded, size: 18),
                     style: IconButton.styleFrom(
-                      backgroundColor: scheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.all(10),
+                      foregroundColor: scheme.onSurfaceVariant,
+                      backgroundColor: scheme.surface.withOpacity(0.7),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -383,56 +318,281 @@ class HomeHeaderCard extends StatelessWidget {
   }
 }
 
-class _StatChip extends StatelessWidget {
-  const _StatChip({
+class _ProgressRing extends StatelessWidget {
+  const _ProgressRing({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 62,
+      height: 62,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: scheme.surface.withOpacity(0.8),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: CircularProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              strokeWidth: 3.5,
+              backgroundColor: scheme.surfaceVariant.withOpacity(0.8),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF3E8BFF),
+              ),
+            ),
+          ),
+          Icon(
+            Icons.rocket_launch_rounded,
+            size: 20,
+            color: const Color(0xFF7C83FF),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
     required this.icon,
     required this.label,
     required this.subtitle,
     required this.color,
+    this.emphasis = false,
+    this.compact = false,
   });
 
   final IconData icon;
   final String label;
   final String subtitle;
   final Color color;
+  final bool emphasis;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-
+    final tileColor = Color.alphaBlend(
+      color.withOpacity(emphasis ? 0.22 : 0.16),
+      scheme.surface,
+    );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 9 : 12,
+      ),
       decoration: BoxDecoration(
-        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: tileColor,
       ),
       child: Column(
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 6),
+          Icon(icon, size: compact ? 15 : (emphasis ? 19 : 17), color: color),
+          SizedBox(height: compact ? 3 : 4),
           Text(
             label,
-            style: theme.textTheme.labelLarge?.copyWith(
+            style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w800,
+              fontSize: compact ? 21 / 1.6 : (emphasis ? 25 / 1.6 : 22 / 1.6),
               color: scheme.onSurface,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             subtitle,
             style: theme.textTheme.labelSmall?.copyWith(
               color: scheme.onSurfaceVariant,
-              fontSize: 10,
+              fontWeight: FontWeight.w600,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StreakSpotlight extends StatelessWidget {
+  const _StreakSpotlight({required this.streak});
+
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final active = streak > 0;
+    final title = active ? '$streak Day Streak' : 'Start Your Streak';
+    final subtitle = active
+        ? 'Keep it going!'
+        : 'Complete one task to ignite it.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Color.alphaBlend(
+          (active ? const Color(0xFF22D3EE) : const Color(0xFF7C83FF))
+              .withOpacity(0.16),
+          scheme.surface,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.18,
+              color: scheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnimatedGradientProgressBar extends StatefulWidget {
+  const _AnimatedGradientProgressBar({
+    required this.progress,
+    required this.glowColor,
+  });
+
+  final double progress;
+  final Color glowColor;
+
+  @override
+  State<_AnimatedGradientProgressBar> createState() =>
+      _AnimatedGradientProgressBarState();
+}
+
+class _AnimatedGradientProgressBarState
+    extends State<_AnimatedGradientProgressBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final progress = widget.progress.clamp(0.0, 1.0);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final shift = (_controller.value * 2) - 1;
+        return Container(
+          height: 8,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: scheme.surfaceVariant.withOpacity(0.78),
+            boxShadow: progress <= 0
+                ? null
+                : [
+                    BoxShadow(
+                      color: widget.glowColor.withOpacity(0.34),
+                      blurRadius: 12,
+                      offset: const Offset(0, 0),
+                    ),
+                  ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: progress,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment(-1 + shift, 0),
+                      end: Alignment(1 + shift, 0),
+                      colors: const [
+                        Color(0xFF7C83FF),
+                        Color(0xFF4F7CFF),
+                        Color(0xFF22D3EE),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({
+    required this.icon,
+    required this.text,
+    required this.color,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Color.alphaBlend(color.withOpacity(0.14), surface),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 6),
+            IconTheme(
+              data: IconThemeData(color: color),
+              child: trailing!,
+            ),
+          ],
         ],
       ),
     );

@@ -11,7 +11,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
+import 'screens/onboarding_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -64,34 +66,39 @@ class SparkioApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFF3E7BFA);
-    const primaryDark = Color(0xFF1B3F8B);
-    const accent = Color(0xFF2EA7D6);
+    const primary = Color(0xFF8B5CF6);
+    const primaryDark = Color(0xFF5B35C8);
+    const accent = Color(0xFFF43F8C);
+    const tertiary = Color(0xFF22D3EE);
 
-    const darkBackground = Color(0xFF060D1A);
-    const darkSurface = Color(0xFF0B1629);
-    const darkCard = Color(0xFF101D33);
-    const darkTextPrimary = Color(0xFFE7EDF9);
-    const darkTextSecondary = Color(0xFF9BAECB);
-    const darkDivider = Color(0xFF1C2C47);
+    const darkBackground = Color(0xFF090C16);
+    const darkSurface = Color(0xFF111624);
+    const darkCard = Color(0xFF1A2233);
+    const darkTextPrimary = Color(0xFFF4F6FF);
+    const darkTextSecondary = Color(0xFFA2ACCB);
+    const darkDivider = Color(0xFF2B3450);
 
-    const lightBackground = Color(0xFFF8FAFC);
+    const lightBackground = Color(0xFFF3F0FA);
     const lightSurface = Color(0xFFFFFFFF);
-    const lightCard = Color(0xFFF1F5F9);
-    const lightTextPrimary = Color(0xFF0F172A);
-    const lightTextSecondary = Color(0xFF475569);
-    const lightDivider = Color(0xFFE2E8F0);
+    const lightCard = Color(0xFFEDE9F8);
+    const lightTextPrimary = Color(0xFF17192A);
+    const lightTextSecondary = Color(0xFF5F6684);
+    const lightDivider = Color(0xFFD6D8E8);
 
     final darkScheme = const ColorScheme(
       brightness: Brightness.dark,
       primary: primary,
       onPrimary: Colors.white,
       primaryContainer: primaryDark,
-      onPrimaryContainer: Colors.white,
+      onPrimaryContainer: Color(0xFFEDE4FF),
       secondary: accent,
       onSecondary: Colors.white,
-      secondaryContainer: Color(0xFF123549),
-      onSecondaryContainer: Colors.white,
+      secondaryContainer: Color(0xFF5A203C),
+      onSecondaryContainer: Color(0xFFFFDCEB),
+      tertiary: tertiary,
+      onTertiary: Color(0xFF032B33),
+      tertiaryContainer: Color(0xFF124651),
+      onTertiaryContainer: Color(0xFFC4F3FF),
       background: darkBackground,
       onBackground: darkTextPrimary,
       surface: darkSurface,
@@ -100,7 +107,7 @@ class SparkioApp extends StatelessWidget {
       onSurfaceVariant: darkTextSecondary,
       outline: darkDivider,
       shadow: Colors.black,
-      error: Color(0xFFEF4444),
+      error: Color(0xFFFF5D73),
       onError: Colors.white,
     );
 
@@ -108,12 +115,16 @@ class SparkioApp extends StatelessWidget {
       brightness: Brightness.light,
       primary: primary,
       onPrimary: Colors.white,
-      primaryContainer: Color(0xFFDBEAFE),
+      primaryContainer: Color(0xFFE8DEFF),
       onPrimaryContainer: lightTextPrimary,
       secondary: accent,
-      onSecondary: Color(0xFF0F172A),
-      secondaryContainer: Color(0xFFCFFAFE),
+      onSecondary: Colors.white,
+      secondaryContainer: Color(0xFFFFD9EA),
       onSecondaryContainer: lightTextPrimary,
+      tertiary: tertiary,
+      onTertiary: Color(0xFF07303A),
+      tertiaryContainer: Color(0xFFCFF5FF),
+      onTertiaryContainer: Color(0xFF07303A),
       background: lightBackground,
       onBackground: lightTextPrimary,
       surface: lightSurface,
@@ -150,10 +161,10 @@ class SparkioApp extends StatelessWidget {
               centerTitle: true,
             ),
             cardTheme: CardThemeData(
-              color: lightCard,
+              color: lightSurface,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             textTheme: ThemeData(brightness: Brightness.light).textTheme
@@ -171,43 +182,70 @@ class SparkioApp extends StatelessWidget {
             dividerTheme: const DividerThemeData(color: lightDivider),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,
-              fillColor: lightCard,
+              fillColor: lightCard.withOpacity(0.6),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: lightDivider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: lightDivider.withOpacity(0.8)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primary, width: 1.2),
               ),
             ),
             elevatedButtonTheme: ElevatedButtonThemeData(
               style: ElevatedButton.styleFrom(
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
             outlinedButtonTheme: OutlinedButtonThemeData(
               style: OutlinedButton.styleFrom(
                 foregroundColor: primary,
-                side: const BorderSide(color: lightDivider),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: primary.withOpacity(0.35)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
-            chipTheme: const ChipThemeData(
+            chipTheme: ChipThemeData(
               selectedColor: primary,
-              backgroundColor: lightCard,
-              labelStyle: TextStyle(color: lightTextPrimary),
-              secondaryLabelStyle: TextStyle(color: Colors.white),
+              backgroundColor: lightCard.withOpacity(0.75),
+              labelStyle: const TextStyle(color: lightTextPrimary),
+              secondaryLabelStyle: const TextStyle(color: Colors.white),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: lightDivider.withOpacity(0.7)),
+              ),
             ),
             bottomSheetTheme: const BottomSheetThemeData(
               backgroundColor: lightSurface,
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+            ),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: lightSurface,
+              contentTextStyle: const TextStyle(color: lightTextPrimary),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: lightDivider.withOpacity(0.8)),
               ),
             ),
           ),
@@ -217,7 +255,7 @@ class SparkioApp extends StatelessWidget {
             colorScheme: darkScheme,
             scaffoldBackgroundColor: darkBackground,
             appBarTheme: const AppBarTheme(
-              backgroundColor: darkSurface,
+              backgroundColor: darkBackground,
               elevation: 0,
               centerTitle: true,
             ),
@@ -225,7 +263,7 @@ class SparkioApp extends StatelessWidget {
               color: darkCard,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             textTheme: ThemeData(brightness: Brightness.dark).textTheme
@@ -243,50 +281,124 @@ class SparkioApp extends StatelessWidget {
             dividerTheme: const DividerThemeData(color: darkDivider),
             inputDecorationTheme: InputDecorationTheme(
               filled: true,
-              fillColor: darkCard,
+              fillColor: darkCard.withOpacity(0.88),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: darkDivider.withOpacity(0.7)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: darkDivider.withOpacity(0.75)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: primary, width: 1.2),
               ),
             ),
             elevatedButtonTheme: ElevatedButtonThemeData(
               style: ElevatedButton.styleFrom(
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
             outlinedButtonTheme: OutlinedButtonThemeData(
               style: OutlinedButton.styleFrom(
                 foregroundColor: darkTextPrimary,
-                side: const BorderSide(color: darkDivider),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: darkDivider.withOpacity(0.9)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),
-            chipTheme: const ChipThemeData(
+            chipTheme: ChipThemeData(
               selectedColor: primary,
               backgroundColor: darkCard,
-              labelStyle: TextStyle(color: darkTextPrimary),
-              secondaryLabelStyle: TextStyle(color: Colors.white),
+              labelStyle: const TextStyle(color: darkTextPrimary),
+              secondaryLabelStyle: const TextStyle(color: Colors.white),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: darkDivider.withOpacity(0.7)),
+              ),
             ),
             bottomSheetTheme: const BottomSheetThemeData(
               backgroundColor: darkSurface,
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+            ),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: darkCard,
+              contentTextStyle: const TextStyle(color: darkTextPrimary),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: darkDivider.withOpacity(0.9)),
               ),
             ),
           ),
           themeMode: mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light,
-          home: const HomeScreen(),
+          home: const _LaunchGate(),
         );
       },
     );
+  }
+}
+
+const String _kOnboardingCompletedKey = 'onboarding_completed_v1';
+
+class _LaunchGate extends StatefulWidget {
+  const _LaunchGate();
+
+  @override
+  State<_LaunchGate> createState() => _LaunchGateState();
+}
+
+class _LaunchGateState extends State<_LaunchGate> {
+  bool? _onboardingCompleted;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOnboardingState();
+  }
+
+  Future<void> _loadOnboardingState() async {
+    final sp = await SharedPreferences.getInstance();
+    final completed = sp.getBool(_kOnboardingCompletedKey) ?? false;
+    if (!mounted) return;
+    setState(() => _onboardingCompleted = completed);
+  }
+
+  Future<void> _completeOnboarding() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kOnboardingCompletedKey, true);
+    if (!mounted) return;
+    setState(() => _onboardingCompleted = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = _onboardingCompleted;
+    if (completed == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (completed) {
+      return const HomeScreen();
+    }
+
+    return OnboardingScreen(onFinished: _completeOnboarding);
   }
 }

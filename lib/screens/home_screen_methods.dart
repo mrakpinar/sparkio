@@ -13,6 +13,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     _updateState(() => _loading = true);
     await _controller.preloadAds();
     final result = await _controller.bootstrap();
+    final profileName = await _repo.getProfileName();
+    final earnedBadgesCount = (await _repo.getEarnedBadges()).length;
     final completionRate = await _controller.getRecentCompletionRate(days: 7);
     final adaptiveDelta = _controller.adaptationDeltaFromCompletionRate(
       completionRate,
@@ -47,6 +49,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _noAdsUntil = result.noAdsUntil;
       _dailyAddCount = result.dailyAddCount;
       _adaptiveDifficultyDelta = adaptiveDelta;
+      _earnedBadgesCount = earnedBadgesCount;
+      _profileName = profileName ?? '';
       _poolError = result.poolError;
       _weeklyWeekKey = weekKey;
       _weeklyTargets = weeklyTargets;
@@ -96,8 +100,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     // Ask once per day, on the first open, to tailor a task to the user's mood.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_maybePromptWeeklyPlan());
-      unawaited(_maybePromptDailyMood());
+      unawaited(() async {
+        await _ensureProfileNamePrompt(forceIfMissing: true);
+        await _maybePromptWeeklyPlan();
+        await _maybePromptDailyMood();
+      }());
     });
   }
 
@@ -546,7 +553,15 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     return ModernDrawer(
       isDark: isDark,
+      showDebugTools: _showDebugTools,
+      profileName: _profileName,
+      currentStreak: _streak,
+      earnedBadgeCount: _earnedBadgesCount,
+      badgeGoalCount: _HomeScreenState._badgeGoalCount,
+      weeklyDoneCount: _weeklyDoneTotal(),
+      weeklyGoalCount: _weeklyTargetTotal(),
       onToggleTheme: _toggleTheme,
+      onEditProfile: _openProfileEditor,
       onOpenBadges: _openBadges,
       onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
       onOpenContact: _openContact,
@@ -570,6 +585,69 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
   void _openContact() {
     _openInstagramContact();
+  }
+
+  Future<void> _openRateApp({String source = 'manual'}) async {
+    final scheme = Theme.of(context).colorScheme;
+    try {
+      final available = await _inAppReview.isAvailable();
+      if (available) {
+        await _inAppReview.requestReview();
+      } else {
+        await _inAppReview.openStoreListing();
+      }
+      _track('rate_app_tapped', {'source': source});
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to open rating right now.'),
+          backgroundColor: scheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _maybePromptForRating({required String trigger}) async {
+    if (!mounted || _ratePromptOpen) return;
+    if (await _repo.hasShownRatePromptFor(trigger)) return;
+
+    _updateState(() => _ratePromptOpen = true);
+    final action = await showDialog<_RatePromptAction>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Enjoying Sparkio?'),
+          content: const Text(
+            'Your progress is great. Would you like to rate the app?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_RatePromptAction.later),
+              child: const Text('Later'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_RatePromptAction.rateNow),
+              child: const Text('Rate now'),
+            ),
+          ],
+        );
+      },
+    );
+
+    await _repo.markRatePromptShownFor(trigger);
+    if (!mounted) return;
+    _updateState(() => _ratePromptOpen = false);
+
+    if (action == _RatePromptAction.rateNow) {
+      _track('rate_prompt_accepted', {'trigger': trigger});
+      await _openRateApp(source: trigger);
+      return;
+    }
+
+    _track('rate_prompt_dismissed', {'trigger': trigger});
   }
 
   Future<void> _openInstagramContact() async {
@@ -1228,23 +1306,114 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     'cat_health_10',
   ];
 
+  Future<String> _resolveAddTaskCtaVariant() async {
+    final existing = await _repo.getAddTaskCtaVariant();
+    if (existing != null) return existing;
+
+    const variants = ['a', 'b', 'c'];
+    final picked = variants[Random().nextInt(variants.length)];
+    await _repo.setAddTaskCtaVariant(picked);
+    _track('add_task_cta_variant_assigned', {'variant': picked});
+    return picked;
+  }
+
+  Map<String, String> _addTaskCtaCopy(String variant) {
+    switch (variant) {
+      case 'a':
+        return {
+          'label': '\uD83D\uDD25 Start My Streak',
+          'subtitle': 'Takes less than 5 seconds',
+        };
+      case 'b':
+        return {
+          'label': '\u26A1 Create My Spark',
+          'subtitle': 'Takes less than 5 seconds',
+        };
+      case 'c':
+        return {
+          'label': '\u2728 Begin Today',
+          'subtitle': 'Takes less than 5 seconds',
+        };
+      default:
+        return {
+          'label': '\u26A1 Create My Spark',
+          'subtitle': 'Takes less than 5 seconds',
+        };
+    }
+  }
+
   Future<void> _openAddTaskSheet() async {
-    await showModalBottomSheet(
+    final ctaVariant = await _resolveAddTaskCtaVariant();
+    final ctaCopy = _addTaskCtaCopy(ctaVariant);
+    unawaited(
+      AnalyticsService.instance.setUserProperty(
+        name: 'add_task_cta_variant',
+        value: ctaVariant,
+      ),
+    );
+    final freeSparkLeft = (1 - _dailyAddCount).clamp(0, 1);
+    await showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return TaskAddSheet(
-          canAddTask: _premiumActive || _dailyAddCount < 1,
-          addLimitLabel: _premiumActive
-              ? 'Premium: unlimited tasks'
-              : 'Free: 1 task/day ($_dailyAddCount/1)',
-          initialCategory: _customCategory,
-          initialDifficulty: _customDifficulty,
-          initialDurationMinutes: _customDuration,
-          premiumActive: _premiumActive,
-          onAdd: _addCustomTask,
-          onGenerateAi: _generateAiTask,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      barrierColor: Colors.black.withOpacity(0.2),
+      transitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (dialogContext, _, _) {
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: ColoredBox(color: Colors.black.withOpacity(0.12)),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: TaskAddSheet(
+                  canAddTask: _premiumActive || _dailyAddCount < 1,
+                  addLimitLabel: _premiumActive
+                      ? 'Premium: Unlimited Sparks'
+                      : freeSparkLeft > 0
+                      ? 'Free Plan: $freeSparkLeft spark left'
+                      : 'Go Unlimited',
+                  initialCategory: _customCategory,
+                  initialDifficulty: _customDifficulty,
+                  initialDurationMinutes: _customDuration,
+                  premiumActive: _premiumActive,
+                  onAdd: _addCustomTask,
+                  onGenerateAi: _generateAiTask,
+                  onOpenPremium: _openSubscribeSheet,
+                  ctaVariant: ctaVariant,
+                  ctaLabel: ctaCopy['label']!,
+                  ctaSubtitle: ctaCopy['subtitle']!,
+                  onCtaEvent: (event, variant) {
+                    _track('add_task_cta_$event', {'variant': variant});
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, _, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curve,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.08),
+              end: Offset.zero,
+            ).animate(curve),
+            child: child,
+          ),
         );
       },
     );
@@ -1310,6 +1479,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _toggle(Task t) async {
+    if (_completed[t.id] == true) {
+      return;
+    }
     final newVal = !(_completed[t.id] ?? false);
     if (newVal) {
       if (kDebugMode && _debugInstantComplete) {
@@ -1337,6 +1509,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _applyStreakIfAllDone() async {
+    final previousStreak = _streak;
     final done = _today.where((x) => _completed[x.id] == true).length;
     final allDone = _today.isNotEmpty && done == _today.length;
     if (!allDone) return;
@@ -1390,11 +1563,16 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       categoryCounts: categoryCounts,
     );
     if (mounted && streakBadges.isNotEmpty) {
+      _updateState(() => _earnedBadgesCount += streakBadges.length);
       _showBadgeUnlocked(streakBadges.first);
+      unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
     }
 
     if (!mounted) return;
     _updateState(() => _streak = newStreak);
+    if (newStreak >= 7 && previousStreak < 7) {
+      unawaited(_maybePromptForRating(trigger: 'streak_7'));
+    }
   }
 
   Future<void> _completeTaskImmediately(Task t) async {
@@ -1609,15 +1787,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     _showTaskTimerOngoingBestEffort(task: task, remaining: duration);
     unawaited(_syncHomeWidgetSnapshot());
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Go finish this task: ${task.title}'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
   }
 
   Future<void> _cancelTaskTimer(Task task) async {
@@ -1696,7 +1865,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       'from_timer': completedFromTimer,
     });
     if (mounted && newBadges.isNotEmpty) {
+      _updateState(() => _earnedBadgesCount += newBadges.length);
       _showBadgeUnlocked(newBadges.first);
+      unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
     }
     if (mounted) _updateState(() => _todayCompleted = newDaily);
   }
@@ -2269,7 +2440,88 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       }
     }
   }
+
+  Future<void> _ensureProfileNamePrompt({bool forceIfMissing = false}) async {
+    if (!mounted) return;
+    final existing = await _repo.getProfileName();
+    if (!forceIfMissing && existing != null) return;
+    if ((existing ?? '').isNotEmpty) {
+      if (_profileName != existing) {
+        _updateState(() => _profileName = existing!);
+      }
+      return;
+    }
+    await _openProfileEditor(forceRequired: true);
+  }
+
+  Future<void> _openProfileEditor({bool forceRequired = false}) async {
+    if (!mounted) return;
+    var draftName = _profileName;
+    final formKey = GlobalKey<FormState>();
+    final saved = await showDialog<String>(
+      context: context,
+      barrierDismissible: !forceRequired,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Your profile'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              initialValue: draftName,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              maxLength: 24,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                hintText: 'Enter your first name',
+                counterText: '',
+              ),
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) return 'Please enter your name';
+                if (text.length < 2) return 'Name is too short';
+                return null;
+              },
+              onChanged: (value) => draftName = value,
+              onFieldSubmitted: (_) {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.of(dialogContext).pop(draftName.trim());
+                }
+              },
+            ),
+          ),
+          actions: [
+            if (!forceRequired)
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).maybePop(),
+                child: const Text('Cancel'),
+              ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: scheme.primary),
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                Navigator.of(dialogContext).pop(draftName.trim());
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (saved == null || saved.trim().isEmpty) return;
+    final normalized = saved.trim();
+    await _repo.setProfileName(normalized);
+    if (!mounted) return;
+    _updateState(() => _profileName = normalized);
+  }
 }
+
+enum _RatePromptAction { later, rateNow }
 
 class _AllDoneOverlay extends StatelessWidget {
   const _AllDoneOverlay({required this.scheme, required this.onViewStats});

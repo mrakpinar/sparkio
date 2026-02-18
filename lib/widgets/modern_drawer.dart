@@ -1,11 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui' show ImageFilter;
 
 class ModernDrawer extends StatelessWidget {
   const ModernDrawer({
     super.key,
     required this.isDark,
+    required this.showDebugTools,
+    required this.profileName,
+    required this.currentStreak,
+    required this.earnedBadgeCount,
+    required this.badgeGoalCount,
+    required this.weeklyDoneCount,
+    required this.weeklyGoalCount,
     required this.onToggleTheme,
+    required this.onEditProfile,
     required this.onOpenBadges,
     required this.onOpenContact,
     required this.onSendTestNotification,
@@ -13,7 +23,15 @@ class ModernDrawer extends StatelessWidget {
   });
 
   final bool isDark;
+  final bool showDebugTools;
+  final String profileName;
+  final int currentStreak;
+  final int earnedBadgeCount;
+  final int badgeGoalCount;
+  final int weeklyDoneCount;
+  final int weeklyGoalCount;
   final VoidCallback onToggleTheme;
+  final Future<void> Function() onEditProfile;
   final VoidCallback onOpenBadges;
   final VoidCallback onOpenContact;
   final Future<void> Function() onSendTestNotification;
@@ -24,14 +42,28 @@ class ModernDrawer extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final effectiveDark = isDark || theme.brightness == Brightness.dark;
+    final safeBadgeGoal = badgeGoalCount <= 0 ? 1 : badgeGoalCount;
+    final badgeProgress = (earnedBadgeCount / safeBadgeGoal).clamp(0.0, 1.0);
+    final badgeFilledDots = (badgeProgress * 5).round().clamp(0, 5);
+    final badgeDots = '${'●' * badgeFilledDots}${'○' * (5 - badgeFilledDots)}';
 
-    void runMenuAction(VoidCallback action) {
-      Navigator.of(context).maybePop();
+    Future<void> closeDrawer() async {
+      final scaffold = Scaffold.maybeOf(context);
+      if (scaffold != null && scaffold.isEndDrawerOpen) {
+        scaffold.closeEndDrawer();
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        return;
+      }
+      await Navigator.of(context).maybePop();
+    }
+
+    Future<void> runMenuAction(VoidCallback action) async {
+      await closeDrawer();
       action();
     }
 
     Future<void> runAsyncMenuAction(Future<void> Function() action) async {
-      Navigator.of(context).maybePop();
+      await closeDrawer();
       await action();
     }
 
@@ -41,23 +73,7 @@ class ModernDrawer extends StatelessWidget {
         borderRadius: BorderRadius.horizontal(left: Radius.circular(28)),
       ),
       child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: effectiveDark
-                ? const [
-                    Color(0xFF081325),
-                    Color(0xFF0B172A),
-                    Color(0xFF0F1D31),
-                  ]
-                : [
-                    scheme.surface,
-                    const Color(0xFFF8FBFF),
-                    const Color(0xFFF2F7FF),
-                  ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: BoxDecoration(color: scheme.background),
         child: SafeArea(
           child: Column(
             children: [
@@ -65,6 +81,9 @@ class ModernDrawer extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                 child: _DrawerHero(
                   isDark: effectiveDark,
+                  profileName: profileName,
+                  currentStreak: currentStreak,
+                  onQuickEdit: () => runAsyncMenuAction(onEditProfile),
                   onClose: () => Navigator.of(context).maybePop(),
                 ),
               ),
@@ -74,25 +93,37 @@ class ModernDrawer extends StatelessWidget {
                   children: [
                     _SectionHeader(
                       title: 'Appearance',
-                      icon: Icons.palette_rounded,
+                      icon: Icons.dark_mode_rounded,
                     ),
                     const SizedBox(height: 8),
                     _SectionCard(
                       children: [
-                        _ModernSettingCard(
-                          icon: Icons.dark_mode_rounded,
-                          iconColor: scheme.primary,
-                          title: 'Dark theme',
-                          subtitle: 'Switch between light and dark mode',
-                          trailing: Switch(
-                            value: isDark,
-                            onChanged: (_) => onToggleTheme(),
-                            activeColor: scheme.primary,
-                          ),
+                        _ThemeQuickAccessCard(
+                          isDark: isDark,
+                          onToggleTheme: onToggleTheme,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const _SectionDivider(),
+                    _SectionHeader(
+                      title: 'Profile',
+                      icon: Icons.person_rounded,
+                    ),
+                    const SizedBox(height: 8),
+                    _SectionCard(
+                      children: [
+                        _ModernMenuCard(
+                          icon: Icons.account_circle_rounded,
+                          iconColor: scheme.primary,
+                          title: profileName.isEmpty
+                              ? 'Set your name'
+                              : profileName,
+                          subtitle: 'Edit your profile name',
+                          onTap: () => runAsyncMenuAction(onEditProfile),
+                        ),
+                      ],
+                    ),
+                    const _SectionDivider(),
                     _SectionHeader(
                       title: 'Progress',
                       icon: Icons.insights_rounded,
@@ -104,7 +135,11 @@ class ModernDrawer extends StatelessWidget {
                           icon: Icons.emoji_events_rounded,
                           iconColor: const Color(0xFFF59E0B),
                           title: 'Badges',
-                          subtitle: 'View earned badges and goals',
+                          subtitle: '$earnedBadgeCount/$safeBadgeGoal unlocked',
+                          meta: _CardMetaPreview(
+                            text:
+                                '$badgeDots  $earnedBadgeCount/$safeBadgeGoal',
+                          ),
                           onTap: () => runMenuAction(onOpenBadges),
                         ),
                         const SizedBox(height: 10),
@@ -112,13 +147,20 @@ class ModernDrawer extends StatelessWidget {
                           icon: Icons.calendar_view_week_rounded,
                           iconColor: scheme.primary,
                           title: 'Weekly plan',
-                          subtitle: 'Set category goals for this week',
+                          subtitle: weeklyGoalCount > 0
+                              ? '$weeklyDoneCount/$weeklyGoalCount goals'
+                              : 'Set goals for this week',
+                          meta: _CardMetaPreview(
+                            text: weeklyGoalCount > 0
+                                ? '$weeklyDoneCount/$weeklyGoalCount goals'
+                                : 'No goals',
+                          ),
                           onTap: () => runMenuAction(onOpenWeeklyPlan),
                         ),
                       ],
                     ),
-                    if (kDebugMode) ...[
-                      const SizedBox(height: 16),
+                    if (showDebugTools && kDebugMode) ...[
+                      const _SectionDivider(),
                       _SectionHeader(
                         title: 'Debug',
                         icon: Icons.developer_mode_rounded,
@@ -137,7 +179,7 @@ class ModernDrawer extends StatelessWidget {
                         ],
                       ),
                     ],
-                    const SizedBox(height: 16),
+                    const _SectionDivider(),
                     _SectionHeader(
                       title: 'Support',
                       icon: Icons.support_agent_rounded,
@@ -148,8 +190,8 @@ class ModernDrawer extends StatelessWidget {
                         _ModernMenuCard(
                           icon: Icons.mail_outline_rounded,
                           iconColor: scheme.secondary,
-                          title: 'Contact us',
-                          subtitle: 'Get in touch with our team',
+                          title: 'Talk to us',
+                          subtitle: 'We reply in <24h',
                           onTap: () => runMenuAction(onOpenContact),
                         ),
                       ],
@@ -157,40 +199,7 @@ class ModernDrawer extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  gradient: LinearGradient(
-                    colors: [
-                      scheme.primary.withOpacity(effectiveDark ? 0.18 : 0.12),
-                      scheme.secondary.withOpacity(effectiveDark ? 0.12 : 0.07),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(color: scheme.primary.withOpacity(0.25)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.tune_rounded, size: 18, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Quick settings and progress controls.',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _QuickSettingsHintBar(isDark: effectiveDark),
             ],
           ),
         ),
@@ -200,83 +209,153 @@ class ModernDrawer extends StatelessWidget {
 }
 
 class _DrawerHero extends StatelessWidget {
-  const _DrawerHero({required this.isDark, required this.onClose});
+  const _DrawerHero({
+    required this.isDark,
+    required this.profileName,
+    required this.currentStreak,
+    required this.onQuickEdit,
+    required this.onClose,
+  });
 
   final bool isDark;
+  final String profileName;
+  final int currentStreak;
+  final Future<void> Function() onQuickEdit;
   final VoidCallback onClose;
+
+  ({int level, String badge}) _levelInfo() {
+    if (currentStreak >= 21) {
+      return (level: 5, badge: 'Elite Spark');
+    }
+    if (currentStreak >= 10) {
+      return (level: 4, badge: 'Momentum Maker');
+    }
+    if (currentStreak >= 5) {
+      return (level: 3, badge: 'Consistent Builder');
+    }
+    if (currentStreak >= 2) {
+      return (level: 2, badge: 'Habit Starter');
+    }
+    return (level: 1, badge: 'First Spark');
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: isDark
-              ? const [Color(0xFF10233B), Color(0xFF0E1F35)]
-              : [scheme.surface, const Color(0xFFF1F7FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final name = profileName.trim().isEmpty ? 'Friend' : profileName.trim();
+    final initials = name.characters.first.toUpperCase();
+    final streakLabel = currentStreak > 0
+        ? '$currentStreak-day streak 🔥'
+        : 'Start your streak today 🔥';
+    final level = _levelInfo();
+    final surface = Color.alphaBlend(
+      scheme.primary.withOpacity(0.08),
+      scheme.surface,
+    );
+    return GestureDetector(
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        onQuickEdit();
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: surface,
         ),
-        border: Border.all(
-          color: isDark
-              ? const Color(0xFF3B82F6).withOpacity(0.35)
-              : scheme.outline.withOpacity(0.4),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF60A5FA), Color(0xFF3B82F6)],
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.primary.withOpacity(isDark ? 0.45 : 0.32),
+                    scheme.secondary.withOpacity(isDark ? 0.38 : 0.24),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-            ),
-            child: const Icon(
-              Icons.bolt_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Menu',
+              child: Center(
+                child: Text(
+                  initials,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: scheme.onSurface,
+                    color: scheme.onPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Customize your Sparkio experience',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$name ⚡',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface,
+                    ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    streakLabel,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: Color.alphaBlend(
+                        scheme.primary.withOpacity(isDark ? 0.2 : 0.12),
+                        scheme.surface,
+                      ),
+                    ),
+                    child: Text(
+                      'Level ${level.level} • ${level.badge}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Long press for quick edit',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant.withOpacity(0.72),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: scheme.surfaceContainerHighest.withOpacity(
+                  0.35,
                 ),
-              ],
+                foregroundColor: scheme.onSurfaceVariant,
+              ),
+              tooltip: 'Close',
             ),
-          ),
-          IconButton(
-            onPressed: onClose,
-            icon: const Icon(Icons.close_rounded),
-            style: IconButton.styleFrom(
-              backgroundColor: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : scheme.surfaceContainerHighest.withOpacity(0.45),
-              foregroundColor: scheme.onSurfaceVariant,
-            ),
-            tooltip: 'Close',
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -292,19 +371,52 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: scheme.primary),
-        const SizedBox(width: 6),
-        Text(
-          title.toUpperCase(),
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: scheme.onSurfaceVariant,
-            letterSpacing: 0.8,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: Color.alphaBlend(
+              scheme.primary.withOpacity(0.1),
+              scheme.surface.withOpacity(0.7),
+            ),
+            border: Border.all(color: scheme.outline.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: scheme.primary.withOpacity(0.9)),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _SectionDivider extends StatelessWidget {
+  const _SectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Opacity(
+        opacity: 0.22,
+        child: Divider(height: 1, thickness: 0.8, color: scheme.outline),
+      ),
     );
   }
 }
@@ -316,87 +428,229 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: scheme.surface.withOpacity(0.88),
-        border: Border.all(color: scheme.outline.withOpacity(0.28)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(children: children),
     );
   }
 }
 
-class _ModernSettingCard extends StatelessWidget {
-  const _ModernSettingCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
+class _ThemeQuickAccessCard extends StatelessWidget {
+  const _ThemeQuickAccessCard({
+    required this.isDark,
+    required this.onToggleTheme,
   });
 
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final Widget trailing;
+  final bool isDark;
+  final VoidCallback onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final cardColor = Color.alphaBlend(
+      scheme.primary.withOpacity(0.055),
+      scheme.surface,
+    );
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          colors: [iconColor.withOpacity(0.12), iconColor.withOpacity(0.04)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: iconColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity.abs() < 420) return;
+          HapticFeedback.selectionClick();
+          onToggleTheme();
+        },
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onToggleTheme,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(16),
+              color: cardColor,
             ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Color.alphaBlend(
+                      scheme.primary.withOpacity(0.18),
+                      scheme.surface,
+                    ),
+                  ),
+                  child: Icon(
+                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    color: scheme.primary,
+                    size: 22,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dark Mode',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Tap or swipe horizontally to toggle',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Transform.scale(
+                  scale: 1.04,
+                  child: Switch(
+                    value: isDark,
+                    onChanged: (_) => onToggleTheme(),
+                    activeColor: scheme.primary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
-          trailing,
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _CardMetaPreview extends StatelessWidget {
+  const _CardMetaPreview({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Color.alphaBlend(
+          scheme.primary.withOpacity(0.12),
+          scheme.surface,
+        ),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickSettingsHintBar extends StatefulWidget {
+  const _QuickSettingsHintBar({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  State<_QuickSettingsHintBar> createState() => _QuickSettingsHintBarState();
+}
+
+class _QuickSettingsHintBarState extends State<_QuickSettingsHintBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final iconColor = scheme.primary;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final pulse = 0.85 + (_controller.value * 0.35);
+        return Container(
+          margin: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              colors: widget.isDark
+                  ? [
+                      Color.alphaBlend(
+                        scheme.primary.withOpacity(0.18),
+                        scheme.surface,
+                      ),
+                      Color.alphaBlend(
+                        scheme.secondary.withOpacity(0.1),
+                        scheme.surface,
+                      ),
+                    ]
+                  : [
+                      Color.alphaBlend(
+                        scheme.primary.withOpacity(0.12),
+                        scheme.surface,
+                      ),
+                      Color.alphaBlend(
+                        scheme.secondary.withOpacity(0.08),
+                        scheme.surface,
+                      ),
+                    ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withOpacity(widget.isDark ? 0.16 : 0.1),
+                blurRadius: 14 + (pulse * 3),
+                spreadRadius: 0.2 + (pulse * 0.2),
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Transform.rotate(
+                angle: (_controller.value - 0.5) * 0.08,
+                child: Transform.scale(
+                  scale: 0.95 + (_controller.value * 0.12),
+                  child: Icon(Icons.tune_rounded, size: 18, color: iconColor),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Quick settings and progress controls.',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -407,6 +661,7 @@ class _ModernMenuCard extends StatelessWidget {
     required this.iconColor,
     required this.title,
     required this.subtitle,
+    this.meta,
     required this.onTap,
   });
 
@@ -414,12 +669,17 @@ class _ModernMenuCard extends StatelessWidget {
   final Color iconColor;
   final String title;
   final String subtitle;
+  final Widget? meta;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final cardColor = Color.alphaBlend(
+      scheme.primary.withOpacity(0.03),
+      scheme.surface,
+    );
 
     return Material(
       color: Colors.transparent,
@@ -430,12 +690,7 @@ class _ModernMenuCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              colors: [scheme.surface, scheme.surface.withOpacity(0.85)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: scheme.outline.withOpacity(0.24)),
+            color: cardColor,
           ),
           child: Row(
             children: [
@@ -444,7 +699,10 @@ class _ModernMenuCard extends StatelessWidget {
                 height: 38,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: iconColor.withOpacity(0.14),
+                  color: Color.alphaBlend(
+                    iconColor.withOpacity(0.16),
+                    scheme.surface,
+                  ),
                 ),
                 child: Icon(icon, color: iconColor, size: 20),
               ),
@@ -470,6 +728,7 @@ class _ModernMenuCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (meta != null) ...[const SizedBox(width: 8), meta!],
               Icon(
                 Icons.chevron_right_rounded,
                 color: scheme.onSurfaceVariant,

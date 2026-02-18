@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/task_repository.dart';
+import '../theme/task_category_style.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -63,54 +64,18 @@ class StatsScreen extends StatelessWidget {
   }
 
   String _label(String key) {
-    switch (key) {
-      case 'body':
-        return 'Body';
-      case 'mind':
-        return 'Mind';
-      case 'growth':
-        return 'Growth';
-      case 'calm':
-        return 'Calm';
-      case 'health':
-        return 'Health';
-      default:
-        return key == '--' ? '--' : 'Other';
-    }
+    return TaskCategoryStyle.label(key);
   }
 
   Color _categoryColor(BuildContext context, String key) {
-    switch (key) {
-      case 'body':
-        return const Color(0xFFF97316);
-      case 'mind':
-        return const Color(0xFF8B5CF6);
-      case 'growth':
-        return const Color(0xFF22C55E);
-      case 'calm':
-        return const Color(0xFF06B6D4);
-      case 'health':
-        return const Color(0xFF3B82F6);
-      default:
-        return Theme.of(context).colorScheme.primary;
-    }
+    return TaskCategoryStyle.color(
+      key,
+      fallback: Theme.of(context).colorScheme.primary,
+    );
   }
 
   IconData _categoryIcon(String key) {
-    switch (key) {
-      case 'body':
-        return Icons.fitness_center_rounded;
-      case 'mind':
-        return Icons.psychology_rounded;
-      case 'growth':
-        return Icons.trending_up_rounded;
-      case 'calm':
-        return Icons.spa_rounded;
-      case 'health':
-        return Icons.favorite_rounded;
-      default:
-        return Icons.category_rounded;
-    }
+    return TaskCategoryStyle.icon(key);
   }
 
   @override
@@ -196,102 +161,24 @@ class _StatsBodyState extends State<_StatsBody> {
       slivers: [
         // Modern App Bar
         SliverAppBar(
-          expandedHeight: 200,
+          toolbarHeight: 64,
           pinned: true,
           elevation: 0,
           backgroundColor: scheme.background,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: 0,
+          title: Text(
+            'Your Stats',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 22,
+            ),
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () => Navigator.of(context).maybePop(),
             tooltip: 'Back',
-          ),
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    scheme.primary.withOpacity(0.09),
-                    scheme.secondary.withOpacity(0.04),
-                    scheme.background,
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              scheme.primary.withOpacity(0.9),
-                              scheme.secondary.withOpacity(0.85),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: scheme.primary.withOpacity(0.18),
-                              blurRadius: 12,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.insights_rounded,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Your Stats',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Track your progress',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _QuickStat(
-                                  label: '${data.total}',
-                                  subtitle: 'tasks',
-                                  color: scheme.primary,
-                                ),
-                                _QuickStat(
-                                  label: '${data.bestStreak}',
-                                  subtitle: 'streak',
-                                  color: const Color(0xFFF97316),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
 
@@ -522,50 +409,6 @@ class _StatsBodyState extends State<_StatsBody> {
           ),
         );
       },
-    );
-  }
-}
-
-class _QuickStat extends StatelessWidget {
-  const _QuickStat({
-    required this.label,
-    required this.subtitle,
-    required this.color,
-  });
-
-  final String label;
-  final String subtitle;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            subtitle,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
-          ),
-        ],
-      ),
     );
   }
 }

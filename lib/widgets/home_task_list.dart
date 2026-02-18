@@ -34,8 +34,9 @@ class HomeTaskListSliver extends StatelessWidget {
     final total = tasks.length;
     final done = tasks.where((task) => completed[task.id] ?? false).length;
     final progress = total == 0 ? null : done / total;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 2, 16, 104 + bottomInset),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, i) {
           final task = tasks[i];

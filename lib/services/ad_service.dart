@@ -28,6 +28,8 @@ class AdService {
   static const _kLastInterstitialDate = 'last_interstitial_date_v1';
   static const _kLaunchGateDate = 'launch_interstitial_gate_date_v1';
   static const _kLaunchGateCount = 'launch_interstitial_gate_count_v1';
+  static const _kFirstInstallLaunchSkipped =
+      'first_install_launch_interstitial_skipped_v1';
 
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
@@ -180,6 +182,15 @@ class AdService {
   /// - then show after skipping two launches (1, 4, 7, ...)
   Future<bool> _shouldShowLaunchInterstitial() async {
     final sp = await SharedPreferences.getInstance();
+
+    // Do not show an interstitial on the very first open after install.
+    final firstInstallSkipped =
+        sp.getBool(_kFirstInstallLaunchSkipped) ?? false;
+    if (!firstInstallSkipped) {
+      await sp.setBool(_kFirstInstallLaunchSkipped, true);
+      return false;
+    }
+
     final todayKey = _todayDateKey();
     final savedDate = sp.getString(_kLaunchGateDate);
     var launchCount = sp.getInt(_kLaunchGateCount) ?? 0;

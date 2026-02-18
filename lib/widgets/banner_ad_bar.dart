@@ -6,7 +6,9 @@ import '../services/ad_service.dart';
 import '../services/premium_service.dart';
 
 class BannerAdBar extends StatefulWidget {
-  const BannerAdBar({super.key});
+  const BannerAdBar({super.key, this.onOpenRemoveAds});
+
+  final VoidCallback? onOpenRemoveAds;
 
   @override
   State<BannerAdBar> createState() => _BannerAdBarState();
@@ -97,7 +99,8 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     if (AdService.hideAdsForScreenshots) return const SizedBox.shrink();
     if (_hideAds) return const SizedBox.shrink();
 
@@ -106,17 +109,65 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
     return SafeArea(
       top: false,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: scheme.outline)),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        alignment: Alignment.center,
-        height: ad.size.height.toDouble() + 12,
-        child: SizedBox(
-          width: ad.size.width.toDouble(),
-          height: ad.size.height.toDouble(),
-          child: AdWidget(key: ValueKey(ad), ad: ad),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: Color.alphaBlend(
+              scheme.primary.withOpacity(0.05),
+              scheme.surface,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: scheme.surfaceContainerHighest.withOpacity(0.35),
+                    ),
+                    child: Text(
+                      'Sponsored',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: widget.onOpenRemoveAds,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: scheme.primary,
+                      textStyle: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    child: const Text('Remove Ads'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: ad.size.width.toDouble(),
+                  height: ad.size.height.toDouble(),
+                  child: AdWidget(key: ValueKey(ad), ad: ad),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

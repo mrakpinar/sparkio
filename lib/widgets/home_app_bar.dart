@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     super.key,
-    required this.dateLabel,
+    required this.userName,
     required this.isDark,
     required this.reminderEnabled,
     required this.refreshing,
@@ -16,7 +16,7 @@ class HomeAppBar extends StatelessWidget {
     required this.onOpenMenu,
   });
 
-  final String dateLabel;
+  final String userName;
   final bool isDark;
   final bool reminderEnabled;
   final bool refreshing;
@@ -32,51 +32,39 @@ class HomeAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    const logoBlue = Color(0xFF5DB2FF);
+    final topText = theme.textTheme;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good Morning'
+        : (hour < 18 ? 'Good Afternoon' : 'Good Evening');
 
     return SliverAppBar(
-      backgroundColor: isDark ? const Color(0xFF081423) : scheme.surface,
+      backgroundColor: scheme.background,
       elevation: 0,
       floating: true,
       snap: true,
       pinned: false,
       centerTitle: false,
-      toolbarHeight: 72,
-      titleSpacing: 20,
+      toolbarHeight: 88,
+      titleSpacing: 16,
       automaticallyImplyLeading: false,
       title: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(15),
               gradient: LinearGradient(
-                colors: [logoBlue, const Color(0xFF4A7BE3)],
+                colors: [
+                  scheme.primary.withOpacity(0.28),
+                  scheme.primary.withOpacity(0.16),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: logoBlue.withOpacity(0.18),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
-            child: const Icon(
-              Icons.bolt_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            width: 1,
-            height: 30,
-            color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : scheme.outline.withOpacity(0.45),
+            child: Icon(Icons.bolt_rounded, color: scheme.primary, size: 27),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -85,22 +73,20 @@ class HomeAppBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'SPARKIO',
-                  style: theme.textTheme.titleLarge?.copyWith(
+                  '$greeting, $userName 👋',
+                  style: topText.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                    fontSize: 19,
-                    color: isDark ? Colors.white : scheme.onSurface,
+                    letterSpacing: 0.1,
+                    fontSize: 16,
+                    color: scheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  dateLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.62)
-                        : scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
+                  "Let's build your streak today ⚡",
+                  style: topText.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
                 ),
@@ -117,16 +103,16 @@ class HomeAppBar extends StatelessWidget {
           isDark: isDark,
           isLoading: refreshing,
           tone: _ActionTone.spark,
-          filled: false,
+          filled: true,
         ),
         const SizedBox(width: 8),
         _ModernIconButton(
-          icon: Icons.workspace_premium_rounded,
+          icon: Icons.bookmark_border_rounded,
           tooltip: 'Perks',
           onTap: onOpenPerks,
           isDark: isDark,
           tone: _ActionTone.premium,
-          filled: true,
+          filled: false,
         ),
         const SizedBox(width: 8),
         _ModernIconButton(
@@ -137,7 +123,7 @@ class HomeAppBar extends StatelessWidget {
           tone: _ActionTone.menu,
           filled: false,
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
       ],
     );
   }
@@ -170,34 +156,14 @@ class _ModernIconButton extends StatelessWidget {
     final scheme = theme.colorScheme;
     final palette = _paletteForTone(tone);
 
-    final backgroundGradient = filled
-        ? LinearGradient(
-            colors: isDark
-                ? [palette.$1.withOpacity(0.88), palette.$2.withOpacity(0.82)]
-                : [palette.$1, palette.$2],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    final backgroundColor = filled
+        ? Color.alphaBlend(
+            palette.$1.withOpacity(isDark ? 0.28 : 0.2),
+            scheme.surface,
           )
-        : LinearGradient(
-            colors: isDark
-                ? [
-                    const Color(0xFF10253E).withOpacity(0.66),
-                    const Color(0xFF0E2037).withOpacity(0.62),
-                  ]
-                : [scheme.surface, scheme.surface],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          );
+        : scheme.surface.withOpacity(isDark ? 0.76 : 1);
 
-    final borderColor = filled
-        ? (isDark ? palette.$1.withOpacity(0.28) : palette.$1.withOpacity(0.55))
-        : (isDark
-              ? palette.$1.withOpacity(0.22)
-              : scheme.outline.withOpacity(0.55));
-
-    final iconColor = filled
-        ? Colors.white
-        : (isDark ? Colors.white.withOpacity(0.92) : scheme.onSurface);
+    final iconColor = filled ? palette.$1 : scheme.onSurface.withOpacity(0.9);
 
     final disabledColor = isDark
         ? Colors.white.withOpacity(0.3)
@@ -209,31 +175,15 @@ class _ModernIconButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          splashColor: isDark
-              ? const Color(0xFF3B82F6).withOpacity(0.14)
-              : scheme.primary.withOpacity(0.07),
-          highlightColor: isDark
-              ? const Color(0xFF3B82F6).withOpacity(0.06)
-              : scheme.primary.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(13),
+          splashColor: scheme.primary.withOpacity(0.08),
+          highlightColor: scheme.primary.withOpacity(0.03),
           child: Container(
-            width: 48,
-            height: 48,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              gradient: backgroundGradient,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: borderColor, width: 1),
-              boxShadow: filled
-                  ? [
-                      BoxShadow(
-                        color: isDark
-                            ? palette.$1.withOpacity(0.14)
-                            : palette.$1.withOpacity(0.12),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(13),
             ),
             child: Center(
               child: isLoading
@@ -264,11 +214,11 @@ class _ModernIconButton extends StatelessWidget {
   (Color, Color) _paletteForTone(_ActionTone tone) {
     switch (tone) {
       case _ActionTone.spark:
-        return (const Color(0xFF6DB6FF), const Color(0xFF2E8EF7));
+        return (const Color(0xFF3E8BFF), const Color(0xFF3E8BFF));
       case _ActionTone.premium:
-        return (const Color(0xFF6B8EFF), const Color(0xFF4363D8));
+        return (const Color(0xFF8B5CF6), const Color(0xFF8B5CF6));
       case _ActionTone.menu:
-        return (const Color(0xFF6CA2D8), const Color(0xFF3E5E8D));
+        return (const Color(0xFF64748B), const Color(0xFF64748B));
     }
   }
 }

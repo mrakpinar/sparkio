@@ -41,6 +41,9 @@ class TaskRepository {
   static const _kActiveTimerEndAtMs = 'active_timer_end_at_ms_v1';
   static const _kWeeklyPlan = 'weekly_plan_v1';
   static const _kWeeklyProgress = 'weekly_progress_v1';
+  static const _kProfileName = 'profile_name_v1';
+  static const _kAddTaskCtaVariant = 'add_task_cta_variant_v1';
+  static const _kRatePromptShownTriggers = 'rate_prompt_shown_triggers_v1';
   static const _kStatsScreenshotPresetApplied =
       'stats_screenshot_preset_applied_v1';
 
@@ -282,6 +285,58 @@ class TaskRepository {
   Future<void> setReminderEnabled(bool value) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool(_kReminderEnabled, value);
+  }
+
+  Future<String?> getProfileName() async {
+    final sp = await SharedPreferences.getInstance();
+    final value = sp.getString(_kProfileName)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  Future<void> setProfileName(String name) async {
+    final sp = await SharedPreferences.getInstance();
+    final value = name.trim();
+    if (value.isEmpty) {
+      await sp.remove(_kProfileName);
+      return;
+    }
+    await sp.setString(_kProfileName, value);
+  }
+
+  Future<String?> getAddTaskCtaVariant() async {
+    final sp = await SharedPreferences.getInstance();
+    final value = sp.getString(_kAddTaskCtaVariant)?.trim().toLowerCase();
+    if (value == null || value.isEmpty) return null;
+    if (value != 'a' && value != 'b' && value != 'c') return null;
+    return value;
+  }
+
+  Future<void> setAddTaskCtaVariant(String variant) async {
+    final sp = await SharedPreferences.getInstance();
+    final value = variant.trim().toLowerCase();
+    if (value != 'a' && value != 'b' && value != 'c') return;
+    await sp.setString(_kAddTaskCtaVariant, value);
+  }
+
+  Future<Set<String>> getRatePromptShownTriggers() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kRatePromptShownTriggers);
+    if (raw == null) return <String>{};
+    final decoded = (jsonDecode(raw) as List).cast<String>();
+    return decoded.toSet();
+  }
+
+  Future<bool> hasShownRatePromptFor(String trigger) async {
+    final shown = await getRatePromptShownTriggers();
+    return shown.contains(trigger);
+  }
+
+  Future<void> markRatePromptShownFor(String trigger) async {
+    final sp = await SharedPreferences.getInstance();
+    final shown = await getRatePromptShownTriggers();
+    shown.add(trigger);
+    await sp.setString(_kRatePromptShownTriggers, jsonEncode(shown.toList()));
   }
 
   Future<String?> getLastSeenDate() async {

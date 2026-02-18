@@ -9,6 +9,7 @@ import 'dart:ui' as ui;
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:sparkio/widgets/modern_drawer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -51,6 +52,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  final bool _showDebugTools = const bool.fromEnvironment(
+    'SHOW_DEBUG_TOOLS',
+    defaultValue: false,
+  );
   static const bool _useStatsScreenshotPreset = bool.fromEnvironment(
     'SCREENSHOT_STATS_PRESET',
     defaultValue: false,
@@ -67,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static const int _headerPresetWeeklyTarget = 5;
   static const String _headerPresetFocusLabel = 'Calm';
   static const String _headerPresetAdaptiveLabel = 'Adaptive mode: easier';
+  static const int _badgeGoalCount = 10;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   static final Uri _instagramUri = Uri.parse(
@@ -77,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _premium = PremiumService.instance;
   final _adService = AdService.instance;
   final _notifications = NotificationService.instance;
+  final InAppReview _inAppReview = InAppReview.instance;
   late final HomeController _controller = HomeController(
     repo: _repo,
     engine: _engine,
@@ -94,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _rewardBusy = false;
   bool _poolErrorShown = false;
   bool _debugInstantComplete = false;
+  bool _ratePromptOpen = false;
   String? _poolError;
 
   List<Task> _today = [];
@@ -108,6 +116,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   DateTime? _noAdsUntil;
   int _dailyAddCount = 0;
   int _adaptiveDifficultyDelta = 0;
+  int _earnedBadgesCount = 0;
+  String _profileName = '';
   String _weeklyWeekKey = '';
   Map<String, int> _weeklyTargets = {};
   Map<String, int> _weeklyDone = {};
@@ -206,16 +216,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final headerWeeklyTarget = screenshotHeaderMode
         ? _headerPresetWeeklyTarget
         : weeklyTarget;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       key: _scaffoldKey,
-      bottomNavigationBar: BannerAdBar(),
-      floatingActionButton: FloatingActionButton(
+      bottomNavigationBar: BannerAdBar(onOpenRemoveAds: _openSubscribeSheet),
+      floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab-add-task',
-        onPressed: _openAddTaskSheet,
-        backgroundColor: const Color(0xFF3B82F6),
-        splashColor: const Color(0xFF60A5FA),
-        child: const Icon(Icons.add_rounded, size: 28, color: Colors.white),
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          _openAddTaskSheet();
+        },
+        elevation: 0,
+        highlightElevation: 0,
+        backgroundColor: const Color(0xFF06B6D4),
+        splashColor: const Color(0xFF67E8F9),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.add_rounded, size: 24, color: Colors.white),
+        label: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Add Spark',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              '+ New Habit',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 10,
+                color: scheme.onPrimary.withOpacity(0.9),
+              ),
+            ),
+          ],
+        ),
       ),
       endDrawer: _buildEndDrawer(),
       body: _loading
@@ -227,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   builder: (context, mode, _) {
                     final isDark = mode == ThemeMode.dark;
                     return HomeAppBar(
-                      dateLabel: dateLabel,
+                      userName: _profileName.isEmpty ? 'Friend' : _profileName,
                       isDark: isDark,
                       reminderEnabled: _reminderEnabled,
                       refreshing: _refreshing,
@@ -259,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   weeklyTarget: headerWeeklyTarget,
                   onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
                 ),
-                if (kDebugMode)
+                if (_showDebugTools && kDebugMode)
                   HomeDebugTimerSliver(
                     onPressed: _sendTaskTimerTest,
                     onOpenDailyMood: _openDailyMoodSheetDebug,

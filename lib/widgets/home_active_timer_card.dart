@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
+import '../theme/task_category_style.dart';
 
 class HomeActiveTimerCard extends StatelessWidget {
   const HomeActiveTimerCard({
@@ -17,40 +18,6 @@ class HomeActiveTimerCard extends StatelessWidget {
   final bool done;
   final VoidCallback onCancel;
   final VoidCallback? onComplete;
-
-  String _categoryLabel(String key) {
-    switch (key) {
-      case 'mind':
-        return 'Mind';
-      case 'body':
-        return 'Body';
-      case 'growth':
-        return 'Growth';
-      case 'calm':
-        return 'Calm';
-      case 'health':
-        return 'Health';
-      default:
-        return 'Focus';
-    }
-  }
-
-  Color _categoryColor(String key) {
-    switch (key) {
-      case 'mind':
-        return const Color(0xFF8B5CF6);
-      case 'body':
-        return const Color(0xFFF97316);
-      case 'growth':
-        return const Color(0xFF22C55E);
-      case 'calm':
-        return const Color(0xFF06B6D4);
-      case 'health':
-        return const Color(0xFF3B82F6);
-      default:
-        return const Color(0xFF3B82F6);
-    }
-  }
 
   String _difficultyLabel(String value) {
     if (value.isEmpty) return 'Easy';
@@ -73,7 +40,10 @@ class HomeActiveTimerCard extends StatelessWidget {
         .clamp(1, 360000)
         .toDouble();
     final progress = 1 - (remaining.inSeconds.clamp(0, 360000) / totalSeconds);
-    final categoryColor = _categoryColor(task.category);
+    final categoryColor = TaskCategoryStyle.color(
+      task.category,
+      fallback: scheme.primary,
+    );
     final primary = done ? const Color(0xFF22C55E) : scheme.primary;
     final secondary = done ? const Color(0xFF2DD4BF) : const Color(0xFF38BDF8);
     final subtitleColor = scheme.onSurface.withOpacity(isDark ? 0.72 : 0.62);
@@ -245,7 +215,7 @@ class HomeActiveTimerCard extends StatelessWidget {
                 children: [
                   _MetaChip(
                     icon: Icons.sell_rounded,
-                    label: _categoryLabel(task.category),
+                    label: TaskCategoryStyle.label(task.category),
                     color: categoryColor,
                   ),
                   _MetaChip(
