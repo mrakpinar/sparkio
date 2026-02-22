@@ -28,6 +28,7 @@ import '../controllers/home_controller.dart';
 import 'task_add_sheet.dart';
 import 'premium_perks_sheet.dart';
 import 'premium_purchase_sheet.dart';
+import 'profile_screen.dart';
 import 'package:sparkio/screens/stats_screen.dart';
 import 'badges_screen.dart';
 import '../widgets/banner_ad_bar.dart';

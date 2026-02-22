@@ -870,6 +870,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       onToggleTheme: _toggleTheme,
       onOpenAddSpark: _openAddTaskSheet,
       onEditProfile: _openProfileEditor,
+      onOpenProfile: _openProfileScreen,
       onOpenBadges: _openBadges,
       onOpenWeeklyPlan: () => _openWeeklyPlanSheet(),
       onOpenContact: _openContact,
@@ -890,6 +891,26 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       context,
       MaterialPageRoute(builder: (_) => const BadgesScreen()),
     );
+  }
+
+  void _openProfileScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(
+          profileName: _profileName,
+          currentStreak: _streak,
+          currentLevel: _level,
+          totalXp: _totalXp,
+          xpInLevel: _xpInLevel,
+          xpToNextLevel: _xpToNextLevel,
+        ),
+      ),
+    ).then((_) async {
+      final latest = await _repo.getProfileName();
+      if (!mounted) return;
+      _updateState(() => _profileName = latest ?? '');
+    });
   }
 
   void _openContact() {
@@ -3012,16 +3033,16 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           builder: (dialogContext, setModalState) {
             final baseFieldColor = Color.alphaBlend(
               scheme.primary.withOpacity(
-                theme.brightness == Brightness.dark ? 0.08 : 0.04,
+                theme.brightness == Brightness.dark ? 0.06 : 0.03,
               ),
               scheme.surfaceContainerHighest.withOpacity(
-                theme.brightness == Brightness.dark ? 0.62 : 0.9,
+                theme.brightness == Brightness.dark ? 0.72 : 0.9,
               ),
             );
             final grainOpacity = theme.brightness == Brightness.dark
-                ? 0.055
-                : 0.04;
-            final barrierBlur = fieldFocused ? 15.3 : 13.3;
+                ? 0.03
+                : 0.022;
+            final barrierBlur = fieldFocused ? 11.2 : 9.6;
             final keyboardVisible =
                 MediaQuery.of(dialogContext).viewInsets.bottom > 0;
             return Material(
@@ -3037,7 +3058,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                         ),
                         child: ColoredBox(
                           color: Colors.black.withOpacity(
-                            theme.brightness == Brightness.dark ? 0.18 : 0.1,
+                            theme.brightness == Brightness.dark ? 0.16 : 0.08,
                           ),
                         ),
                       ),
@@ -3069,34 +3090,42 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                           vertical: 24,
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(24),
                           child: BackdropFilter(
-                            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 420),
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(24),
                                 gradient: LinearGradient(
                                   begin: Alignment.topCenter,
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     scheme.surface.withOpacity(0.96),
-                                    scheme.surface.withOpacity(0.92),
+                                    scheme.surfaceContainerHigh.withOpacity(
+                                      theme.brightness == Brightness.dark
+                                          ? 0.9
+                                          : 0.94,
+                                    ),
                                   ],
                                 ),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(
+                                  color: scheme.outline.withOpacity(
                                     theme.brightness == Brightness.dark
-                                        ? 0.1
+                                        ? 0.2
                                         : 0.14,
                                   ),
                                   width: 1,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: scheme.primary.withOpacity(0.13),
-                                    blurRadius: 24,
-                                    spreadRadius: -8,
+                                    color: Colors.black.withOpacity(
+                                      theme.brightness == Brightness.dark
+                                          ? 0.34
+                                          : 0.1,
+                                    ),
+                                    blurRadius: 28,
+                                    spreadRadius: -12,
                                     offset: const Offset(0, 12),
                                   ),
                                 ],
@@ -3131,21 +3160,59 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(
                                       20,
-                                      18,
+                                      16,
                                       20,
-                                      14,
+                                      16,
                                     ),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
-                                        Text(
-                                          'What should we call you?',
-                                          style: theme.textTheme.titleLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
+                                        Row(
+                                          children: [
+                                            _DialogSparkIcon(
+                                              primary: scheme.primary,
+                                              secondary:
+                                                  scheme.primaryContainer,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'What should we call you?',
+                                                    style: theme
+                                                        .textTheme
+                                                        .titleLarge
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    'We use this name across your Sparkio experience.',
+                                                    style: theme
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: scheme
+                                                              .onSurfaceVariant
+                                                              .withOpacity(
+                                                                0.82,
+                                                              ),
+                                                          height: 1.3,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                  ),
+                                                ],
                                               ),
+                                            ),
+                                          ],
                                         ),
                                         const SizedBox(height: 14),
                                         Form(
@@ -3175,7 +3242,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                                     ),
                                                 decoration: BoxDecoration(
                                                   borderRadius:
-                                                      BorderRadius.circular(14),
+                                                      BorderRadius.circular(16),
                                                   gradient: LinearGradient(
                                                     begin: Alignment.topCenter,
                                                     end: Alignment.bottomCenter,
@@ -3183,21 +3250,18 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                                       Colors.white.withOpacity(
                                                         theme.brightness ==
                                                                 Brightness.dark
-                                                            ? 0.06
-                                                            : 0.085,
+                                                            ? 0.045
+                                                            : 0.07,
                                                       ),
                                                       baseFieldColor,
                                                     ],
                                                   ),
                                                   border: Border.all(
-                                                    color: Colors.white
-                                                        .withOpacity(
-                                                          theme.brightness ==
-                                                                  Brightness
-                                                                      .dark
-                                                              ? 0.06
-                                                              : 0.08,
-                                                        ),
+                                                    color: fieldFocused
+                                                        ? scheme.primary
+                                                              .withOpacity(0.42)
+                                                        : scheme.outline
+                                                              .withOpacity(0.2),
                                                     width: 1,
                                                   ),
                                                   boxShadow: [
@@ -3250,7 +3314,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                                 maxLength: 24,
                                                 style: theme.textTheme.bodyLarge
                                                     ?.copyWith(
-                                                      fontSize: 18,
+                                                      fontSize: 17,
                                                       fontWeight:
                                                           FontWeight.w500,
                                                     ),
@@ -3316,42 +3380,46 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            if (!forceRequired)
-                                              TextButton(
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: scheme
-                                                      .onSurfaceVariant
-                                                      .withOpacity(0.7),
-                                                ),
-                                                onPressed: () => Navigator.of(
-                                                  dialogContext,
-                                                ).maybePop(),
-                                                child: const Text('Cancel'),
+                                        const SizedBox(height: 14),
+                                        if (!forceRequired)
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: TextButton(
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: scheme
+                                                    .onSurfaceVariant
+                                                    .withOpacity(0.66),
                                               ),
-                                            if (!forceRequired)
-                                              const SizedBox(width: 8),
-                                            FilledButton(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: scheme.primary,
-                                              ),
-                                              onPressed: () {
-                                                if (!(formKey.currentState
-                                                        ?.validate() ??
-                                                    false)) {
-                                                  return;
-                                                }
-                                                Navigator.of(
-                                                  dialogContext,
-                                                ).pop(draftName.trim());
-                                              },
-                                              child: const Text('Done'),
+                                              onPressed: () => Navigator.of(
+                                                dialogContext,
+                                              ).maybePop(),
+                                              child: const Text('Cancel'),
                                             ),
-                                          ],
+                                          ),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 50,
+                                          child: FilledButton(
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: scheme.primary,
+                                              foregroundColor: scheme.onPrimary,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            onPressed: () {
+                                              if (!(formKey.currentState
+                                                      ?.validate() ??
+                                                  false)) {
+                                                return;
+                                              }
+                                              Navigator.of(
+                                                dialogContext,
+                                              ).pop(draftName.trim());
+                                            },
+                                            child: const Text('Done'),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -3373,7 +3441,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     );
 
     if (saved == null || saved.trim().isEmpty) return;
-    final normalized = saved.trim();
+    final normalized = TaskRepository.sanitizeProfileName(saved);
+    if (normalized.isEmpty) return;
     await _repo.setProfileName(normalized);
     if (!mounted) return;
     _updateState(() => _profileName = normalized);

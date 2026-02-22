@@ -52,6 +52,18 @@ class TaskRepository {
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
 
+  static String sanitizeProfileName(String raw) {
+    var value = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    value = value.replaceAll(RegExp(r'^[\u26A1\u2728]+'), '').trimLeft();
+    value = value.replaceAll(RegExp(r'[\u26A1\u2728]+$'), '').trimRight();
+    value = value.replaceAll(RegExp(r'(?:âš¡)+$'), '').trimRight();
+    value = value.replaceAll(RegExp(r'[�]+$'), '').trimRight();
+    if (value.endsWith('?') && value.length > 1) {
+      value = value.substring(0, value.length - 1).trimRight();
+    }
+    return value.trim();
+  }
+
   static const List<Task> _offlineFallback = [
     Task(
       id: 'offline_1',
@@ -291,14 +303,22 @@ class TaskRepository {
 
   Future<String?> getProfileName() async {
     final sp = await SharedPreferences.getInstance();
-    final value = sp.getString(_kProfileName)?.trim();
-    if (value == null || value.isEmpty) return null;
+    final raw = sp.getString(_kProfileName);
+    if (raw == null) return null;
+    final value = sanitizeProfileName(raw);
+    if (value.isEmpty) {
+      await sp.remove(_kProfileName);
+      return null;
+    }
+    if (value != raw.trim()) {
+      await sp.setString(_kProfileName, value);
+    }
     return value;
   }
 
   Future<void> setProfileName(String name) async {
     final sp = await SharedPreferences.getInstance();
-    final value = name.trim();
+    final value = sanitizeProfileName(name);
     if (value.isEmpty) {
       await sp.remove(_kProfileName);
       return;

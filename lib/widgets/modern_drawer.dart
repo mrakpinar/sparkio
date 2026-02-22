@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui' show ImageFilter;
+import '../services/task_repository.dart';
 
 class ModernDrawer extends StatefulWidget {
   const ModernDrawer({
@@ -22,6 +23,7 @@ class ModernDrawer extends StatefulWidget {
     required this.onOpenAddSpark,
     required this.onEditProfile,
     required this.onOpenBadges,
+    required this.onOpenProfile,
     required this.onOpenContact,
     required this.onSendTestNotification,
     required this.onOpenDailyMoodSheet,
@@ -44,6 +46,7 @@ class ModernDrawer extends StatefulWidget {
   final Future<void> Function() onOpenAddSpark;
   final Future<void> Function() onEditProfile;
   final VoidCallback onOpenBadges;
+  final VoidCallback onOpenProfile;
   final VoidCallback onOpenContact;
   final Future<void> Function() onSendTestNotification;
   final Future<void> Function() onOpenDailyMoodSheet;
@@ -132,22 +135,6 @@ class _ModernDrawerState extends State<ModernDrawer>
           _ThemeQuickAccessCard(
             isDark: widget.isDark,
             onToggleTheme: widget.onToggleTheme,
-          ),
-        ],
-      ),
-      const _SectionDivider(),
-      _SectionHeader(title: 'You', icon: Icons.person_rounded),
-      const SizedBox(height: 8),
-      _SectionCard(
-        children: [
-          _ModernMenuCard(
-            icon: Icons.account_circle_rounded,
-            iconColor: scheme.primary,
-            title: widget.profileName.isEmpty
-                ? 'Set your name'
-                : widget.profileName,
-            subtitle: 'Edit your profile name',
-            onTap: () => runAsyncMenuAction(widget.onEditProfile),
           ),
         ],
       ),
@@ -260,6 +247,7 @@ class _ModernDrawerState extends State<ModernDrawer>
                     totalXp: widget.totalXp,
                     xpInLevel: widget.xpInLevel,
                     xpToNextLevel: widget.xpToNextLevel,
+                    onOpenProfile: () => runMenuAction(widget.onOpenProfile),
                     onQuickEdit: () => runAsyncMenuAction(widget.onEditProfile),
                     onClose: () => Navigator.of(context).maybePop(),
                   ),
@@ -326,6 +314,7 @@ class _DrawerHero extends StatelessWidget {
     required this.totalXp,
     required this.xpInLevel,
     required this.xpToNextLevel,
+    required this.onOpenProfile,
     required this.onQuickEdit,
     required this.onClose,
   });
@@ -337,6 +326,7 @@ class _DrawerHero extends StatelessWidget {
   final int totalXp;
   final int xpInLevel;
   final int xpToNextLevel;
+  final VoidCallback onOpenProfile;
   final Future<void> Function() onQuickEdit;
   final VoidCallback onClose;
 
@@ -352,11 +342,12 @@ class _DrawerHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final name = profileName.trim().isEmpty ? 'Friend' : profileName.trim();
+    final cleanedName = TaskRepository.sanitizeProfileName(profileName);
+    final name = cleanedName.isEmpty ? 'Friend' : cleanedName;
     final initials = name.characters.first.toUpperCase();
     final streakLabel = currentStreak > 0
-        ? '$currentStreak-day streak 🔥'
-        : 'Start your streak today 🔥';
+        ? '$currentStreak-day streak'
+        : 'Start your streak today';
     final safeLevel = currentLevel <= 0 ? 1 : currentLevel;
     final safeXpToNext = xpToNextLevel <= 0 ? 1 : xpToNextLevel;
     final clampedXpInLevel = xpInLevel.clamp(0, safeXpToNext);
@@ -370,6 +361,10 @@ class _DrawerHero extends StatelessWidget {
       scheme.surface.withOpacity(isDark ? 0.95 : 0.985),
     );
     return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onOpenProfile();
+      },
       onLongPress: () {
         HapticFeedback.selectionClick();
         onQuickEdit();
@@ -427,12 +422,22 @@ class _DrawerHero extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '$name ⚡',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: scheme.onSurface,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.bolt_rounded, size: 16, color: scheme.primary),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -453,18 +458,10 @@ class _DrawerHero extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$clampedXpInLevel/$safeXpToNext XP · $totalXp total XP',
+                    '$clampedXpInLevel/$safeXpToNext XP - $totalXp total XP',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant.withOpacity(0.68),
                       fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Long press for quick edit',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant.withOpacity(0.72),
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],

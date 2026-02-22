@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../services/analytics_service.dart';
 import '../services/ad_service.dart';
 import '../services/premium_service.dart';
 
@@ -18,6 +19,11 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
   BannerAd? _banner;
   bool _hideAds = false;
   Timer? _retryTimer;
+  int _bannerRetryCount = 0;
+
+  void _track(String event, [Map<String, Object?> params = const {}]) {
+    unawaited(AnalyticsService.instance.logEvent(event, params: params));
+  }
 
   @override
   void initState() {
@@ -38,6 +44,7 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
       if (mounted) {
         setState(() => _hideAds = true);
       }
+      _track('ad_banner_hidden', {'reason': 'hide_ads_define'});
       return;
     }
     final premiumActive = await PremiumService.instance.isPremiumActive();
@@ -46,6 +53,9 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
     if (premiumActive || noAds) {
       setState(() {
         _hideAds = true;
+      });
+      _track('ad_banner_hidden', {
+        'reason': premiumActive ? 'premium_active' : 'no_ads_active',
       });
       return;
     }
@@ -61,19 +71,37 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
   void _loadBanner() {
     _retryTimer?.cancel();
+    _track('ad_banner_request', {
+      'unit_mode': AdService.effectiveBannerUnitId == AdService.bannerUnitId
+          ? 'live'
+          : 'test',
+      'retry_count': _bannerRetryCount,
+    });
+
     _banner = BannerAd(
       adUnitId: AdService.effectiveBannerUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
+          _bannerRetryCount = 0;
+          _track('ad_banner_loaded');
           if (mounted) setState(() {});
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _banner = null;
+          _bannerRetryCount += 1;
+          _track('ad_banner_failed', {
+            'error_code': error.code,
+            'error_domain': error.domain,
+            'retry_count': _bannerRetryCount,
+          });
           if (mounted) setState(() {});
           _scheduleRetry();
+        },
+        onAdImpression: (_) {
+          _track('ad_banner_impression');
         },
       ),
     )..load();
