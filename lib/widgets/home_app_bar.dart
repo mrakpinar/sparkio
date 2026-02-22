@@ -88,7 +88,7 @@ class HomeAppBar extends StatelessWidget {
       ),
       actions: [
         _ModernIconButton(
-          icon: refreshing ? null : Icons.auto_awesome_rounded,
+          iconAsset: refreshing ? null : 'assets/in_app_icons/sparkle.png',
           tooltip: refreshing ? 'Loading...' : 'New tasks',
           onTap: onRefresh,
           isDark: isDark,
@@ -98,7 +98,7 @@ class HomeAppBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _ModernIconButton(
-          icon: Icons.workspace_premium_rounded,
+          iconAsset: 'assets/in_app_icons/premium.png',
           tooltip: 'Perks',
           onTap: onOpenPerks,
           isDark: isDark,
@@ -125,6 +125,7 @@ enum _ActionTone { spark, premium, menu }
 class _ModernIconButton extends StatefulWidget {
   const _ModernIconButton({
     this.icon,
+    this.iconAsset,
     required this.tooltip,
     required this.onTap,
     required this.isDark,
@@ -134,6 +135,7 @@ class _ModernIconButton extends StatefulWidget {
   });
 
   final IconData? icon;
+  final String? iconAsset;
   final String tooltip;
   final VoidCallback? onTap;
   final bool isDark;
@@ -226,13 +228,24 @@ class _ModernIconButtonState extends State<_ModernIconButton> {
                             ),
                           ),
                         )
-                      : Icon(
-                          widget.icon,
-                          size: 22,
-                          color: widget.onTap == null
-                              ? disabledColor
-                              : iconColor,
-                        ),
+                      : (widget.iconAsset != null
+                            ? Image.asset(
+                                widget.iconAsset!,
+                                width: 22,
+                                height: 22,
+                                fit: BoxFit.contain,
+                                color: widget.onTap == null
+                                    ? disabledColor
+                                    : iconColor,
+                                colorBlendMode: BlendMode.srcIn,
+                              )
+                            : Icon(
+                                widget.icon,
+                                size: 22,
+                                color: widget.onTap == null
+                                    ? disabledColor
+                                    : iconColor,
+                              )),
                 ),
               ),
             ),

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ class ModernDrawer extends StatefulWidget {
     required this.isDark,
     required this.showDebugTools,
     required this.profileName,
+    this.profileAvatar,
     required this.currentStreak,
     required this.currentLevel,
     required this.totalXp,
@@ -33,6 +35,7 @@ class ModernDrawer extends StatefulWidget {
   final bool isDark;
   final bool showDebugTools;
   final String profileName;
+  final String? profileAvatar;
   final int currentStreak;
   final int currentLevel;
   final int totalXp;
@@ -136,6 +139,14 @@ class _ModernDrawerState extends State<ModernDrawer>
             isDark: widget.isDark,
             onToggleTheme: widget.onToggleTheme,
           ),
+          _ModernMenuCard(
+            icon: Icons.face_rounded,
+            iconColor: scheme.primary,
+            title: 'Avatar',
+            subtitle: 'Change your avatar',
+            isSubtle: true,
+            onTap: () => runMenuAction(widget.onOpenProfile),
+          ),
         ],
       ),
       const _SectionDivider(),
@@ -145,6 +156,7 @@ class _ModernDrawerState extends State<ModernDrawer>
         children: [
           _ModernMenuCard(
             icon: Icons.auto_awesome_rounded,
+            iconAsset: 'assets/in_app_icons/sparkle.png',
             iconColor: scheme.tertiary,
             title: 'Create my spark',
             subtitle: 'Add a custom habit',
@@ -160,6 +172,7 @@ class _ModernDrawerState extends State<ModernDrawer>
         children: [
           _ModernMenuCard(
             icon: Icons.emoji_events_rounded,
+            iconAsset: 'assets/in_app_icons/badges.png',
             iconColor: const Color(0xFFF59E0B),
             title: 'Badges',
             subtitle: '${widget.earnedBadgeCount}/$safeBadgeGoal unlocked',
@@ -171,6 +184,7 @@ class _ModernDrawerState extends State<ModernDrawer>
           ),
           _ModernMenuCard(
             icon: Icons.calendar_view_week_rounded,
+            iconAsset: 'assets/in_app_icons/calendar.png',
             iconColor: scheme.primary,
             title: 'Weekly plan',
             subtitle: widget.weeklyGoalCount > 0
@@ -242,6 +256,7 @@ class _ModernDrawerState extends State<ModernDrawer>
                   child: _DrawerHero(
                     isDark: effectiveDark,
                     profileName: widget.profileName,
+                    profileAvatar: widget.profileAvatar,
                     currentStreak: widget.currentStreak,
                     currentLevel: widget.currentLevel,
                     totalXp: widget.totalXp,
@@ -309,6 +324,7 @@ class _DrawerHero extends StatelessWidget {
   const _DrawerHero({
     required this.isDark,
     required this.profileName,
+    this.profileAvatar,
     required this.currentStreak,
     required this.currentLevel,
     required this.totalXp,
@@ -321,6 +337,7 @@ class _DrawerHero extends StatelessWidget {
 
   final bool isDark;
   final String profileName;
+  final String? profileAvatar;
   final int currentStreak;
   final int currentLevel;
   final int totalXp;
@@ -345,6 +362,14 @@ class _DrawerHero extends StatelessWidget {
     final cleanedName = TaskRepository.sanitizeProfileName(profileName);
     final name = cleanedName.isEmpty ? 'Friend' : cleanedName;
     final initials = name.characters.first.toUpperCase();
+    final avatar = profileAvatar?.trim();
+    final isAssetAvatar =
+        avatar != null && avatar.isNotEmpty && avatar.startsWith('assets/');
+    final isFileAvatar =
+        avatar != null &&
+        avatar.isNotEmpty &&
+        !avatar.startsWith('assets/') &&
+        (avatar.contains('/') || avatar.contains('\\'));
     final streakLabel = currentStreak > 0
         ? '$currentStreak-day streak'
         : 'Start your streak today';
@@ -408,13 +433,56 @@ class _DrawerHero extends StatelessWidget {
                 ),
               ),
               child: Center(
-                child: Text(
-                  initials,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: scheme.onPrimary,
-                  ),
-                ),
+                child: (avatar == null || avatar.isEmpty)
+                    ? Text(
+                        initials,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onPrimary,
+                        ),
+                      )
+                    : isAssetAvatar
+                    ? ClipOval(
+                        child: Image.asset(
+                          avatar,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, error, stackTrace) {
+                            return Text(
+                              initials,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onPrimary,
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : isFileAvatar
+                    ? ClipOval(
+                        child: Image.file(
+                          File(avatar),
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, error, stackTrace) {
+                            return Text(
+                              initials,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onPrimary,
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : Text(
+                        avatar,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 12),
@@ -626,10 +694,17 @@ class _ThemeQuickAccessCard extends StatelessWidget {
                       scheme.surface,
                     ),
                   ),
-                  child: Icon(
-                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                    color: scheme.primary,
-                    size: 22,
+                  child: Center(
+                    child: Image.asset(
+                      isDark
+                          ? 'assets/in_app_icons/moon.png'
+                          : 'assets/in_app_icons/sun.png',
+                      width: 22,
+                      height: 22,
+                      fit: BoxFit.contain,
+                      color: scheme.primary,
+                      colorBlendMode: BlendMode.srcIn,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -734,6 +809,7 @@ class _QuickSettingsCaption extends StatelessWidget {
 class _ModernMenuCard extends StatelessWidget {
   const _ModernMenuCard({
     required this.icon,
+    this.iconAsset,
     required this.iconColor,
     required this.title,
     required this.subtitle,
@@ -744,6 +820,7 @@ class _ModernMenuCard extends StatelessWidget {
   });
 
   final IconData icon;
+  final String? iconAsset;
   final Color iconColor;
   final String title;
   final String subtitle;
@@ -795,7 +872,18 @@ class _ModernMenuCard extends StatelessWidget {
                     scheme.surface,
                   ),
                 ),
-                child: Icon(icon, color: effectiveIconColor, size: 20),
+                child: iconAsset != null
+                    ? Center(
+                        child: Image.asset(
+                          iconAsset!,
+                          width: 20,
+                          height: 20,
+                          fit: BoxFit.contain,
+                          color: effectiveIconColor,
+                          colorBlendMode: BlendMode.srcIn,
+                        ),
+                      )
+                    : Icon(icon, color: effectiveIconColor, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

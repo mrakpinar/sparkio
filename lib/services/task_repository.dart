@@ -44,6 +44,7 @@ class TaskRepository {
   static const _kWeeklyPlan = 'weekly_plan_v1';
   static const _kWeeklyProgress = 'weekly_progress_v1';
   static const _kProfileName = 'profile_name_v1';
+  static const _kProfileAvatar = 'profile_avatar_v1';
   static const _kAddTaskCtaVariant = 'add_task_cta_variant_v1';
   static const _kRatePromptShownTriggers = 'rate_prompt_shown_triggers_v1';
   static const _kStatsScreenshotPresetApplied =
@@ -324,6 +325,23 @@ class TaskRepository {
       return;
     }
     await sp.setString(_kProfileName, value);
+  }
+
+  Future<String?> getProfileAvatar() async {
+    final sp = await SharedPreferences.getInstance();
+    final value = sp.getString(_kProfileAvatar)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  Future<void> setProfileAvatar(String? avatar) async {
+    final sp = await SharedPreferences.getInstance();
+    final value = avatar?.trim();
+    if (value == null || value.isEmpty) {
+      await sp.remove(_kProfileAvatar);
+      return;
+    }
+    await sp.setString(_kProfileAvatar, value);
   }
 
   Future<String?> getAddTaskCtaVariant() async {

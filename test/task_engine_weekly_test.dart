@@ -55,5 +55,32 @@ void main() {
 
       expect(picked, hasLength(3));
     });
+
+    test(
+      'keeps a preference for selected categories after weekly target is hit',
+      () {
+        var mindCount = 0;
+        const balancedPool = <Task>[
+          Task(id: 'm1', title: 'm1', category: 'mind'),
+          Task(id: 'b1', title: 'b1', category: 'body'),
+          Task(id: 'g1', title: 'g1', category: 'growth'),
+        ];
+
+        for (var i = 0; i < 200; i++) {
+          final picked = engine.pickDailyTasks(
+            pool: balancedPool,
+            count: 1,
+            seedKey: 'done_seed_$i',
+            weeklyTargets: const {'mind': 1},
+            weeklyDone: const {'mind': 1},
+          );
+          if (picked.first.category == 'mind') {
+            mindCount++;
+          }
+        }
+
+        expect(mindCount, greaterThan(100));
+      },
+    );
   });
 }

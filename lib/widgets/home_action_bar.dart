@@ -69,6 +69,7 @@ class HomeActionBar extends StatelessWidget {
                         title: 'Unlock perks',
                         subtitle: 'Boosts & no-ads',
                         icon: Icons.workspace_premium_rounded,
+                        iconAsset: 'assets/in_app_icons/premium.png',
                         tint: isDark
                             ? const Color(0xFF06B6D4)
                             : scheme.secondary,
@@ -88,6 +89,7 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.icon,
+    this.iconAsset,
     required this.tint,
     required this.onTap,
   });
@@ -95,6 +97,7 @@ class _ActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
+  final String? iconAsset;
   final Color tint;
   final VoidCallback onTap;
 
@@ -144,7 +147,18 @@ class _ActionTile extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: Icon(icon, color: tint, size: 22),
+                child: iconAsset != null
+                    ? Center(
+                        child: Image.asset(
+                          iconAsset!,
+                          width: 22,
+                          height: 22,
+                          fit: BoxFit.contain,
+                          color: tint,
+                          colorBlendMode: BlendMode.srcIn,
+                        ),
+                      )
+                    : Icon(icon, color: tint, size: 22),
               ),
               const SizedBox(height: 14),
               Text(

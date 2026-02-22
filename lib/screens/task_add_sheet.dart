@@ -678,11 +678,16 @@ class _TaskAddSheetState extends State<TaskAddSheet>
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _handleAiCta,
-                          icon: Icon(
-                            widget.premiumActive
-                                ? Icons.flash_on_rounded
-                                : Icons.workspace_premium_rounded,
-                          ),
+                          icon: widget.premiumActive
+                              ? const Icon(Icons.flash_on_rounded)
+                              : Image.asset(
+                                  'assets/in_app_icons/premium.png',
+                                  width: 20,
+                                  height: 20,
+                                  fit: BoxFit.contain,
+                                  color: Colors.white,
+                                  colorBlendMode: BlendMode.srcIn,
+                                ),
                           label: Text(
                             widget.premiumActive
                                 ? 'Generate with AI'

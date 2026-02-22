@@ -3,6 +3,23 @@ import 'package:flutter/material.dart';
 class TaskCategoryStyle {
   const TaskCategoryStyle._();
 
+  static String? iconAsset(String key) {
+    switch (key) {
+      case 'mind':
+        return 'assets/in_app_icons/human-brain.png';
+      case 'body':
+        return 'assets/in_app_icons/muscles.png';
+      case 'growth':
+        return 'assets/in_app_icons/graph.png';
+      case 'calm':
+        return 'assets/in_app_icons/serene.png';
+      case 'health':
+        return 'assets/in_app_icons/healthcare.png';
+      default:
+        return null;
+    }
+  }
+
   static String label(String key) {
     switch (key) {
       case 'body':
@@ -35,6 +52,24 @@ class TaskCategoryStyle {
       default:
         return Icons.category_rounded;
     }
+  }
+
+  static Widget iconWidget(String key, {double size = 24, Color? color}) {
+    final asset = iconAsset(key);
+    if (asset != null) {
+      return Image.asset(
+        asset,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        color: color,
+        colorBlendMode: color != null ? BlendMode.srcIn : null,
+        errorBuilder: (_, error, stackTrace) {
+          return Icon(icon(key), size: size, color: color);
+        },
+      );
+    }
+    return Icon(icon(key), size: size, color: color);
   }
 
   static Color color(String key, {Color fallback = const Color(0xFF8B5CF6)}) {

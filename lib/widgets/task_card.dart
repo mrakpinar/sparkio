@@ -244,7 +244,7 @@ class TaskCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _LiveIconOrb(
-                                  icon: TaskCategoryStyle.icon(task.category),
+                                  category: task.category,
                                   accent: accent,
                                   live: timerActive && !checked,
                                   checked: checked,
@@ -398,6 +398,8 @@ class TaskCard extends StatelessWidget {
                                               const _MetaChip(
                                                 icon: Icons
                                                     .workspace_premium_rounded,
+                                                iconAsset:
+                                                    'assets/in_app_icons/premium.png',
                                                 label: 'Premium',
                                               ),
                                             if (task.isSpecial)
@@ -415,7 +417,7 @@ class TaskCard extends StatelessWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    if (status != _TaskStatusType.done)
+                                    if (status == _TaskStatusType.streakBonus)
                                       _TaskStatusChip(status: status),
                                     if (!checked &&
                                         !timerActive &&
@@ -818,13 +820,13 @@ class _LiveCardShellState extends State<_LiveCardShell>
 
 class _LiveIconOrb extends StatefulWidget {
   const _LiveIconOrb({
-    required this.icon,
+    required this.category,
     required this.accent,
     required this.live,
     required this.checked,
   });
 
-  final IconData icon;
+  final String category;
   final Color accent;
   final bool live;
   final bool checked;
@@ -904,7 +906,13 @@ class _LiveIconOrbState extends State<_LiveIconOrb>
           ),
           child: Stack(
             children: [
-              Center(child: Icon(widget.icon, color: iconColor, size: 22)),
+              Center(
+                child: TaskCategoryStyle.iconWidget(
+                  widget.category,
+                  size: 22,
+                  color: iconColor,
+                ),
+              ),
               if (widget.checked)
                 Positioned(
                   right: 2,
@@ -1289,10 +1297,11 @@ class _TaskStatusChip extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
+  const _MetaChip({required this.icon, required this.label, this.iconAsset});
 
   final IconData icon;
   final String label;
+  final String? iconAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -1306,7 +1315,16 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: scheme.onSurfaceVariant),
+          iconAsset != null
+              ? Image.asset(
+                  iconAsset!,
+                  width: 12,
+                  height: 12,
+                  fit: BoxFit.contain,
+                  color: scheme.onSurfaceVariant,
+                  colorBlendMode: BlendMode.srcIn,
+                )
+              : Icon(icon, size: 12, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4),
           Text(
             label,

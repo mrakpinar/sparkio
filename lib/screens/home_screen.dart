@@ -123,6 +123,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _xpInLevel = 0;
   int _xpToNextLevel = 40;
   String _profileName = '';
+  String? _profileAvatar;
   String _weeklyWeekKey = '';
   Map<String, int> _weeklyTargets = {};
   Map<String, int> _weeklyDone = {};

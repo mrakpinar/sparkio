@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/task_category_style.dart';
 
 class WeeklyPlanSheet extends StatefulWidget {
   const WeeklyPlanSheet({
@@ -98,7 +99,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
     final summaryT = (_total / (_categories.length * 5)).clamp(0.0, 1.0);
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.92,
+      height: MediaQuery.of(context).size.height * 0.88,
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -118,20 +119,20 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
             child: Column(
               mainAxisSize: MainAxisSize.max,
               children: [
                 // Drag handle
                 Container(
-                  width: 48,
-                  height: 5,
+                  width: 42,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: scheme.onSurfaceVariant.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
                 // Header
                 AnimatedBuilder(
@@ -165,7 +166,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             gradient: LinearGradient(
@@ -187,10 +188,10 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                               Transform.scale(
                                 scale: iconScale,
                                 child: Container(
-                                  width: 56,
-                                  height: 56,
+                                  width: 44,
+                                  height: 44,
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(13),
                                     gradient: LinearGradient(
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -210,33 +211,40 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                       ),
                                     ],
                                   ),
-                                  child: Icon(
-                                    Icons.calendar_view_week_rounded,
-                                    color: scheme.onPrimary,
-                                    size: 28,
+                                  child: Center(
+                                    child: Image.asset(
+                                      'assets/in_app_icons/calendar.png',
+                                      width: 20,
+                                      height: 20,
+                                      fit: BoxFit.contain,
+                                      color: scheme.onPrimary,
+                                      colorBlendMode: BlendMode.srcIn,
+                                    ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'Plan Your Week',
-                                      style: theme.textTheme.titleLarge
+                                      style: theme.textTheme.titleSmall
                                           ?.copyWith(
                                             fontWeight: FontWeight.w900,
-                                            letterSpacing: -0.5,
+                                            letterSpacing: -0.3,
                                           ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       'Set your goals for this week',
-                                      style: theme.textTheme.bodyMedium
+                                      style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: scheme.onSurfaceVariant,
-                                            fontWeight: FontWeight.w500,
+                                            color: scheme.onSurfaceVariant
+                                                .withOpacity(0.84),
+                                            fontWeight: FontWeight.w400,
+                                            fontSize: 12.5,
                                           ),
                                     ),
                                   ],
@@ -262,7 +270,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                     );
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 Expanded(
                   child: SingleChildScrollView(
@@ -273,7 +281,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                         for (var i = 0; i < _categories.length; i++)
                           Padding(
                             padding: EdgeInsets.only(
-                              bottom: i < _categories.length - 1 ? 16 : 0,
+                              bottom: i < _categories.length - 1 ? 10 : 0,
                             ),
                             child: _PlanRow(
                               category: _categories[i],
@@ -285,15 +293,15 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                               },
                             ),
                           ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
 
                         // Dynamic summary
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 260),
                           curve: Curves.easeOutCubic,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
+                            horizontal: 12,
+                            vertical: 12,
                           ),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -331,7 +339,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 260),
                                 curve: Curves.easeOutCubic,
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: scheme.primary.withOpacity(
                                     0.12 + (0.2 * summaryT),
@@ -344,13 +352,16 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                     width: 1,
                                   ),
                                 ),
-                                child: Icon(
-                                  Icons.auto_awesome_rounded,
-                                  size: 18,
+                                child: Image.asset(
+                                  'assets/in_app_icons/sparkle.png',
+                                  width: 16,
+                                  height: 16,
+                                  fit: BoxFit.contain,
                                   color: scheme.primary,
+                                  colorBlendMode: BlendMode.srcIn,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,25 +413,45 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                 duration: const Duration(milliseconds: 260),
                                 curve: Curves.easeOutCubic,
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
+                                  horizontal: 10,
+                                  vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: scheme.primary.withOpacity(
-                                    0.1 + (0.2 * summaryT),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      scheme.primary.withOpacity(
+                                        0.2 + (0.3 * summaryT),
+                                      ),
+                                      scheme.primary.withOpacity(
+                                        0.12 + (0.22 * summaryT),
+                                      ),
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: scheme.primary.withOpacity(
-                                      0.14 + (0.24 * summaryT),
+                                      0.22 + (0.34 * summaryT),
                                     ),
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: scheme.primary.withOpacity(
+                                        0.16 + (0.2 * summaryT),
+                                      ),
+                                      blurRadius: 14,
+                                      spreadRadius: -5,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
                                 ),
                                 child: Text(
                                   '$_total',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w900,
-                                    color: scheme.primary,
+                                    color: scheme.onPrimary,
+                                    letterSpacing: -0.2,
                                   ),
                                 ),
                               ),
@@ -431,7 +462,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // Action buttons
                 Row(
@@ -441,9 +472,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                         child: OutlinedButton(
                           onPressed: widget.onSkip,
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             side: BorderSide(
                               color: scheme.outline.withOpacity(0.5),
@@ -464,9 +495,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                       child: FilledButton(
                         onPressed: () => widget.onSave(_targets),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 4,
                           shadowColor: scheme.primary.withOpacity(0.4),
@@ -474,7 +505,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.check_rounded, size: 20),
+                            const Icon(Icons.check_rounded, size: 18),
                             const SizedBox(width: 8),
                             Text(
                               'Start this week',
@@ -571,10 +602,12 @@ class _PlanRowState extends State<_PlanRow>
     final level = widget.target.clamp(0, 5);
     final levelT = level / 5;
     final emphasis = Curves.easeOutCubic.transform(levelT);
-    final cardTop = 0.03 + (0.16 * emphasis);
-    final cardBottom = 0.01 + (0.08 * emphasis);
-    final borderOpacity = 0.1 + (0.32 * emphasis);
-    final glowOpacity = 0.05 + (0.24 * emphasis);
+    final toneStrength = Curves.easeInCubic.transform(levelT);
+    final cardTop = 0.02 + (0.30 * toneStrength);
+    final cardMid = 0.01 + (0.20 * toneStrength);
+    final cardBottom = 0.006 + (0.13 * toneStrength);
+    final borderOpacity = 0.1 + (0.46 * toneStrength);
+    final glowOpacity = 0.04 + (0.34 * toneStrength);
     final iconTop = 0.16 + (0.22 * emphasis);
     final iconBottom = 0.06 + (0.14 * emphasis);
     final iconBorder = 0.14 + (0.22 * emphasis);
@@ -587,14 +620,19 @@ class _PlanRowState extends State<_PlanRow>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.fromLTRB(18, 18, 16, 18),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            stops: const [0, 0.62, 1],
             colors: [
               Color.alphaBlend(accent.withOpacity(cardTop), scheme.surface),
+              Color.alphaBlend(
+                accent.withOpacity(cardMid),
+                scheme.surfaceContainerHighest.withOpacity(0.94),
+              ),
               Color.alphaBlend(accent.withOpacity(cardBottom), scheme.surface),
             ],
           ),
@@ -605,8 +643,8 @@ class _PlanRowState extends State<_PlanRow>
           boxShadow: [
             BoxShadow(
               color: accent.withOpacity(glowOpacity),
-              blurRadius: 18 + (6 * emphasis),
-              spreadRadius: -9 + (2 * emphasis),
+              blurRadius: 16 + (12 * toneStrength),
+              spreadRadius: -9 + (4 * toneStrength),
               offset: const Offset(0, 8),
             ),
           ],
@@ -618,8 +656,8 @@ class _PlanRowState extends State<_PlanRow>
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
@@ -629,19 +667,21 @@ class _PlanRowState extends State<_PlanRow>
                         accent.withOpacity(iconBottom),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: accent.withOpacity(iconBorder),
                       width: 1,
                     ),
                   ),
-                  child: Icon(
-                    _categoryIcon(widget.category),
-                    size: 26,
-                    color: accent,
+                  child: Center(
+                    child: TaskCategoryStyle.iconWidget(
+                      widget.category,
+                      size: 20,
+                      color: accent,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,14 +714,38 @@ class _PlanRowState extends State<_PlanRow>
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Row(
               children: List.generate(5, (index) {
                 final dotLevel = index + 1;
                 final isActive = dotLevel <= level;
+                final towardStronger = Curves.easeInOutCubic.transform(
+                  dotLevel / 5,
+                );
+                final dotLevelStrength = Curves.easeInCubic.transform(levelT);
+                final activeColorOpacity = isActive
+                    ? (0.16 +
+                              (0.56 * dotLevelStrength) +
+                              (0.22 * towardStronger))
+                          .clamp(0.0, 0.96)
+                    : 0.12;
+                final activeBorderOpacity = isActive
+                    ? (0.2 +
+                              (0.52 * dotLevelStrength) +
+                              (0.22 * towardStronger))
+                          .clamp(0.0, 0.96)
+                    : 0.22;
+                final activeGlowOpacity = isActive
+                    ? (0.04 +
+                              (0.34 * dotLevelStrength) +
+                              (0.22 * towardStronger))
+                          .clamp(0.0, 0.9)
+                    : 0.0;
+                final activeGlowBlur =
+                    7 + (11 * towardStronger) + (8 * dotLevelStrength);
                 return Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(right: index == 4 ? 0 : 8),
+                    padding: EdgeInsets.only(right: index == 4 ? 0 : 7),
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
@@ -690,23 +754,23 @@ class _PlanRowState extends State<_PlanRow>
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOutCubic,
-                          height: 16,
+                          height: 14,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: isActive
-                                ? accent.withOpacity(0.56)
+                                ? accent.withOpacity(activeColorOpacity)
                                 : scheme.onSurfaceVariant.withOpacity(0.12),
                             border: Border.all(
                               color: isActive
-                                  ? accent.withOpacity(0.72)
+                                  ? accent.withOpacity(activeBorderOpacity)
                                   : scheme.outline.withOpacity(0.22),
                               width: 1,
                             ),
                             boxShadow: [
                               if (isActive)
                                 BoxShadow(
-                                  color: accent.withOpacity(0.24),
-                                  blurRadius: 10,
+                                  color: accent.withOpacity(activeGlowOpacity),
+                                  blurRadius: activeGlowBlur,
                                   spreadRadius: -4,
                                 ),
                             ],
@@ -718,7 +782,7 @@ class _PlanRowState extends State<_PlanRow>
                 );
               }),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Text(
@@ -799,22 +863,5 @@ Color _categoryColor(String key) {
       return const Color(0xFFEF4444); // Red
     default:
       return const Color(0xFF60A5FA);
-  }
-}
-
-IconData _categoryIcon(String key) {
-  switch (key) {
-    case 'body':
-      return Icons.fitness_center_rounded;
-    case 'mind':
-      return Icons.psychology_rounded;
-    case 'growth':
-      return Icons.trending_up_rounded;
-    case 'calm':
-      return Icons.spa_rounded;
-    case 'health':
-      return Icons.favorite_rounded;
-    default:
-      return Icons.category_rounded;
   }
 }

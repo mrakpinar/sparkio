@@ -144,7 +144,7 @@ class _HomeHeaderCardState extends State<HomeHeaderCard> {
                                   style: theme.textTheme.titleLarge?.copyWith(
                                     color: scheme.onSurface.withOpacity(0.93),
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 28,
+                                    fontSize: 26,
                                     height: 1.1,
                                   ),
                                 ),
@@ -153,9 +153,9 @@ class _HomeHeaderCardState extends State<HomeHeaderCard> {
                                   "Let's start with one spark.",
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: scheme.onSurfaceVariant.withOpacity(
-                                      0.7,
+                                      0.6,
                                     ),
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w400,
                                     height: 1.3,
                                   ),
                                 ),
@@ -252,9 +252,8 @@ class _HomeHeaderCardState extends State<HomeHeaderCard> {
                                     children: [
                                       if (widget.focusLabel.isNotEmpty) ...[
                                         _InfoPill(
-                                          icon: _focusIconData(
-                                            widget.focusLabel,
-                                          ),
+                                          iconAsset:
+                                              'assets/in_app_icons/focus.png',
                                           text:
                                               'Today focus: ${widget.focusLabel}',
                                           color: _focusColor(
@@ -279,8 +278,8 @@ class _HomeHeaderCardState extends State<HomeHeaderCard> {
                                             12,
                                           ),
                                           child: _InfoPill(
-                                            icon: Icons
-                                                .calendar_view_week_rounded,
+                                            iconAsset:
+                                                'assets/in_app_icons/calendar.png',
                                             text:
                                                 'This week: ${widget.weeklyDone}/${widget.weeklyTarget}',
                                             color: const Color(0xFF8B5CF6),
@@ -402,10 +401,18 @@ class _ProgressRing extends StatelessWidget {
               ),
             ),
           ),
-          Icon(
-            Icons.rocket_launch_rounded,
-            size: 18,
+          Image.asset(
+            'assets/in_app_icons/rocket.png',
+            width: 18,
+            height: 18,
+            fit: BoxFit.contain,
             color: scheme.onSurfaceVariant.withOpacity(0.5),
+            colorBlendMode: BlendMode.srcIn,
+            errorBuilder: (context, error, stackTrace) => Icon(
+              Icons.rocket_launch_rounded,
+              size: 18,
+              color: scheme.onSurfaceVariant.withOpacity(0.5),
+            ),
           ),
         ],
       ),
@@ -606,14 +613,6 @@ class _StreakSpotlight extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$ignited/$target ignited',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -705,13 +704,15 @@ class _AnimatedGradientProgressBarState
 
 class _InfoPill extends StatelessWidget {
   const _InfoPill({
-    required this.icon,
+    this.icon,
+    this.iconAsset,
     required this.text,
     required this.color,
     this.trailing,
-  });
+  }) : assert(icon != null || iconAsset != null);
 
-  final IconData icon;
+  final IconData? icon;
+  final String? iconAsset;
   final String text;
   final Color color;
   final Widget? trailing;
@@ -729,7 +730,16 @@ class _InfoPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: color),
+          iconAsset != null
+              ? Image.asset(
+                  iconAsset!,
+                  width: 15,
+                  height: 15,
+                  fit: BoxFit.contain,
+                  color: color,
+                  colorBlendMode: BlendMode.srcIn,
+                )
+              : Icon(icon, size: 15, color: color),
           const SizedBox(width: 8),
           Text(
             text,
@@ -749,15 +759,4 @@ class _InfoPill extends StatelessWidget {
       ),
     );
   }
-}
-
-IconData _focusIconData(String label) {
-  final value = label.toLowerCase();
-  if (value.contains('calm') || value.contains('mind')) {
-    return Icons.spa_rounded;
-  }
-  if (value.contains('growth')) return Icons.trending_up_rounded;
-  if (value.contains('body')) return Icons.fitness_center_rounded;
-  if (value.contains('health')) return Icons.favorite_rounded;
-  return Icons.auto_awesome_rounded;
 }

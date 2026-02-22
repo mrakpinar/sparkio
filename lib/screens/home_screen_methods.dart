@@ -14,6 +14,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     await _controller.preloadAds();
     final result = await _controller.bootstrap();
     final profileName = await _repo.getProfileName();
+    final profileAvatar = await _repo.getProfileAvatar();
     final earnedBadgesCount = (await _repo.getEarnedBadges()).length;
     final xpProgress = await _repo.getXpProgress();
     final completionRate = await _controller.getRecentCompletionRate(days: 7);
@@ -56,6 +57,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _xpInLevel = xpProgress.xpInLevel;
       _xpToNextLevel = xpProgress.xpToNextLevel;
       _profileName = profileName ?? '';
+      _profileAvatar = profileAvatar;
       _poolError = result.poolError;
       _weeklyWeekKey = weekKey;
       _weeklyTargets = weeklyTargets;
@@ -376,6 +378,27 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   int _weeklyTargetTotal() =>
       _weeklyTargets.values.fold<int>(0, (s, v) => s + v);
 
+  void _showWeeklyPlanInAppNotice({
+    required int doneTotal,
+    required int targetTotal,
+    required bool completed,
+  }) {
+    if (!mounted || targetTotal <= 0) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    final text = completed
+        ? 'Weekly plan completed! $doneTotal/$targetTotal sparks this week.'
+        : 'Weekly plan: $doneTotal/$targetTotal completed.';
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: completed ? 4 : 2),
+      ),
+    );
+  }
+
   Map<String, int> _filterWeeklyDoneByTargets({
     required Map<String, int> done,
     required Map<String, int> targets,
@@ -500,19 +523,38 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     return '$remaining more if you feel like it.';
   }
 
+  String _remainingWeeklyCopy(int remaining) {
+    if (remaining <= 0) return 'Weekly target completed.';
+    if (remaining == 1) return '1 spark left for this week.';
+    return '$remaining sparks left for this week.';
+  }
+
   Future<void> _showTaskCompletionMomentum({
     required Task task,
     required int completedToday,
     required String completionChainId,
     required int remainingActionCount,
+    int? weeklyDoneTotal,
+    int? weeklyTargetTotal,
   }) async {
     if (!mounted) return;
 
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return;
-    const dailyGoal = 3;
+    final dailyGoal = max(max(_today.length, completedToday), 1);
     final done = completedToday.clamp(0, dailyGoal);
     final remaining = (dailyGoal - done).clamp(0, dailyGoal);
+    final hasWeeklyProgress =
+        weeklyDoneTotal != null &&
+        weeklyTargetTotal != null &&
+        weeklyTargetTotal > 0;
+    final weeklyTargetSafe = hasWeeklyProgress ? weeklyTargetTotal : 0;
+    final weeklyDoneSafe = hasWeeklyProgress
+        ? weeklyDoneTotal.clamp(0, weeklyTargetSafe)
+        : 0;
+    final weeklyRemaining = hasWeeklyProgress
+        ? max(weeklyTargetSafe - weeklyDoneSafe, 0)
+        : 0;
     final xp = _taskXpReward(task);
     _track('completion_reinforcement_shown', {
       'chain_id': completionChainId,
@@ -779,43 +821,80 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                   ),
                                 ],
                               ),
+                              if (hasWeeklyProgress) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    10,
+                                    8,
+                                    10,
+                                    8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: scheme.surface.withOpacity(0.34),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: scheme.outline.withOpacity(0.18),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today_rounded,
+                                        size: 15,
+                                        color: scheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '$weeklyDoneSafe / $weeklyTargetSafe weekly sparks',
+                                              style: theme.textTheme.labelLarge
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 1),
+                                            Text(
+                                              _remainingWeeklyCopy(
+                                                weeklyRemaining,
+                                              ),
+                                              style: theme.textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color: scheme
+                                                        .onSurfaceVariant
+                                                        .withOpacity(0.9),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               Opacity(
                                 opacity: ctaOpacity,
-                                child: Column(
-                                  children: [
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton(
-                                        onPressed: () {
-                                          _track(
-                                            'completion_reinforcement_cta',
-                                            {
-                                              'chain_id': completionChainId,
-                                              'action': 'continue',
-                                              'remaining_actions':
-                                                  remainingActionCount,
-                                            },
-                                          );
-                                          unawaited(dismissOverlay());
-                                        },
-                                        child: const Text('Continue'),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    TextButton(
-                                      onPressed: () {
-                                        _track('completion_reinforcement_cta', {
-                                          'chain_id': completionChainId,
-                                          'action': 'done_for_now',
-                                          'remaining_actions':
-                                              remainingActionCount,
-                                        });
-                                        unawaited(dismissOverlay());
-                                      },
-                                      child: const Text("I'm done for now"),
-                                    ),
-                                  ],
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton(
+                                    onPressed: () {
+                                      _track('completion_reinforcement_cta', {
+                                        'chain_id': completionChainId,
+                                        'action': 'continue',
+                                        'remaining_actions':
+                                            remainingActionCount,
+                                      });
+                                      unawaited(dismissOverlay());
+                                    },
+                                    child: const Text('Continue'),
+                                  ),
                                 ),
                               ),
                             ],
@@ -858,6 +937,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       isDark: isDark,
       showDebugTools: _showDebugTools,
       profileName: _profileName,
+      profileAvatar: _profileAvatar,
       currentStreak: _streak,
       currentLevel: _level,
       totalXp: _totalXp,
@@ -899,6 +979,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       MaterialPageRoute(
         builder: (_) => ProfileScreen(
           profileName: _profileName,
+          profileAvatar: _profileAvatar,
           currentStreak: _streak,
           currentLevel: _level,
           totalXp: _totalXp,
@@ -908,8 +989,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       ),
     ).then((_) async {
       final latest = await _repo.getProfileName();
+      final latestAvatar = await _repo.getProfileAvatar();
       if (!mounted) return;
-      _updateState(() => _profileName = latest ?? '');
+      _updateState(() {
+        _profileName = latest ?? '';
+        _profileAvatar = latestAvatar;
+      });
     });
   }
 
@@ -2191,6 +2276,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final weekKey = _repo.currentWeekKey();
     final beforeWeekDone = _weeklyDoneTotal();
     final weekTarget = _weeklyTargetTotal();
+    final categoryTarget = _weeklyTargets[task.category] ?? 0;
+    final weeklyDoneForOverlay = (weekTarget > 0 && categoryTarget > 0)
+        ? beforeWeekDone + 1
+        : null;
     final xpReward = _taskXpReward(task);
     final previousLevel = _level;
     await HapticFeedback.lightImpact();
@@ -2224,6 +2313,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       completedToday: newDaily,
       completionChainId: completionChainId,
       remainingActionCount: remainingActionCount,
+      weeklyDoneTotal: weeklyDoneForOverlay,
+      weeklyTargetTotal: weekTarget > 0 ? weekTarget : null,
     );
     await _repo.setLastCompletedTask(
       title: task.title,
@@ -2238,7 +2329,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       bestStreak: best,
       categoryCounts: counts,
     );
-    final categoryTarget = _weeklyTargets[task.category] ?? 0;
     if (categoryTarget > 0) {
       final progress = await _repo.incrementWeeklyProgress(
         weekKey: weekKey,
@@ -2265,6 +2355,19 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           'target_total': weekTarget,
           'done_total': afterWeekDone,
         });
+        _showWeeklyPlanInAppNotice(
+          doneTotal: afterWeekDone,
+          targetTotal: weekTarget,
+          completed: true,
+        );
+      } else if (weekTarget > 0 &&
+          beforeWeekDone < weekTarget &&
+          afterWeekDone < weekTarget) {
+        _showWeeklyPlanInAppNotice(
+          doneTotal: afterWeekDone,
+          targetTotal: weekTarget,
+          completed: false,
+        );
       }
     }
     _track('task_completed', {

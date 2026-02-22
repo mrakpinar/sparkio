@@ -49,5 +49,9 @@
 		<false/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
+		<key>NSCameraUsageDescription</key>
+		<string>Use camera to take a profile avatar.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Use photos to choose a profile avatar.</string>
 	</dict>
 </plist>

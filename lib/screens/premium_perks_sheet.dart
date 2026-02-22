@@ -279,10 +279,15 @@ class _PremiumPlanCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     color: scheme.surface.withOpacity(isDark ? 0.42 : 0.72),
                   ),
-                  child: Icon(
-                    Icons.workspace_premium_rounded,
-                    size: 22,
-                    color: premiumAccent.withOpacity(0.86),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/in_app_icons/premium.png',
+                      width: 22,
+                      height: 22,
+                      fit: BoxFit.contain,
+                      color: premiumAccent.withOpacity(0.86),
+                      colorBlendMode: BlendMode.srcIn,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
