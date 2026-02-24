@@ -59,8 +59,15 @@ class PremiumPurchaseSheet extends StatelessWidget {
                 Text('Go Premium', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 6),
                 Text(
-                  'Unlimited tasks, no ads, and AI perks.',
+                  'Monthly or yearly auto-renewing subscription.',
                   style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Cancel anytime in Google Play > Payments & subscriptions.',
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
@@ -89,6 +96,13 @@ class PremiumPurchaseSheet extends StatelessWidget {
                     child: const Text('Restore purchases'),
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
                 if (state.message != null) ...[
                   const SizedBox(height: 10),
                   Text(
@@ -108,13 +122,21 @@ class PremiumPurchaseSheet extends StatelessWidget {
 }
 
 class _ProductTile extends StatelessWidget {
-  const _ProductTile({
-    required this.product,
-    required this.highlight,
-  });
+  const _ProductTile({required this.product, required this.highlight});
 
   final ProductDetails product;
   final bool highlight;
+
+  String _billingLabel(String id) {
+    final value = id.toLowerCase();
+    if (value.contains('year')) {
+      return 'Billed yearly, auto-renews every year.';
+    }
+    if (value.contains('month')) {
+      return 'Billed monthly, auto-renews every month.';
+    }
+    return 'Recurring subscription, auto-renews until canceled.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,9 +149,7 @@ class _ProductTile extends StatelessWidget {
             ? scheme.primary.withOpacity(0.08)
             : scheme.surfaceVariant,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: highlight ? scheme.primary : scheme.outline,
-        ),
+        border: Border.all(color: highlight ? scheme.primary : scheme.outline),
       ),
       child: Row(
         children: [
@@ -145,6 +165,15 @@ class _ProductTile extends StatelessWidget {
                 Text(
                   product.description,
                   style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _billingLabel(product.id),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant.withOpacity(0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 if (highlight) ...[
                   const SizedBox(height: 6),
@@ -228,9 +257,9 @@ class _FeatureChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
