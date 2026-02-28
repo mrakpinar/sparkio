@@ -75,15 +75,15 @@ class TaskCategoryStyle {
   static Color color(String key, {Color fallback = const Color(0xFF8B5CF6)}) {
     switch (key) {
       case 'mind':
-        return const Color(0xFFF59E0B);
+        return const Color(0xFFF6B24E);
       case 'body':
         return const Color(0xFF4F7CFF);
       case 'growth':
-        return const Color(0xFF7C83FF);
+        return const Color(0xFF6366F1);
       case 'calm':
         return const Color(0xFF38BDF8);
       case 'health':
-        return const Color(0xFF10B981);
+        return const Color(0xFF2DD4BF);
       default:
         return fallback;
     }

@@ -127,8 +127,7 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     if (AdService.hideAdsForScreenshots) return const SizedBox.shrink();
     if (_hideAds) return const SizedBox.shrink();
 
@@ -137,64 +136,34 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: Color.alphaBlend(
-              scheme.primary.withOpacity(0.05),
-              scheme.surface,
-            ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            Colors.white.withOpacity(0.015),
+            const Color(0xFF0E1523),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(999),
-                      color: scheme.surfaceContainerHighest.withOpacity(0.35),
-                    ),
-                    child: Text(
-                      'Sponsored',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: widget.onOpenRemoveAds,
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      foregroundColor: scheme.primary,
-                      textStyle: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    child: const Text('Remove Ads'),
-                  ),
-                ],
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.06)),
+          ),
+        ),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(
+                scheme.primary.withOpacity(0.015),
+                const Color(0xFF101726),
               ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: ad.size.width.toDouble(),
-                  height: ad.size.height.toDouble(),
-                  child: AdWidget(key: ValueKey(ad), ad: ad),
-                ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: ad.size.width.toDouble(),
+                height: ad.size.height.toDouble(),
+                child: AdWidget(key: ValueKey(ad), ad: ad),
               ),
-            ],
+            ),
           ),
         ),
       ),

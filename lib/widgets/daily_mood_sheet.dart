@@ -3,6 +3,41 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+
+BoxDecoration _dailyMoodSurface(
+  ColorScheme scheme, {
+  Color tint = const Color(0xFF34D5FF),
+  double radius = 20,
+  double tintOpacity = 0.08,
+  double surfaceOpacity = 0.98,
+}) {
+  final base = Color.alphaBlend(
+    Colors.white.withOpacity(0.02),
+    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
+  );
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(tint.withOpacity(tintOpacity), base),
+        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+      ],
+    ),
+    border: Border.all(color: Colors.white.withOpacity(0.06)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.18),
+        blurRadius: 22,
+        spreadRadius: -8,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
+}
+
 class DailyMoodSheet extends StatefulWidget {
   const DailyMoodSheet({
     super.key,
@@ -52,20 +87,20 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: _dailyMoodSurface(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        radius: 32,
+        tintOpacity: 0.06,
+        surfaceOpacity: 0.99,
+      ).copyWith(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -75,27 +110,25 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? const [Color(0xFF0B1324), Color(0xFF151E36)]
-                        : [scheme.surface, scheme.surfaceContainerHighest],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: const [Color(0xFF101726), Color(0xFF0E1523)],
                   ),
                 ),
               ),
             ),
             Positioned(
-              top: -110,
-              left: -70,
+              top: -90,
+              left: -50,
               child: IgnorePointer(
                 child: Container(
-                  width: 250,
-                  height: 250,
+                  width: 220,
+                  height: 220,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        scheme.primary.withOpacity(isDark ? 0.2 : 0.09),
+                        scheme.primary.withOpacity(isDark ? 0.08 : 0.05),
                         Colors.transparent,
                       ],
                     ),
@@ -104,30 +137,20 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
               ),
             ),
             Positioned(
-              top: 90,
-              right: -85,
+              top: 70,
+              right: -65,
               child: IgnorePointer(
                 child: Container(
-                  width: 210,
-                  height: 210,
+                  width: 180,
+                  height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        scheme.tertiary.withOpacity(isDark ? 0.14 : 0.06),
+                        scheme.tertiary.withOpacity(isDark ? 0.06 : 0.03),
                         Colors.transparent,
                       ],
                     ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _MoodSheetNoisePainter(
-                    isDark: isDark,
-                    opacity: isDark ? 0.10 : 0.04,
                   ),
                 ),
               ),
@@ -140,7 +163,7 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                     return CustomPaint(
                       painter: _MoodAtmosphereDriftPainter(
                         isDark: isDark,
-                        opacity: isDark ? 0.03 : 0.02,
+                        opacity: isDark ? 0.015 : 0.01,
                         phase: _atmosphereController.value,
                       ),
                     );
@@ -172,27 +195,16 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                         Container(
                           width: 56,
                           height: 56,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                scheme.primary,
-                                scheme.primary.withOpacity(0.7),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: scheme.primary.withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                          decoration: _dailyMoodSurface(
+                            scheme,
+                            tint: const Color(0xFF8B7CFF),
+                            radius: 18,
+                            tintOpacity: 0.14,
+                            surfaceOpacity: 0.96,
                           ),
                           child: Icon(
                             Icons.waving_hand_rounded,
-                            color: scheme.onPrimary,
+                            color: Colors.white.withOpacity(0.92),
                             size: 28,
                           ),
                         ),
@@ -202,17 +214,18 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Let's reset your day.",
+                                l10n.tr("Let's reset your day."),
                                 style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                  color: Colors.white.withOpacity(0.95),
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                "Pick what you need. We'll handle the rest.",
+                                l10n.tr("Pick what you need. We'll handle the rest."),
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: scheme.onSurfaceVariant,
+                                  color: scheme.onSurfaceVariant.withOpacity(0.74),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -220,14 +233,17 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                           ),
                         ),
                         Container(
-                          decoration: BoxDecoration(
-                            color: scheme.surfaceContainerHighest,
-                            shape: BoxShape.circle,
+                          decoration: _dailyMoodSurface(
+                            scheme,
+                            tint: const Color(0xFF8B7CFF),
+                            radius: 999,
+                            tintOpacity: 0.04,
+                            surfaceOpacity: 0.96,
                           ),
                           child: IconButton(
                             onPressed: widget.onSkip,
                             icon: const Icon(Icons.close_rounded),
-                            tooltip: 'Close',
+                            tooltip: l10n.tr('Close'),
                           ),
                         ),
                       ],
@@ -261,9 +277,9 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                     // Mood options
                     _MoodOption(
                       value: 'stressed',
-                      title: 'Feeling stressed',
-                      subtitle: 'Slow down. 2 minutes is enough.',
-                      outcome: '2-minute breathing reset',
+                      title: l10n.tr('Feeling stressed'),
+                      subtitle: l10n.tr('Slow down. 2 minutes is enough.'),
+                      outcome: l10n.tr('2-minute breathing reset'),
                       icon: Icons.spa_rounded,
                       accent: const Color(0xFF38BDF8),
                       dnaTint: const Color(0xFFA78BFA),
@@ -274,9 +290,9 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                     const SizedBox(height: 12),
                     _MoodOption(
                       value: 'low_energy',
-                      title: 'Low energy',
-                      subtitle: "Let's wake your brain up.",
-                      outcome: '2-minute energy reset',
+                      title: l10n.tr('Low energy'),
+                      subtitle: l10n.tr("Let's wake your brain up."),
+                      outcome: l10n.tr('2-minute energy reset'),
                       icon: Icons.battery_2_bar_rounded,
                       accent: const Color(0xFF67E8F9),
                       dnaTint: const Color(0xFFFBBF24),
@@ -287,9 +303,9 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                     const SizedBox(height: 12),
                     _MoodOption(
                       value: 'focus',
-                      title: 'Need focus',
-                      subtitle: 'One small win. Ready?',
-                      outcome: '2-minute focus reset',
+                      title: l10n.tr('Need focus'),
+                      subtitle: l10n.tr('One small win. Ready?'),
+                      outcome: l10n.tr('2-minute focus reset'),
                       icon: Icons.center_focus_strong_rounded,
                       accent: const Color(0xFF06B6D4),
                       dnaTint: const Color(0xFF2563EB),
@@ -305,19 +321,21 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                       child: OutlinedButton(
                         onPressed: widget.onSkip,
                         style: OutlinedButton.styleFrom(
+                          backgroundColor: const Color(0xFF101726),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                           side: BorderSide(
-                            color: scheme.outline.withOpacity(0.5),
-                            width: 1.5,
+                            color: Colors.white.withOpacity(0.08),
+                            width: 1,
                           ),
                         ),
                         child: Text(
-                          'Maybe later',
+                          l10n.tr('Maybe later'),
                           style: theme.textTheme.labelLarge?.copyWith(
                             fontWeight: FontWeight.w700,
+                            color: scheme.onSurface.withOpacity(0.86),
                           ),
                         ),
                       ),
@@ -330,44 +348,6 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
         ),
       ),
     );
-  }
-}
-
-class _MoodSheetNoisePainter extends CustomPainter {
-  const _MoodSheetNoisePainter({required this.isDark, required this.opacity});
-
-  final bool isDark;
-  final double opacity;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    const step = 8;
-    final baseColor = isDark ? Colors.white : Colors.black;
-    for (int y = 0; y < size.height; y += step) {
-      for (int x = 0; x < size.width; x += step) {
-        final hash = _hash(x, y);
-        if (hash % 10 != 0) continue;
-        final alpha = opacity * (0.3 + ((hash % 100) / 1000));
-        paint.color = baseColor.withOpacity(alpha);
-        canvas.drawRect(
-          Rect.fromLTWH(x.toDouble(), y.toDouble(), 1.2, 1.2),
-          paint,
-        );
-      }
-    }
-  }
-
-  int _hash(int x, int y) {
-    int n = x * 374761393 + y * 668265263;
-    n = (n ^ (n >> 13)) * 1274126177;
-    n ^= (n >> 16);
-    return n & 0x7fffffff;
-  }
-
-  @override
-  bool shouldRepaint(covariant _MoodSheetNoisePainter oldDelegate) {
-    return oldDelegate.isDark != isDark || oldDelegate.opacity != opacity;
   }
 }
 
@@ -539,6 +519,7 @@ class _MoodOptionState extends State<_MoodOption>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     return MouseRegion(
@@ -757,7 +738,7 @@ class _MoodOptionState extends State<_MoodOption>
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            'Suggested for you',
+                                            l10n.tr('Suggested for you'),
                                             style: theme.textTheme.labelSmall
                                                 ?.copyWith(
                                                   color: signatureGlowColor
@@ -806,7 +787,7 @@ class _MoodOptionState extends State<_MoodOption>
                                       children: [
                                         _OutcomePill(
                                           icon: Icons.flash_on_rounded,
-                                          text: '1 quick action',
+                                          text: l10n.tr('1 quick action'),
                                           accent: widget.accent,
                                         ),
                                         Padding(
@@ -815,7 +796,7 @@ class _MoodOptionState extends State<_MoodOption>
                                           ),
                                           child: _OutcomePill(
                                             icon: Icons.tune_rounded,
-                                            text: 'No setup needed',
+                                            text: l10n.tr('No setup needed'),
                                             accent: widget.accent,
                                           ),
                                         ),
@@ -1148,3 +1129,7 @@ class _MoodGlowIconState extends State<_MoodGlowIcon>
     );
   }
 }
+
+
+
+

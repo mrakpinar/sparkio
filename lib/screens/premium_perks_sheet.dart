@@ -1,5 +1,41 @@
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+import '../services/locale_service.dart';
+
+BoxDecoration _premiumNeoGlassDecoration(
+  ColorScheme scheme, {
+  Color tint = const Color(0xFF34D5FF),
+  double radius = 16,
+  double tintOpacity = 0.2,
+  double surfaceOpacity = 0.88,
+}) {
+  final base = Color.alphaBlend(
+    Colors.black.withOpacity(0.34),
+    const Color(0xFF101827).withOpacity(surfaceOpacity),
+  );
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(tint.withOpacity(tintOpacity), base),
+        Color.alphaBlend(const Color(0xFF8B5CF6).withOpacity(0.08), base),
+      ],
+    ),
+    border: Border.all(color: Colors.white.withOpacity(0.08), width: 0.85),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.18),
+        blurRadius: 22,
+        spreadRadius: -8,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
+}
+
 class PremiumPerksSheet extends StatelessWidget {
   final bool rewardBusy;
   final bool premiumActive;
@@ -28,139 +64,237 @@ class PremiumPerksSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final media = MediaQuery.of(context);
+    final bgTopGlow = const Color(0xFF34D5FF).withOpacity(isDark ? 0.08 : 0.05);
+    final bgSideGlow = const Color(0xFF9B8CFF).withOpacity(isDark ? 0.06 : 0.04);
+    final bgBottomGlow = scheme.primary.withOpacity(isDark ? 0.05 : 0.03);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0A1628) : scheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withOpacity(0.4)
-                : scheme.shadow.withOpacity(0.14),
-            blurRadius: 24,
-            offset: const Offset(0, -8),
-          ),
-        ],
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: media.size.height - media.padding.top - 18,
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+        decoration: _premiumNeoGlassDecoration(
+          scheme,
+          tint: const Color(0xFF34D5FF),
+          radius: 24,
+          tintOpacity: 0.08,
+          surfaceOpacity: 0.98,
+        ).copyWith(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Stack(
           children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 5,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.14)
-                      : scheme.onSurface.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            Text(
-              'Boost center',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isDark
-                    ? Colors.white.withOpacity(0.95)
-                    : scheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'If you want a little extra support today.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? Colors.white.withOpacity(0.64)
-                    : scheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 14),
-            const _SectionHeader(
-              title: 'Premium',
-              subtitle: 'Long-term support',
-            ),
-            const SizedBox(height: 8),
-            _PremiumPlanCard(
-              premiumActive: premiumActive,
-              premiumStatus: premiumStatus,
-              onOpenSubscribe: onOpenSubscribe,
-            ),
-            const SizedBox(height: 26),
-            const _SectionHeader(
-              title: 'Today boosts',
-              subtitle: 'Short unlocks for now',
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _StaggerIn(
-                    delayMs: 0,
-                    child: _TodayBoostCard(
-                      title: '30 min Premium',
-                      subtitle: 'Temporary premium access.',
-                      ctaLabel: premiumActive
-                          ? 'Active now'
-                          : (rewardBusy
-                                ? 'Preparing ad...'
-                                : 'Unlock by watching a short ad'),
-                      onPressed: premiumActive
-                          ? null
-                          : (rewardBusy ? null : onWatchPremium),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.75, -1.1),
+                      radius: 1.45,
+                      colors: [bgTopGlow, Colors.transparent],
+                      stops: const [0.0, 1.0],
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(1.0, -0.2),
+                      radius: 1.35,
+                      colors: [bgSideGlow, Colors.transparent],
+                      stops: const [0.0, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.2, 1.2),
+                      radius: 1.3,
+                      colors: [bgBottomGlow, Colors.transparent],
+                      stops: const [0.0, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Column(
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
                 Expanded(
-                  child: _StaggerIn(
-                    delayMs: 30,
-                    child: _TodayBoostCard(
-                      title: 'No ads for 1 day',
-                      subtitle: 'Ad-free until tomorrow.',
-                      ctaLabel: noAdsActive
-                          ? 'Active now'
-                          : (rewardBusy
-                                ? 'Preparing ad...'
-                                : 'Unlock by watching a short ad'),
-                      onPressed: noAdsActive
-                          ? null
-                          : (rewardBusy ? null : onWatchNoAds),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: _premiumNeoGlassDecoration(
+                            scheme,
+                            tint: const Color(0xFF8B7CFF),
+                            radius: 18,
+                            tintOpacity: 0.1,
+                            surfaceOpacity: 0.96,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: _premiumNeoGlassDecoration(
+                                  scheme,
+                                  tint: const Color(0xFF8B7CFF),
+                                  radius: 14,
+                                  tintOpacity: 0.16,
+                                  surfaceOpacity: 0.94,
+                                ),
+                                child: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: Color(0xFF8B7CFF),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.tr('Boost center'),
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white.withOpacity(
+                                              0.95,
+                                            ),
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      l10n.tr('If you want a little extra support today.'),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: scheme.onSurfaceVariant
+                                                .withOpacity(0.74),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _SectionHeader(
+                          title: l10n.tr('Premium'),
+                          subtitle: l10n.tr('Long-term support'),
+                        ),
+                        const SizedBox(height: 8),
+                        _PremiumPlanCard(
+                          premiumActive: premiumActive,
+                          premiumStatus: premiumStatus,
+                          onOpenSubscribe: onOpenSubscribe,
+                        ),
+                        const SizedBox(height: 22),
+                        _SectionHeader(
+                          title: l10n.tr('Today boosts'),
+                          subtitle: l10n.tr('Short unlocks for now'),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _StaggerIn(
+                                delayMs: 0,
+                                child: _TodayBoostCard(
+                                  title: l10n.tr('30 min Premium'),
+                                  subtitle: l10n.tr('Temporary premium access.'),
+                                  ctaLabel: premiumActive
+                                      ? l10n.tr('Active now')
+                                      : (rewardBusy
+                                            ? l10n.tr('Preparing ad...')
+                                            : l10n.tr('Unlock by watching a short ad')),
+                                  onPressed: premiumActive
+                                      ? null
+                                      : (rewardBusy ? null : onWatchPremium),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _StaggerIn(
+                                delayMs: 30,
+                                child: _TodayBoostCard(
+                                  title: l10n.tr('No ads for 1 day'),
+                                  subtitle: l10n.tr('Ad-free until tomorrow.'),
+                                  ctaLabel: noAdsActive
+                                      ? l10n.tr('Active now')
+                                      : (rewardBusy
+                                            ? l10n.tr('Preparing ad...')
+                                            : l10n.tr('Unlock by watching a short ad')),
+                                  onPressed: noAdsActive
+                                      ? null
+                                      : (rewardBusy ? null : onWatchNoAds),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _SectionHeader(
+                          title: l10n.tr('Need a little help today?'),
+                          subtitle: l10n.tr('Optional support tools'),
+                          subdued: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _OptionalActionButton(
+                          icon: Icons.add_circle_outline_rounded,
+                          label: l10n.tr('Get one extra task'),
+                          tone: const Color(0xFF22C55E),
+                          onPressed: rewardBusy ? null : onExtraTask,
+                        ),
+                        const SizedBox(height: 8),
+                        _OptionalActionButton(
+                          icon: Icons.local_fire_department_rounded,
+                          label: l10n.tr('Recover streak'),
+                          tone: const Color(0xFFF97316),
+                          onPressed: rewardBusy ? null : onRecoverStreak,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            const _SectionHeader(
-              title: 'Need a little help today?',
-              subtitle: 'Optional support tools',
-              subdued: true,
-            ),
-            const SizedBox(height: 8),
-            _OptionalActionButton(
-              icon: Icons.add_circle_outline_rounded,
-              label: 'Get one extra task',
-              tone: const Color(0xFF22C55E),
-              onPressed: rewardBusy ? null : onExtraTask,
-            ),
-            const SizedBox(height: 8),
-            _OptionalActionButton(
-              icon: Icons.local_fire_department_rounded,
-              label: 'Recover streak',
-              tone: const Color(0xFFF97316),
-              onPressed: rewardBusy ? null : onRecoverStreak,
-            ),
           ],
+        ),
         ),
       ),
     );
@@ -190,10 +324,10 @@ class _SectionHeader extends StatelessWidget {
         Text(
           title,
           style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
             color: isDark
-                ? Colors.white.withOpacity(subdued ? 0.82 : 0.92)
-                : scheme.onSurface.withOpacity(subdued ? 0.84 : 1),
+                ? Colors.white.withOpacity(subdued ? 0.72 : 0.8)
+                : scheme.onSurface.withOpacity(subdued ? 0.78 : 0.88),
           ),
         ),
         const SizedBox(height: 2),
@@ -201,7 +335,7 @@ class _SectionHeader extends StatelessWidget {
           subtitle,
           style: theme.textTheme.bodySmall?.copyWith(
             color: isDark
-                ? Colors.white.withOpacity(subdued ? 0.48 : 0.56)
+                ? Colors.white.withOpacity(subdued ? 0.62 : 0.74)
                 : scheme.onSurfaceVariant.withOpacity(subdued ? 0.78 : 0.9),
           ),
         ),
@@ -227,27 +361,14 @@ class _PremiumPlanCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     const premiumAccent = Color(0xFF6E5BFF);
-    final foundationSurface = Color.alphaBlend(
-      premiumAccent.withOpacity(isDark ? 0.08 : 0.05),
-      scheme.surface,
-    );
 
     return Container(
-      decoration: BoxDecoration(
-        color: foundationSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: scheme.outline.withOpacity(isDark ? 0.072 : 0.054),
-          width: 0.9,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: premiumAccent.withOpacity(0.055),
-            blurRadius: 10,
-            spreadRadius: -8,
-            offset: const Offset(0, 6),
-          ),
-        ],
+      decoration: _premiumNeoGlassDecoration(
+        scheme,
+        tint: premiumAccent,
+        radius: 16,
+        tintOpacity: isDark ? 0.12 : 0.1,
+        surfaceOpacity: isDark ? 0.96 : 0.96,
       ),
       child: Stack(
         children: [
@@ -260,7 +381,7 @@ class _PremiumPlanCard extends StatelessWidget {
                     center: const Alignment(-0.8, -1.0),
                     radius: 1.16,
                     colors: [
-                      premiumAccent.withOpacity(isDark ? 0.09 : 0.07),
+                      premiumAccent.withOpacity(isDark ? 0.18 : 0.14),
                       Colors.transparent,
                     ],
                   ),
@@ -275,9 +396,12 @@ class _PremiumPlanCard extends StatelessWidget {
                 Container(
                   width: 42,
                   height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: scheme.surface.withOpacity(isDark ? 0.42 : 0.72),
+                  decoration: _premiumNeoGlassDecoration(
+                    scheme,
+                    tint: const Color(0xFF34D5FF),
+                    radius: 12,
+                    tintOpacity: 0.26,
+                    surfaceOpacity: 0.84,
                   ),
                   child: Center(
                     child: Image.asset(
@@ -296,7 +420,7 @@ class _PremiumPlanCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Premium plan',
+                        context.l10n.tr('Premium plan'),
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: isDark
@@ -310,15 +434,27 @@ class _PremiumPlanCard extends StatelessWidget {
                             ? _friendlyStatus(
                                 active: true,
                                 status: premiumStatus,
-                                idleLabel: 'Active now',
+                                idleLabel: context.l10n.tr('Active now'),
                               )
-                            : 'Unlock all premium support options.',
+                            : context.l10n.tr('Auto-renewing monthly/yearly subscription.'),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isDark
                               ? Colors.white.withOpacity(0.64)
                               : scheme.onSurfaceVariant,
                         ),
                       ),
+                      if (!premiumActive) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          context.l10n.tr('Cancel anytime in Google Play > Payments & subscriptions.'),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.54)
+                                : scheme.onSurfaceVariant.withOpacity(0.88),
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -326,7 +462,7 @@ class _PremiumPlanCard extends StatelessWidget {
                 FilledButton(
                   onPressed: onOpenSubscribe,
                   style: FilledButton.styleFrom(
-                    backgroundColor: premiumAccent.withOpacity(0.82),
+                    backgroundColor: const Color(0xFF8B5CF6),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -337,9 +473,10 @@ class _PremiumPlanCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 0,
+                    shadowColor: const Color(0xFF8B5CF6).withOpacity(0.24),
                   ),
                   child: Text(
-                    premiumActive ? 'Manage' : 'See plans',
+                    premiumActive ? context.l10n.tr('Manage') : context.l10n.tr('See plans'),
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w400,
                       color: Colors.white.withOpacity(0.94),
@@ -397,23 +534,12 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.fromLTRB(11, 9, 11, 8),
         transform: Matrix4.translationValues(0, showGlow ? -1 : 0, 0),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Color.alphaBlend(
-                  scheme.primary.withOpacity(0.06),
-                  const Color(0xFF0D1B2E).withOpacity(0.78),
-                )
-              : scheme.surfaceContainerHighest.withOpacity(0.46),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            if (showGlow)
-              BoxShadow(
-                color: scheme.primary.withOpacity(isDark ? 0.24 : 0.16),
-                blurRadius: 16,
-                spreadRadius: -5,
-                offset: Offset.zero,
-              ),
-          ],
+        decoration: _premiumNeoGlassDecoration(
+          scheme,
+          tint: showGlow ? const Color(0xFF34D5FF) : const Color(0xFF8B5CF6),
+          radius: 14,
+          tintOpacity: showGlow ? 0.12 : 0.08,
+          surfaceOpacity: isDark ? 0.96 : 0.96,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,17 +571,14 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
             AnimatedContainer(
               duration: const Duration(milliseconds: 170),
               curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  if (_actionHovered && widget.onPressed != null)
-                    BoxShadow(
-                      color: scheme.primary.withOpacity(isDark ? 0.14 : 0.1),
-                      blurRadius: 12,
-                      spreadRadius: -7,
-                      offset: Offset.zero,
-                    ),
-                ],
+              decoration: _premiumNeoGlassDecoration(
+                scheme,
+                tint: _actionHovered
+                    ? const Color(0xFF34D5FF)
+                    : const Color(0xFF8B5CF6),
+                radius: 10,
+                tintOpacity: _actionHovered ? 0.1 : 0.06,
+                surfaceOpacity: 0.94,
               ),
               child: Material(
                 color: Colors.transparent,
@@ -494,9 +617,9 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
                               fontWeight: FontWeight.w400,
                               color: widget.onPressed != null
                                   ? (isDark
-                                        ? Colors.white.withOpacity(0.64)
-                                        : scheme.onSurface.withOpacity(0.66))
-                                  : scheme.onSurfaceVariant.withOpacity(0.58),
+                                        ? Colors.white.withOpacity(0.82)
+                                        : scheme.onSurface.withOpacity(0.84))
+                                  : scheme.onSurfaceVariant.withOpacity(0.72),
                             ),
                           ),
                         ),
@@ -569,15 +692,9 @@ class _OptionalActionButton extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final neutralSurface = isDark
-        ? Color.alphaBlend(
-            Colors.white.withOpacity(0.01),
-            const Color(0xFF0D1B2E).withOpacity(0.58),
-          )
-        : scheme.surface.withOpacity(0.72);
     final calmTone = Color.alphaBlend(
-      tone.withOpacity(0.16),
-      scheme.onSurfaceVariant.withOpacity(0.84),
+      tone.withOpacity(0.36),
+      scheme.onSurface.withOpacity(0.96),
     );
 
     return SizedBox(
@@ -588,13 +705,22 @@ class _OptionalActionButton extends StatelessWidget {
         label: Text(label),
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          foregroundColor: calmTone.withOpacity(0.92),
-          backgroundColor: neutralSurface,
+          foregroundColor: calmTone,
+          backgroundColor: Color.alphaBlend(
+            tone.withOpacity(isDark ? 0.14 : 0.12),
+            Color.alphaBlend(
+              Colors.black.withOpacity(isDark ? 0.28 : 0.18),
+              const Color(0xFF101726).withOpacity(isDark ? 0.96 : 0.92),
+            ),
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-              color: scheme.outline.withOpacity(isDark ? 0.03 : 0.02),
-              width: 0.7,
+              color: Color.alphaBlend(
+                tone.withOpacity(0.36),
+                Colors.white.withOpacity(0.12),
+              ),
+              width: 0.8,
             ),
           ),
         ),
@@ -608,12 +734,13 @@ String _friendlyStatus({
   required String status,
   required String idleLabel,
 }) {
+  final lang = LocaleService.instance.effectiveLanguageCode;
   final raw = status.trim();
   final lower = raw.toLowerCase();
 
   if (active) {
     if (raw.isEmpty || lower == 'inactive' || lower == 'expired') {
-      return 'Active now';
+      return AppLocalizations.lookup(lang, 'Active now');
     }
     return 'Active - $raw left';
   }
@@ -623,3 +750,7 @@ String _friendlyStatus({
   }
   return idleLabel;
 }
+
+
+
+

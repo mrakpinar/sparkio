@@ -1,16 +1,53 @@
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../app_strings.dart';
+import '../models/level_unlocks.dart';
+import '../services/locale_service.dart';
+import '../services/referral_service.dart';
 import '../services/task_repository.dart';
 import 'badges_screen.dart';
 
 const double _kProfileCardRadius = 16;
-const double _kProfileCardSurfaceAlpha = 0.78;
-const double _kProfileCardBorderAlpha = 0.18;
+const double _kProfileCardSurfaceAlpha = 0.84;
+
+BoxDecoration _profileNeoGlassDecoration(
+  ColorScheme scheme, {
+  Color tint = const Color(0xFF34D5FF),
+  double radius = _kProfileCardRadius,
+  double tintOpacity = 0.1,
+  double surfaceOpacity = _kProfileCardSurfaceAlpha,
+}) {
+  final base = Color.alphaBlend(
+    Colors.white.withOpacity(0.03),
+    const Color(0xFF101726).withOpacity(surfaceOpacity),
+  );
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(tint.withOpacity(tintOpacity), base),
+        Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.08), base),
+      ],
+    ),
+    border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.16),
+        blurRadius: 18,
+        spreadRadius: -6,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
+}
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -22,6 +59,7 @@ class ProfileScreen extends StatefulWidget {
     required this.totalXp,
     required this.xpInLevel,
     required this.xpToNextLevel,
+    this.openReferralOnLoad = false,
   });
 
   final String profileName;
@@ -31,6 +69,7 @@ class ProfileScreen extends StatefulWidget {
   final int totalXp;
   final int xpInLevel;
   final int xpToNextLevel;
+  final bool openReferralOnLoad;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -39,6 +78,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   final TaskRepository _repo = TaskRepository();
+  final ReferralService _referral = ReferralService.instance;
   final ImagePicker _imagePicker = ImagePicker();
   late Future<Set<String>> _earnedFuture;
   late Future<_JourneySnapshot> _journeySnapshotFuture;
@@ -47,6 +87,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   late String _profileName;
   String? _profileAvatar;
   late final TextEditingController _nameController;
+  final TextEditingController _referralCodeController = TextEditingController();
+  final GlobalKey _referralCardKey = GlobalKey();
+  ReferralStatus? _referralStatus;
+  bool _referralLoaded = false;
+  bool _referralBusy = false;
+  bool _referralExpanded = false;
   bool _isEditingName = false;
 
   @override
@@ -54,6 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _profileName = TaskRepository.sanitizeProfileName(widget.profileName);
     _profileAvatar = _sanitizeAvatar(widget.profileAvatar);
+    _referralExpanded = widget.openReferralOnLoad;
     _nameController = TextEditingController(text: _profileName);
     _earnedFuture = _repo.getEarnedBadges();
     _journeySnapshotFuture = _loadJourneySnapshot();
@@ -68,13 +115,20 @@ class _ProfileScreenState extends State<ProfileScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _xpController.forward(from: 0);
     });
+    if (widget.openReferralOnLoad) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToReferralCard();
+      });
+    }
     _loadSavedProfileAvatar();
+    _loadReferralStatus();
   }
 
   @override
   void dispose() {
     _xpController.dispose();
     _nameController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -125,32 +179,25 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String _levelTitle(int level) {
-    if (level >= 20) return 'Flow Master';
-    if (level >= 14) return 'Momentum Maker';
-    if (level >= 9) return 'Consistency Builder';
-    if (level >= 5) return 'Habit Starter';
-    return 'First Spark';
-  }
-
-  String _levelUnlockPreview(int level) {
-    switch (level) {
-      case 2:
-        return 'Weekly Insights';
-      case 3:
-        return 'Streak Highlights';
-      case 4:
-        return 'Deeper Progress';
-      default:
-        return 'New Insights';
-    }
+    return AppLocalizations(
+      Locale(LocaleService.instance.effectiveLanguageCode),
+    ).levelTitle(level);
   }
 
   String _sparkHintLabel(String title, int remainingSparks) {
-    if (remainingSparks <= 0) return '🔓 $title ready now';
-    final unit = remainingSparks == 1 ? 'spark' : 'sparks';
-    return '🔓 $title in $remainingSparks $unit';
+    final l10n = AppLocalizations(
+      Locale(LocaleService.instance.effectiveLanguageCode),
+    );
+    if (remainingSparks <= 0) {
+      return l10n.trf('{title} ready now', {'title': title});
+    }
+    final unit = remainingSparks == 1 ? l10n.tr('spark') : l10n.tr('sparks');
+    return l10n.trf('{title} in {count} {unit}', {
+      'title': title,
+      'count': remainingSparks,
+      'unit': unit,
+    });
   }
-
   String _nextUnlockLabel({
     required Set<String> earnedBadges,
     required int totalCompleted,
@@ -158,21 +205,48 @@ class _ProfileScreenState extends State<ProfileScreen>
   }) {
     if (!earnedBadges.contains('cat_mind_10')) {
       final remaining = 10 - (categoryCounts['mind'] ?? 0);
-      return _sparkHintLabel('Focus Badge', remaining);
+      return _sparkHintLabel(
+        AppLocalizations.lookup(
+          LocaleService.instance.effectiveLanguageCode,
+          'Focus Badge',
+        ),
+        remaining,
+      );
     }
     if (!earnedBadges.contains('total_10')) {
       final remaining = 10 - totalCompleted;
-      return _sparkHintLabel('Spark Starter Badge', remaining);
+      return _sparkHintLabel(
+        AppLocalizations.lookup(
+          LocaleService.instance.effectiveLanguageCode,
+          'Spark Starter Badge',
+        ),
+        remaining,
+      );
     }
     if (!earnedBadges.contains('cat_growth_10')) {
       final remaining = 10 - (categoryCounts['growth'] ?? 0);
-      return _sparkHintLabel('Growth Badge', remaining);
+      return _sparkHintLabel(
+        AppLocalizations.lookup(
+          LocaleService.instance.effectiveLanguageCode,
+          'Growth Badge',
+        ),
+        remaining,
+      );
     }
     if (!earnedBadges.contains('total_50')) {
       final remaining = 50 - totalCompleted;
-      return _sparkHintLabel('Momentum Badge', remaining);
+      return _sparkHintLabel(
+        AppLocalizations.lookup(
+          LocaleService.instance.effectiveLanguageCode,
+          'Momentum Badge',
+        ),
+        remaining,
+      );
     }
-    return '🔓 Mastery track active';
+    return AppLocalizations.lookup(
+      LocaleService.instance.effectiveLanguageCode,
+      'Mastery track active',
+    );
   }
 
   String? _sanitizeAvatar(String? raw) {
@@ -259,17 +333,19 @@ class _ProfileScreenState extends State<ProfileScreen>
       String message = 'Unable to open camera right now.';
       if (source == ImageSource.camera) {
         if (code.contains('denied') || code.contains('restricted')) {
-          message = 'Camera permission is denied. Check app permissions.';
+          message = context.l10n.tr(
+            'Camera permission is denied. Check app permissions.',
+          );
         } else if (code.contains('no_available_camera') ||
             code.contains('camera_unavailable') ||
             code.contains('not_available')) {
-          message = 'Camera is not available on this device.';
+          message = context.l10n.tr('Camera is not available on this device.');
         }
       } else {
         if (code.contains('denied') || code.contains('restricted')) {
-          message = 'Photo library permission is denied.';
+          message = context.l10n.tr('Photo library permission is denied.');
         } else {
-          message = 'Unable to open gallery right now.';
+          message = context.l10n.tr('Unable to open gallery right now.');
         }
       }
       final messenger = ScaffoldMessenger.of(context);
@@ -279,7 +355,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           behavior: SnackBarBehavior.floating,
           action: source == ImageSource.camera
               ? SnackBarAction(
-                  label: 'Gallery',
+                  label: context.l10n.tr('Gallery'),
                   onPressed: () {
                     _pickAvatarFromSource(ImageSource.gallery);
                   },
@@ -293,13 +369,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         SnackBar(
           content: Text(
             source == ImageSource.camera
-                ? 'Unable to open camera right now.'
-                : 'Unable to open gallery right now.',
+                ? context.l10n.tr('Unable to open camera right now.')
+                : context.l10n.tr('Unable to open gallery right now.'),
           ),
           behavior: SnackBarBehavior.floating,
           action: source == ImageSource.camera
               ? SnackBarAction(
-                  label: 'Gallery',
+                  label: context.l10n.tr('Gallery'),
                   onPressed: () {
                     _pickAvatarFromSource(ImageSource.gallery);
                   },
@@ -382,13 +458,335 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  Future<void> _loadReferralStatus() async {
+    final status = await _referral.getStatus();
+    if (!mounted) return;
+    setState(() {
+      _referralStatus = status;
+      _referralLoaded = true;
+    });
+  }
+
+  Future<void> _scrollToReferralCard() async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) return;
+    final targetContext = _referralCardKey.currentContext;
+    if (targetContext == null) return;
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+    );
+  }
+
+  Future<void> _copyReferralCode() async {
+    final code = _referralStatus?.code.trim() ?? '';
+    if (code.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.tr('Invite code copied.')),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _claimReferralCode() async {
+    final input = _referralCodeController.text.trim().toUpperCase();
+    if (input.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.tr('Enter an invite code.')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (input == (_referralStatus?.code ?? '')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.tr('You cannot use your own invite code.')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _referralBusy = true);
+    final result = await _referral.redeemCode(input);
+    if (!mounted) return;
+    setState(() => _referralBusy = false);
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.errorMessage ?? context.l10n.tr('Unable to claim invite code.'),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    _referralCodeController.clear();
+    await _loadReferralStatus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.tr(
+            'Referral reward unlocked: +1 extra spark slot and 1 day premium boost.',
+          ),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildReferralCard({
+    required ThemeData theme,
+    required ColorScheme scheme,
+  }) {
+    final status = _referralStatus;
+    final code = status?.code ?? '';
+    final hasRedeemed = (status?.redeemedCode ?? '').isNotEmpty;
+    final sparkWord = (status?.extraSparkSlots ?? 0) == 1
+        ? context.l10n.tr('slot')
+        : context.l10n.tr('slots');
+
+    return Container(
+      key: _referralCardKey,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () {
+              setState(() => _referralExpanded = !_referralExpanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: _profileNeoGlassDecoration(
+                      scheme,
+                      tint: const Color(0xFF34D5FF),
+                      radius: 8,
+                      tintOpacity: 0.2,
+                    ),
+                    child: Icon(
+                      Icons.group_add_rounded,
+                      size: 16,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.l10n.tr('Referral rewards'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _referralExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            context.l10n.referralBenefit,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (!_referralExpanded && _referralLoaded && status != null)
+            Text(
+              '${context.l10n.tr('Invites')}: ${status.invitedCount}  |  ${context.l10n.tr('Extra sparks')}: ${status.extraSparkSlots} $sparkWord',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else if (!_referralExpanded)
+            Text(
+              context.l10n.tr('Tap to open'),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: !_referralLoaded
+                  ? const SizedBox(
+                      height: 36,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  : status == null
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.l10n.tr('Referral is unavailable right now.'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loadReferralStatus,
+                          child: Text(context.l10n.tr('Retry')),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: scheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.55),
+                                ),
+                                child: Text(
+                                  code,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: _copyReferralCode,
+                              icon: const Icon(Icons.copy_rounded, size: 16),
+                              label: Text(context.l10n.tr('Copy')),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${context.l10n.tr('Invites')}: ${status.invitedCount}  |  ${context.l10n.tr('Extra sparks')}: ${status.extraSparkSlots} $sparkWord',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (hasRedeemed)
+                          Text(
+                            context.l10n.trf('Invite used: {code}', {'code': status.redeemedCode ?? ''}),
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _referralCodeController,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  inputFormatters: [
+                                    LengthLimitingTextInputFormatter(12),
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp('[A-Za-z0-9]'),
+                                    ),
+                                  ],
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    hintText: context.l10n.tr('Enter invite code'),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton(
+                                onPressed: _referralBusy
+                                    ? null
+                                    : _claimReferralCode,
+                                child: _referralBusy
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Text(context.l10n.tr('Claim')),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+            ),
+            crossFadeState: _referralExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 220),
+            sizeCurve: Curves.easeOutCubic,
+            firstCurve: Curves.easeOut,
+            secondCurve: Curves.easeOut,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final cleanedName = TaskRepository.sanitizeProfileName(_profileName);
-    final name = cleanedName.isEmpty ? 'Friend' : cleanedName;
+    final name = cleanedName.isEmpty ? l10n.friend : cleanedName;
     final initials = name.characters.first.toUpperCase();
     final avatar = _sanitizeAvatar(_profileAvatar);
     final safeLevel = widget.currentLevel <= 0 ? 1 : widget.currentLevel;
@@ -398,42 +796,40 @@ class _ProfileScreenState extends State<ProfileScreen>
     final hasStreakRing = widget.currentStreak > 0;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: isDark
+          ? const Color(0xFF0B0F1A)
+          : theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-          Positioned(
-            top: -90,
-            right: -70,
+          Positioned.fill(
             child: IgnorePointer(
-              child: Container(
-                width: 260,
-                height: 260,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      scheme.primary.withValues(alpha: isDark ? 0.18 : 0.1),
-                      scheme.primary.withValues(alpha: 0.0),
-                    ],
-                  ),
+                  color: isDark
+                      ? const Color(0xFF0B0F1A)
+                      : theme.scaffoldBackgroundColor,
                 ),
               ),
             ),
           ),
           Positioned(
-            bottom: -130,
-            left: -70,
+            right: -150,
+            bottom: -150,
             child: IgnorePointer(
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      scheme.primary.withValues(alpha: isDark ? 0.11 : 0.06),
-                      scheme.primary.withValues(alpha: 0.0),
-                    ],
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: 380,
+                  height: 380,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color.fromRGBO(0, 220, 255, 0.04),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.5],
+                    ),
                   ),
                 ),
               ),
@@ -443,44 +839,87 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: CustomScrollView(
               slivers: [
                 SliverAppBar(
-                  pinned: true,
-                  backgroundColor: theme.scaffoldBackgroundColor,
+                  pinned: false,
+                  floating: true,
+                  snap: true,
+                  backgroundColor: Colors.transparent,
                   elevation: 0,
                   surfaceTintColor: Colors.transparent,
-                  leading: IconButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 20,
+                  scrolledUnderElevation: 0,
+                  toolbarHeight: 68,
+                  titleSpacing: 16,
+                  flexibleSpace: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: const Color.fromRGBO(11, 15, 26, 0.96),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.05),
+                              width: 1,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color.fromRGBO(0, 0, 0, 0.25),
+                                blurRadius: 22,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: _ProfileTopIconButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.pop(context),
                     ),
                   ),
                   title: Text(
-                    'Profile',
+                    l10n.tr('Profile'),
                     style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(1),
+                    child: Container(
+                      height: 1,
+                      margin: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.transparent,
+                            Colors.white.withOpacity(0.08),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
+                const SliverToBoxAdapter(child: SizedBox(height: 8)),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       Container(
                         padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                            _kProfileCardRadius,
-                          ),
-                          color: scheme.surface.withValues(
-                            alpha: _kProfileCardSurfaceAlpha,
-                          ),
-                          border: Border.all(
-                            color: scheme.outline.withValues(
-                              alpha: _kProfileCardBorderAlpha,
-                            ),
-                          ),
+                        decoration: _profileNeoGlassDecoration(
+                          scheme,
+                          tint: const Color(0xFF5B6CFF),
+                          radius: _kProfileCardRadius,
+                          tintOpacity: 0.12,
+                          surfaceOpacity: _kProfileCardSurfaceAlpha,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,35 +942,39 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: scheme.primary.withValues(
+                                            color: Colors.white.withValues(
                                               alpha: hasStreakRing
-                                                  ? (isDark ? 0.48 : 0.38)
-                                                  : (isDark ? 0.16 : 0.13),
+                                                  ? (isDark ? 0.22 : 0.18)
+                                                  : (isDark ? 0.12 : 0.1),
                                             ),
                                             width: 1.3,
                                           ),
                                           boxShadow: hasStreakRing
                                               ? [
                                                   BoxShadow(
-                                                    color: scheme.primary
-                                                        .withValues(
+                                                    color:
+                                                        const Color(
+                                                          0xFF8B7CFF,
+                                                        ).withValues(
                                                           alpha: isDark
-                                                              ? 0.34
-                                                              : 0.24,
+                                                              ? 0.2
+                                                              : 0.14,
                                                         ),
-                                                    blurRadius: 18,
+                                                    blurRadius: 16,
                                                     spreadRadius: -2,
                                                   ),
                                                 ]
                                               : [
                                                   BoxShadow(
-                                                    color: scheme.primary
-                                                        .withValues(
+                                                    color:
+                                                        const Color(
+                                                          0xFF8B5CF6,
+                                                        ).withValues(
                                                           alpha: isDark
-                                                              ? 0.1
-                                                              : 0.06,
+                                                              ? 0.08
+                                                              : 0.05,
                                                         ),
-                                                    blurRadius: 10,
+                                                    blurRadius: 8,
                                                     spreadRadius: -5,
                                                   ),
                                                 ],
@@ -544,24 +987,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                                             gradient: LinearGradient(
                                               begin: Alignment.topLeft,
                                               end: Alignment.bottomRight,
-                                              colors: [
-                                                scheme.primary.withValues(
-                                                  alpha: isDark ? 0.86 : 0.92,
-                                                ),
-                                                scheme.primary.withValues(
-                                                  alpha: isDark ? 0.62 : 0.72,
-                                                ),
+                                              colors: const [
+                                                Color(0xFF5B6CFF),
+                                                Color(0xFF8FD3FF),
                                               ],
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: scheme.primary
+                                                color: const Color(0xFF5B6CFF)
                                                     .withValues(
                                                       alpha: isDark
-                                                          ? 0.34
-                                                          : 0.2,
+                                                          ? 0.18
+                                                          : 0.14,
                                                     ),
-                                                blurRadius: 20,
+                                                blurRadius: 14,
                                                 spreadRadius: -8,
                                                 offset: const Offset(0, 8),
                                               ),
@@ -585,10 +1024,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                                           height: 28,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: scheme.surface,
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                scheme.surface,
+                                                Color.alphaBlend(
+                                                  const Color(
+                                                    0xFF8FD3FF,
+                                                  ).withValues(alpha: 0.12),
+                                                  scheme.surface,
+                                                ),
+                                              ],
+                                            ),
                                             border: Border.all(
-                                              color: scheme.primary.withValues(
-                                                alpha: 0.35,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.18,
                                               ),
                                             ),
                                           ),
@@ -621,8 +1070,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                 decoration: InputDecoration(
                                                   isDense: true,
                                                   counterText: '',
-                                                  hintText:
-                                                      'Enter your first name',
+                                                  hintText: context.l10n.tr(
+                                                    'Enter your first name',
+                                                  ),
                                                   hintStyle: theme
                                                       .textTheme
                                                       .bodySmall
@@ -652,7 +1102,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                               ),
                                               visualDensity:
                                                   VisualDensity.compact,
-                                              tooltip: 'Save',
+                                              tooltip: context.l10n.tr('Save'),
                                             ),
                                             IconButton(
                                               onPressed: _cancelInlineEdit,
@@ -663,7 +1113,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                               ),
                                               visualDensity:
                                                   VisualDensity.compact,
-                                              tooltip: 'Cancel',
+                                              tooltip: context.l10n.tr(
+                                                'Cancel',
+                                              ),
                                             ),
                                           ],
                                         )
@@ -684,7 +1136,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                           .headlineMedium
                                                           ?.copyWith(
                                                             fontWeight:
-                                                                FontWeight.w700,
+                                                                FontWeight.w600,
+                                                            letterSpacing: 0.2,
                                                           ),
                                                     ),
                                                   ),
@@ -692,7 +1145,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                   Icon(
                                                     Icons.bolt_rounded,
                                                     size: 20,
-                                                    color: scheme.primary,
+                                                    color: const Color(
+                                                      0xFF8FD3FF,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -721,7 +1176,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                     ),
                                                     const SizedBox(width: 4),
                                                     Text(
-                                                      'Edit',
+                                                      l10n.tr('Edit'),
                                                       style: theme
                                                           .textTheme
                                                           .labelMedium
@@ -740,7 +1195,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Level $safeLevel - ${_levelTitle(safeLevel)}',
+                                        l10n.levelLabel(
+                                          safeLevel,
+                                          _levelTitle(safeLevel),
+                                        ),
                                         style: theme.textTheme.titleSmall
                                             ?.copyWith(
                                               color: scheme.onSurfaceVariant,
@@ -772,12 +1230,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     borderRadius: BorderRadius.circular(999),
                                     color: scheme.surfaceContainerHighest
                                         .withValues(alpha: 0.84),
-                                    border: Border.all(
-                                      color: scheme.primary.withValues(
-                                        alpha: isDark ? 0.34 : 0.28,
-                                      ),
-                                      width: 0.8,
-                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: scheme.primary.withValues(
@@ -875,7 +1327,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              '$clampedXpInLevel / $safeXpToNext XP to Level ${safeLevel + 1}',
+                              '$clampedXpInLevel / $safeXpToNext ${l10n.trf('XP to Level {level}', {'level': safeLevel + 1})}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: scheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
@@ -883,7 +1335,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Level ${safeLevel + 1} unlocks ${_levelUnlockPreview(safeLevel + 1)}',
+                              LevelUnlocks.nextUnlockLabel(safeLevel),
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: scheme.onSurfaceVariant.withValues(
                                   alpha: 0.9,
@@ -903,7 +1355,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                               builder: (context, snapshot) {
                                 final label =
                                     snapshot.data?.safeNextUnlockLabel ??
-                                    '🔓 Focus Badge in 3 sparks';
+                                    context.l10n.trf('{title} in {count} {unit}', {
+                                      'title': context.l10n.tr('Focus Badge'),
+                                      'count': 3,
+                                      'unit': context.l10n.tr('sparks'),
+                                    });
                                 return Align(
                                   alignment: Alignment.centerLeft,
                                   child: Container(
@@ -915,11 +1371,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       borderRadius: BorderRadius.circular(999),
                                       color: scheme.primary.withValues(
                                         alpha: 0.12,
-                                      ),
-                                      border: Border.all(
-                                        color: scheme.primary.withValues(
-                                          alpha: 0.24,
-                                        ),
                                       ),
                                     ),
                                     child: Text(
@@ -961,10 +1412,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                               data.safeWeeklyTarget - data.safeWeeklyDone;
                           final nextStepMessage =
                               data.safeWeeklyTarget > 0 && weeklyRemaining > 0
-                              ? 'Complete 1 spark to move your weekly plan forward.'
+                              ? l10n.tr('Complete 1 spark to move your weekly plan forward.')
                               : todayCount <= 0
-                              ? 'Light your first spark today.'
-                              : 'Do one more spark today to keep momentum.';
+                              ? l10n.tr('Light your first spark today.')
+                              : l10n.tr('Do one more spark today to keep momentum.');
                           final showedUpToday =
                               data.safeRecentDailyCounts.isNotEmpty &&
                               data.safeRecentDailyCounts.last > 0;
@@ -995,7 +1446,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           );
                         },
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       FutureBuilder<Set<String>>(
                         future: _earnedFuture,
                         builder: (context, snapshot) {
@@ -1013,20 +1464,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                           }
                           return Container(
                             padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(
-                                _kProfileCardRadius,
-                              ),
-                              color: scheme.surface.withValues(alpha: 0.72),
-                              border: Border.all(
-                                color: scheme.outline.withValues(alpha: 0.12),
-                              ),
+                            decoration: _profileNeoGlassDecoration(
+                              scheme,
+                              tint: const Color(0xFF34D5FF),
+                              surfaceOpacity: 0.72,
+                              tintOpacity: 0.1,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Journey',
+                                  l10n.tr('Journey'),
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     color: scheme.onSurface.withValues(
@@ -1041,7 +1489,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Your journey just started.',
+                                        l10n.tr('Your journey just started.'),
                                         style: theme.textTheme.bodyMedium
                                             ?.copyWith(
                                               color: scheme.onSurface,
@@ -1064,7 +1512,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                           Icons.emoji_events_rounded,
                                           size: 16,
                                         ),
-                                        label: const Text('Unlock first badge'),
+                                        label: Text(l10n.tr('Unlock first badge')),
                                         style: TextButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 0,
@@ -1107,6 +1555,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           );
                         },
                       ),
+                      const SizedBox(height: 10),
+                      _buildReferralCard(theme: theme, scheme: scheme),
                     ]),
                   ),
                 ),
@@ -1157,7 +1607,20 @@ class _ProfileScreenState extends State<ProfileScreen>
       builder: (sheetContext) {
         return Container(
           decoration: BoxDecoration(
-            color: scheme.surface,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.alphaBlend(
+                  const Color(0xFF34D5FF).withValues(alpha: 0.12),
+                  scheme.surface,
+                ),
+                Color.alphaBlend(
+                  const Color(0xFF8B5CF6).withValues(alpha: 0.14),
+                  scheme.surface,
+                ),
+              ],
+            ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
@@ -1168,7 +1631,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Choose avatar',
+                  context.l10n.tr('Choose avatar'),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -1181,7 +1644,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         onPressed: () =>
                             Navigator.of(sheetContext).pop(_avatarActionCamera),
                         icon: const Icon(Icons.photo_camera_rounded, size: 16),
-                        label: const Text('Take photo'),
+                        label: Text(context.l10n.tr('Take photo')),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1191,7 +1654,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           sheetContext,
                         ).pop(_avatarActionGallery),
                         icon: const Icon(Icons.photo_library_rounded, size: 16),
-                        label: const Text('Gallery'),
+                        label: Text(context.l10n.tr('Gallery')),
                       ),
                     ),
                   ],
@@ -1214,11 +1677,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: active
                               ? scheme.primary.withValues(alpha: 0.2)
                               : scheme.surfaceContainerHigh,
-                          border: Border.all(
-                            color: active
-                                ? scheme.primary
-                                : scheme.outline.withValues(alpha: 0.22),
-                          ),
                         ),
                         child: ClipOval(
                           child: Image.asset(
@@ -1244,12 +1702,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                     TextButton.icon(
                       onPressed: () => Navigator.of(sheetContext).pop(''),
                       icon: const Icon(Icons.close_rounded, size: 16),
-                      label: const Text('Remove avatar'),
+                      label: Text(context.l10n.tr('Remove avatar')),
                     ),
                     const Spacer(),
                     FilledButton(
                       onPressed: () => Navigator.of(sheetContext).pop(null),
-                      child: const Text('Done'),
+                      child: Text(context.l10n.tr('Done button')),
                     ),
                   ],
                 ),
@@ -1288,6 +1746,36 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
+class _ProfileTopIconButton extends StatelessWidget {
+  const _ProfileTopIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: scheme.primary.withOpacity(0.08),
+        highlightColor: scheme.primary.withOpacity(0.03),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            icon,
+            size: 18,
+            color: scheme.onSurface.withOpacity(0.9),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _JourneySnapshot {
   const _JourneySnapshot({
     required this.earnedBadges,
@@ -1313,7 +1801,8 @@ class _JourneySnapshot {
   List<int> get safeRecentDailyCounts =>
       recentDailyCounts ?? const <int>[0, 0, 0, 0, 0, 0, 0];
   String get safeNextUnlockLabel =>
-      nextUnlockLabel ?? '🔓 Focus Badge in 3 sparks';
+      nextUnlockLabel ??
+      "${AppLocalizations.lookup(LocaleService.instance.effectiveLanguageCode, 'Focus Badge')} in 3 ${AppLocalizations.lookup(LocaleService.instance.effectiveLanguageCode, 'sparks')}";
   int get safeConsistencyPercent {
     final values = safeRecentDailyCounts;
     if (values.isEmpty) return 0;
@@ -1341,12 +1830,9 @@ class _WeeklyProgressCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kProfileCardRadius),
-        color: scheme.surface.withValues(alpha: _kProfileCardSurfaceAlpha),
-        border: Border.all(
-          color: scheme.outline.withValues(alpha: _kProfileCardBorderAlpha),
-        ),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1356,9 +1842,11 @@ class _WeeklyProgressCard extends StatelessWidget {
               Container(
                 width: 28,
                 height: 28,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: scheme.primary.withValues(alpha: 0.14),
+                decoration: _profileNeoGlassDecoration(
+                  scheme,
+                  tint: const Color(0xFF34D5FF),
+                  radius: 8,
+                  tintOpacity: 0.18,
                 ),
                 child: Center(
                   child: Image.asset(
@@ -1374,7 +1862,7 @@ class _WeeklyProgressCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Weekly progress',
+                  context.l10n.tr('Weekly progress'),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -1382,9 +1870,9 @@ class _WeeklyProgressCard extends StatelessWidget {
               ),
               Text(
                 !hasPlan
-                    ? 'No plan'
+                    ? context.l10n.tr('No plan')
                     : snapshot.safeWeeklyDone <= 0
-                    ? 'Week just started'
+                    ? context.l10n.tr('Week just started')
                     : '${snapshot.safeWeeklyDone}/${snapshot.safeWeeklyTarget}',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: scheme.primary,
@@ -1423,33 +1911,23 @@ class _NextStepCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kProfileCardRadius),
-        color: scheme.surface.withValues(
-          alpha: _kProfileCardSurfaceAlpha + 0.06,
-        ),
-        border: Border.all(color: scheme.primary.withValues(alpha: 0.22)),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        surfaceOpacity: _kProfileCardSurfaceAlpha + 0.06,
+        tintOpacity: 0.2,
       ),
       child: Row(
         children: [
           Container(
             width: 26,
             height: 26,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              color: scheme.primary.withValues(alpha: 0.17),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.primary.withValues(alpha: 0.34),
-                  blurRadius: 10,
-                  spreadRadius: -1,
-                ),
-                BoxShadow(
-                  color: scheme.primary.withValues(alpha: 0.2),
-                  blurRadius: 6,
-                  spreadRadius: -2,
-                ),
-              ],
+            decoration: _profileNeoGlassDecoration(
+              scheme,
+              tint: const Color(0xFF8B5CF6),
+              radius: 8,
+              tintOpacity: 0.18,
+              surfaceOpacity: 0.9,
             ),
             child: Icon(
               Icons.flag_rounded,
@@ -1477,7 +1955,7 @@ class _NextStepCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            child: const Text('Back to today'),
+            child: Text(context.l10n.tr('Back to today')),
           ),
         ],
       ),
@@ -1536,12 +2014,9 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kProfileCardRadius),
-        color: scheme.surface.withValues(alpha: _kProfileCardSurfaceAlpha),
-        border: Border.all(
-          color: scheme.outline.withValues(alpha: _kProfileCardBorderAlpha),
-        ),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1552,14 +2027,14 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Last 7 days',
+                  context.l10n.tr('Last 7 days'),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               Text(
-                'Best streak: ${widget.bestStreak}',
+                context.l10n.trf('Best streak: {count}', {'count': widget.bestStreak}),
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
@@ -1649,13 +2124,6 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: dotColor,
-                                  border: Border.all(
-                                    color: scheme.primary.withValues(
-                                      alpha: completed
-                                          ? 0.52 + (0.32 * intensity)
-                                          : 0.22,
-                                    ),
-                                  ),
                                   boxShadow: shadows,
                                 ),
                                 child: completed
@@ -1718,16 +2186,13 @@ class _PersonalBestStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final dayLabel = bestStreak == 1 ? 'day' : 'days';
+    final dayLabel = bestStreak == 1 ? context.l10n.tr('day') : context.l10n.tr('days');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kProfileCardRadius),
-        color: scheme.surface.withValues(alpha: _kProfileCardSurfaceAlpha),
-        border: Border.all(
-          color: scheme.outline.withValues(alpha: _kProfileCardBorderAlpha),
-        ),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1745,7 +2210,10 @@ class _PersonalBestStrip extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'Best streak: $bestStreak $dayLabel',
+                        context.l10n.trf(
+                          'Best streak: {count} {dayLabel}',
+                          {'count': bestStreak, 'dayLabel': dayLabel},
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -1765,7 +2233,7 @@ class _PersonalBestStrip extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'Total sparks: $totalSparks',
+                        context.l10n.trf('Total sparks: {count}', {'count': totalSparks}),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -1795,7 +2263,7 @@ class _PersonalBestStrip extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Consistency: $consistencyPercent%',
+                context.l10n.trf('Consistency: {count}%', {'count': consistencyPercent}),
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: scheme.primary,
                   fontWeight: FontWeight.w700,
@@ -1819,19 +2287,18 @@ class _MiniActivityFeedback extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_kProfileCardRadius),
-        color: scheme.surface.withValues(alpha: _kProfileCardSurfaceAlpha),
-        border: Border.all(
-          color: scheme.outline.withValues(alpha: _kProfileCardBorderAlpha),
-        ),
+      decoration: _profileNeoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        surfaceOpacity: _kProfileCardSurfaceAlpha + 0.03,
+        tintOpacity: 0.2,
       ),
       child: Row(
         children: [
           Icon(Icons.check_circle_rounded, size: 16, color: scheme.primary),
           const SizedBox(width: 6),
           Text(
-            'You showed up today.',
+            context.l10n.tr('You showed up today.'),
             style: theme.textTheme.labelMedium?.copyWith(
               color: scheme.onSurface,
               fontWeight: FontWeight.w700,
@@ -1984,3 +2451,10 @@ const _avatarAssetOptions = <String>[
 
 const _avatarActionCamera = '__camera__';
 const _avatarActionGallery = '__gallery__';
+
+
+
+
+
+
+

@@ -1,5 +1,8 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
 import '../services/task_repository.dart';
 
 class BadgesScreen extends StatefulWidget {
@@ -30,103 +33,155 @@ class _BadgesScreenState extends State<BadgesScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final l10n = context.l10n;
 
     return Scaffold(
-      backgroundColor: scheme.background,
-      body: FutureBuilder<_BadgeProgressData>(
-        future: _loadBadges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return Center(
-              child: Text(
-                'Unable to load badges right now.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            );
-          }
-
-          final data = snapshot.data!;
-          final earned = data.earned;
-          final totalBadges = _allBadges.length;
-          final earnedCount = earned.length;
-          final progress = totalBadges == 0 ? 0.0 : earnedCount / totalBadges;
-
-          return CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                expandedHeight: 55,
-                backgroundColor: scheme.surface,
-                surfaceTintColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                  onPressed: () => Navigator.of(context).maybePop(),
-                ),
-                centerTitle: true,
-                title: const Text('Milestones'),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                  child: _SummaryCard(
-                    earnedCount: earnedCount,
-                    totalBadges: totalBadges,
-                    progress: progress,
-                    revealAnimation: _entryController,
+      backgroundColor: isDark ? const Color(0xFF0B0F1A) : scheme.background,
+      body: Stack(
+        children: [
+          Positioned.fill(child: _MilestonesAmbientBackground(scheme: scheme)),
+          FutureBuilder<_BadgeProgressData>(
+            future: _loadBadges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError || !snapshot.hasData) {
+                return Center(
+                  child: Text(
+                    l10n.tr('Unable to load badges right now.'),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    if (earnedCount > 0) ...[
-                      _SectionHeader(
-                        title: 'Completed milestones',
-                        count: earnedCount,
-                        icon: Icons.check_circle_outline_rounded,
+                );
+              }
+
+              final data = snapshot.data!;
+              final earned = data.earned;
+              final totalBadges = _allBadges.length;
+              final earnedCount = earned.length;
+              final progress = totalBadges == 0
+                  ? 0.0
+                  : earnedCount / totalBadges;
+
+              return CustomScrollView(
+                slivers: [
+                  SliverAppBar(
+                    toolbarHeight: 68,
+                    pinned: false,
+                    floating: true,
+                    snap: true,
+                    elevation: 0,
+                    backgroundColor: Colors.transparent,
+                    surfaceTintColor: Colors.transparent,
+                    scrolledUnderElevation: 0,
+                    centerTitle: false,
+                    titleSpacing: 16,
+                    flexibleSpace: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color.fromRGBO(11, 15, 26, 0.82),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.05),
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color.fromRGBO(0, 0, 0, 0.25),
+                                  blurRadius: 22,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 20),
-                      _BadgeGrid(
-                        badges: _allBadges
-                            .where((badge) => earned.contains(badge.id))
-                            .toList(),
-                        progress: data,
+                    ),
+                    title: Text(
+                      l10n.tr('Milestones'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: _MilestonesTopIconButton(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: _SummaryCard(
+                        earnedCount: earnedCount,
+                        totalBadges: totalBadges,
+                        progress: progress,
                         revealAnimation: _entryController,
-                        progressAnimation: _entryController,
-                        revealStart: 0.18,
-                        emptyMessage:
-                            'Complete tasks to unlock your first milestone.',
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    _SectionHeader(
-                      title: 'Next milestones',
-                      icon: Icons.schedule_rounded,
                     ),
-                    const SizedBox(height: 20),
-                    _BadgeGrid(
-                      badges: _allBadges
-                          .where((badge) => !earned.contains(badge.id))
-                          .toList(),
-                      progress: data,
-                      revealAnimation: _entryController,
-                      progressAnimation: _entryController,
-                      revealStart: earnedCount > 0 ? 0.42 : 0.2,
-                      emptyMessage: 'All milestones unlocked!',
-                      locked: true,
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        if (earnedCount > 0) ...[
+                          _SectionHeader(
+                            title: l10n.tr('Completed milestones'),
+                            count: earnedCount,
+                            icon: Icons.check_circle_outline_rounded,
+                          ),
+                          const SizedBox(height: 16),
+                          _BadgeGrid(
+                            badges: _allBadges
+                                .where((badge) => earned.contains(badge.id))
+                                .toList(),
+                            progress: data,
+                            revealAnimation: _entryController,
+                            progressAnimation: _entryController,
+                            revealStart: 0.18,
+                            emptyMessage:
+                                l10n.tr(
+                                  'Complete tasks to unlock your first milestone.',
+                                ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        _SectionHeader(
+                          title: l10n.tr('Next milestones'),
+                          icon: Icons.schedule_rounded,
+                        ),
+                        const SizedBox(height: 16),
+                        _BadgeGrid(
+                          badges: _allBadges
+                              .where((badge) => !earned.contains(badge.id))
+                              .toList(),
+                          progress: data,
+                          revealAnimation: _entryController,
+                          progressAnimation: _entryController,
+                          revealStart: earnedCount > 0 ? 0.42 : 0.2,
+                          emptyMessage: l10n.tr('All milestones unlocked!'),
+                          locked: true,
+                        ),
+                      ]),
                     ),
-                  ]),
-                ),
-              ),
-            ],
-          );
-        },
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -168,6 +223,7 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = context.l10n;
     const barSpan = 300 / _BadgesScreenState._timelineMs;
     final barReveal = CurvedAnimation(
       parent: revealAnimation,
@@ -181,9 +237,11 @@ class _SummaryCard extends StatelessWidget {
       offsetY: 6,
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: scheme.surface,
+        decoration: _milestonesGlassDecoration(
+          scheme,
+          tint: const Color(0xFF8B7CFF),
+          radius: 20,
+          tintOpacity: 0.08,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,18 +250,21 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '$earnedCount of $totalBadges milestones',
+                    l10n.trf('{earned} of {total} milestones', {
+                      'earned': earnedCount,
+                      'total': totalBadges,
+                    }),
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       fontSize: 16,
-                      color: scheme.onSurface.withOpacity(0.9),
+                      color: scheme.onSurface.withOpacity(0.92),
                     ),
                   ),
                 ),
                 Text(
                   '${(progress * 100).round()}%',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurface.withOpacity(0.5),
+                    color: scheme.onSurface.withOpacity(0.52),
                     fontSize: 12,
                   ),
                 ),
@@ -211,16 +272,16 @@ class _SummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             ClipRRect(
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(999),
               child: AnimatedBuilder(
                 animation: barReveal,
                 builder: (context, _) {
                   return _SoftProgressBar(
                     value: progress * barReveal.value,
-                    height: 3,
-                    radius: 2,
-                    trackOpacity: 0.14,
-                    fillOpacity: 0.6,
+                    height: 6,
+                    radius: 999,
+                    trackOpacity: 0.12,
+                    fillOpacity: 0.92,
                   );
                 },
               ),
@@ -286,13 +347,13 @@ class _SectionHeader extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 18, color: scheme.onSurface.withOpacity(0.6)),
+        Icon(icon, size: 17, color: scheme.primary.withOpacity(0.84)),
         const SizedBox(width: 8),
         Text(
           title,
           style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: scheme.onSurface.withOpacity(0.86),
+            fontWeight: FontWeight.w500,
+            color: scheme.onSurface.withOpacity(0.76),
           ),
         ),
         if (count != null) ...[
@@ -413,12 +474,11 @@ class _BadgeCard extends StatelessWidget {
     );
 
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Color.alphaBlend(
-          scheme.surfaceVariant.withOpacity(0.14),
-          scheme.surface,
-        ),
+      decoration: _milestonesGlassDecoration(
+        scheme,
+        tint: locked ? const Color(0xFF8B7CFF) : const Color(0xFF5DE1FF),
+        radius: 16,
+        tintOpacity: locked ? 0.06 : 0.08,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
@@ -432,13 +492,15 @@ class _BadgeCard extends StatelessWidget {
                   child: Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: scheme.primary.withOpacity(0.08),
+                    decoration: _milestonesGlassDecoration(
+                      scheme,
+                      tint: const Color(0xFF8B7CFF),
+                      radius: 12,
+                      tintOpacity: locked ? 0.06 : 0.12,
                     ),
                     child: Icon(
                       badge.icon,
-                      color: scheme.primary.withOpacity(0.82),
+                      color: scheme.primary.withOpacity(locked ? 0.6 : 0.9),
                       size: 20,
                     ),
                   ),
@@ -447,24 +509,24 @@ class _BadgeCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              badge.label,
+              context.l10n.tr(badge.label),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: scheme.onSurface.withOpacity(locked ? 0.55 : 0.88),
+                color: scheme.onSurface.withOpacity(locked ? 0.62 : 0.9),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              badge.description,
+              context.l10n.tr(badge.description),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w400,
                 fontSize: 12,
-                color: scheme.onSurface.withOpacity(0.6),
+                color: scheme.onSurface.withOpacity(locked ? 0.52 : 0.64),
                 height: 16 / 12,
               ),
             ),
@@ -476,7 +538,7 @@ class _BadgeCard extends StatelessWidget {
                   locked ? '$current / $target' : '$target / $target',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontSize: 11,
-                    color: scheme.onSurface.withOpacity(0.45),
+                    color: scheme.onSurface.withOpacity(0.48),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -490,10 +552,10 @@ class _BadgeCard extends StatelessWidget {
                 builder: (context, _) {
                   return _SoftProgressBar(
                     value: ratio * barReveal.value,
-                    height: 2,
-                    radius: 1,
-                    trackOpacity: 0.14,
-                    fillOpacity: 0.5,
+                    height: 4,
+                    radius: 999,
+                    trackOpacity: 0.12,
+                    fillOpacity: locked ? 0.72 : 0.92,
                   );
                 },
               ),
@@ -517,10 +579,11 @@ class _EmptyCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withOpacity(0.7)),
+      decoration: _milestonesGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B7CFF),
+        radius: 16,
+        tintOpacity: 0.06,
       ),
       child: Row(
         children: [
@@ -529,7 +592,7 @@ class _EmptyCard extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              color: scheme.primary.withOpacity(0.14),
+              color: scheme.primary.withOpacity(0.12),
             ),
             child: Icon(
               Icons.auto_awesome_rounded,
@@ -589,11 +652,11 @@ class _SoftProgressBar extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
-                    stops: const [0.0, 0.2, 1.0],
+                    stops: const [0.0, 0.28, 1.0],
                     colors: [
-                      scheme.primary.withOpacity(fillOpacity * 0.18),
-                      scheme.primary.withOpacity(fillOpacity),
-                      scheme.primary.withOpacity(fillOpacity),
+                      const Color(0xFF8B7CFF).withOpacity(fillOpacity * 0.56),
+                      const Color(0xFF8B7CFF).withOpacity(fillOpacity),
+                      const Color(0xFF5DE1FF).withOpacity(fillOpacity * 0.96),
                     ],
                   ),
                 ),
@@ -732,3 +795,122 @@ int _progressForBadge(_BadgeDef badge, _BadgeProgressData data) {
       return 0;
   }
 }
+
+BoxDecoration _milestonesGlassDecoration(
+  ColorScheme scheme, {
+  Color tint = const Color(0xFF34D5FF),
+  double radius = 16,
+  double tintOpacity = 0.1,
+  double surfaceOpacity = 1.0,
+}) {
+  final base = Color.alphaBlend(
+    Colors.white.withOpacity(0.02),
+    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
+  );
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(tint.withOpacity(tintOpacity * 0.72), base),
+        Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.045), base),
+        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+      ],
+      stops: const [0.0, 0.52, 1.0],
+    ),
+    border: Border.all(color: Colors.white.withOpacity(0.05)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.16),
+        blurRadius: 18,
+        spreadRadius: -6,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
+}
+
+class _MilestonesTopIconButton extends StatelessWidget {
+  const _MilestonesTopIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Icon(icon, color: scheme.onSurface.withOpacity(0.92), size: 18),
+      ),
+    );
+  }
+}
+
+class _MilestonesAmbientBackground extends StatelessWidget {
+  const _MilestonesAmbientBackground({required this.scheme});
+
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFF0B0F1A),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            left: -90,
+            child: _MilestonesBlurGlow(
+              size: 260,
+              color: Color.fromRGBO(120, 90, 255, 0.18),
+            ),
+          ),
+          Positioned(
+            right: -110,
+            bottom: -120,
+            child: _MilestonesBlurGlow(
+              size: 280,
+              color: Color.fromRGBO(0, 220, 255, 0.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MilestonesBlurGlow extends StatelessWidget {
+  const _MilestonesBlurGlow({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, Colors.transparent],
+            stops: const [0.0, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+

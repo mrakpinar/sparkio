@@ -6,6 +6,7 @@ import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'services/iap_service.dart';
 import 'services/ad_service.dart';
+import 'services/locale_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/onboarding_screen.dart';
+import 'app_strings.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -33,6 +35,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   await NotificationService.instance.init();
   await ThemeService.instance.load();
+  await LocaleService.instance.load();
   if (!AdService.hideAdsForScreenshots) {
     await MobileAds.instance.initialize();
   }
@@ -140,17 +143,21 @@ class SparkioApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeService.instance.mode,
       builder: (context, mode, _) {
-        return MaterialApp(
-          title: 'SPARKIO',
-          debugShowCheckedModeBanner: false,
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          theme: ThemeData(
+        return ValueListenableBuilder<Locale?>(
+          valueListenable: LocaleService.instance.locale,
+          builder: (context, locale, _) {
+            return MaterialApp(
+              title: 'SPARKIO',
+              debugShowCheckedModeBanner: false,
+              locale: locale,
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              theme: ThemeData(
             useMaterial3: true,
             fontFamily: 'Inter',
             colorScheme: lightScheme,
@@ -249,7 +256,7 @@ class SparkioApp extends StatelessWidget {
               ),
             ),
           ),
-          darkTheme: ThemeData(
+              darkTheme: ThemeData(
             useMaterial3: true,
             fontFamily: 'Inter',
             colorScheme: darkScheme,
@@ -348,8 +355,10 @@ class SparkioApp extends StatelessWidget {
               ),
             ),
           ),
-          themeMode: mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light,
-          home: const _LaunchGate(),
+              themeMode: mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light,
+              home: const _LaunchGate(),
+            );
+          },
         );
       },
     );
@@ -402,3 +411,7 @@ class _LaunchGateState extends State<_LaunchGate> {
     return OnboardingScreen(onFinished: _completeOnboarding);
   }
 }
+
+
+
+

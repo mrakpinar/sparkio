@@ -1,12 +1,17 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../app_strings.dart';
+import '../models/level_unlocks.dart';
+import '../services/locale_service.dart';
+import '../services/task_localizer.dart';
 import '../services/task_repository.dart';
 import '../theme/task_category_style.dart';
 
 class StatsScreen extends StatelessWidget {
-  const StatsScreen({super.key});
+  const StatsScreen({super.key, required this.currentLevel});
   static const bool _useScreenshotPreset = bool.fromEnvironment(
     'SCREENSHOT_STATS_PRESET',
     defaultValue: false,
@@ -15,6 +20,7 @@ class StatsScreen extends StatelessWidget {
     'SCREENSHOT_STATS_PRESET_FORCE',
     defaultValue: false,
   );
+  final int currentLevel;
 
   Future<_StatsData> _load() async {
     final repo = TaskRepository();
@@ -26,6 +32,8 @@ class StatsScreen extends StatelessWidget {
     final counts = await repo.getCategoryCounts();
     final dailyHistory = await repo.getDailyHistory(days: 14);
     final lastCompleted = await repo.getLastCompletedTask();
+    final completionHourCounts = await repo.getCompletionHourCounts();
+    final topTaskInsights = await repo.getTopTaskCompletionInsights(limit: 5);
     final weekKey = repo.currentWeekKey();
     final weeklyPlan = await repo.getWeeklyPlan(weekKey: weekKey);
     final weeklyProgress = await repo.getWeeklyProgress(weekKey: weekKey);
@@ -51,6 +59,8 @@ class StatsScreen extends StatelessWidget {
       categoryCounts: counts,
       dailyHistory: dailyHistory,
       lastCompleted: lastCompleted,
+      completionHourCounts: completionHourCounts,
+      topTaskInsights: topTaskInsights,
       weeklyDone: weeklyDone,
       weeklyTarget: weeklyTarget,
       weeklyTargets: weeklyTargets,
@@ -66,7 +76,10 @@ class StatsScreen extends StatelessWidget {
   }
 
   String _label(String key) {
-    return TaskCategoryStyle.label(key);
+    return AppLocalizations.lookup(
+      LocaleService.instance.effectiveLanguageCode,
+      TaskCategoryStyle.label(key),
+    );
   }
 
   Color _categoryColor(BuildContext context, String key) {
@@ -84,9 +97,10 @@ class StatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: scheme.background,
+      backgroundColor: isDark ? const Color(0xFF0B0F1A) : scheme.background,
       body: Stack(
         children: [
           Positioned.fill(child: _StatsAmbientBackground(scheme: scheme)),
@@ -111,6 +125,7 @@ class StatsScreen extends StatelessWidget {
                 labelResolver: _label,
                 iconResolver: _categoryIcon,
                 colorResolver: (key) => _categoryColor(context, key),
+                currentLevel: currentLevel,
               );
             },
           ),
@@ -118,6 +133,41 @@ class StatsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+BoxDecoration _neoGlassDecoration(
+  ColorScheme scheme, {
+  Color tint = const Color(0xFF34D5FF),
+  double radius = 16,
+  double tintOpacity = 0.1,
+  double surfaceOpacity = 1.0,
+}) {
+  final base = Color.alphaBlend(
+    Colors.white.withOpacity(0.02),
+    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
+  );
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(radius),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(tint.withOpacity(tintOpacity * 0.72), base),
+        Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.045), base),
+        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+      ],
+      stops: const [0.0, 0.52, 1.0],
+    ),
+    border: Border.all(color: Colors.white.withOpacity(0.05)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.16),
+        blurRadius: 18,
+        spreadRadius: -6,
+        offset: const Offset(0, 10),
+      ),
+    ],
+  );
 }
 
 class _StatsBody extends StatefulWidget {
@@ -131,6 +181,7 @@ class _StatsBody extends StatefulWidget {
     required this.labelResolver,
     required this.iconResolver,
     required this.colorResolver,
+    required this.currentLevel,
   });
 
   final ColorScheme scheme;
@@ -142,6 +193,7 @@ class _StatsBody extends StatefulWidget {
   final String Function(String) labelResolver;
   final IconData Function(String) iconResolver;
   final Color Function(String) colorResolver;
+  final int currentLevel;
 
   @override
   State<_StatsBody> createState() => _StatsBodyState();
@@ -150,6 +202,7 @@ class _StatsBody extends StatefulWidget {
 class _StatsBodyState extends State<_StatsBody> {
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final scheme = widget.scheme;
     final theme = widget.theme;
     final data = widget.data;
@@ -166,30 +219,61 @@ class _StatsBodyState extends State<_StatsBody> {
 
     return CustomScrollView(
       slivers: [
-        // Modern App Bar
         SliverAppBar(
-          toolbarHeight: 64,
-          pinned: true,
+          toolbarHeight: 68,
+          pinned: false,
+          floating: true,
+          snap: true,
           elevation: 0,
-          backgroundColor: scheme.background,
+          backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
           centerTitle: false,
-          titleSpacing: 0,
-          title: Text(
-            'Your Stats',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 22,
+          titleSpacing: 16,
+          flexibleSpace: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color.fromRGBO(11, 15, 26, 0.82),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromRGBO(0, 0, 0, 0.25),
+                        blurRadius: 22,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () => Navigator.of(context).maybePop(),
-            tooltip: 'Back',
+          title: Text(
+            l10n.tr('Your Stats'),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              letterSpacing: 0.2,
+            ),
+          ),
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: _StatsTopIconButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
           ),
         ),
+        const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-        // Content
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           sliver: SliverList(
@@ -199,7 +283,7 @@ class _StatsBodyState extends State<_StatsBody> {
                 children: [
                   Expanded(
                     child: _StatCard(
-                      title: 'Sparks lit',
+                      title: l10n.tr('Sparks lit'),
                       value: data.total.toString(),
                       icon: Icons.task_alt_rounded,
                       color: scheme.primary,
@@ -208,9 +292,9 @@ class _StatsBodyState extends State<_StatsBody> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _StatCard(
-                      title: 'Your rhythm',
+                      title: l10n.tr('Your rhythm'),
                       value: data.bestStreak.toString(),
-                      subtitle: 'day streak',
+                      subtitle: l10n.tr('day streak'),
                       icon: Icons.local_fire_department_rounded,
                       color: const Color(0xFFF97316),
                     ),
@@ -222,7 +306,7 @@ class _StatsBodyState extends State<_StatsBody> {
 
               // Favorite category
               _StatCard(
-                title: 'Favorite category',
+                title: l10n.tr('Favorite category'),
                 value: widget.favoriteLabel,
                 icon: widget.favoriteIcon,
                 color: widget.favoriteColor,
@@ -232,10 +316,11 @@ class _StatsBodyState extends State<_StatsBody> {
               if (data.weeklyTarget > 0) ...[
                 const SizedBox(height: 12),
                 _StatCard(
-                  title: 'This week',
+                  title: l10n.tr('This week'),
                   value: '${data.weeklyDone}/${data.weeklyTarget}',
-                  subtitle: 'sparks',
+                  subtitle: l10n.tr('sparks'),
                   icon: Icons.calendar_view_week_rounded,
+                  iconAssetPath: 'assets/in_app_icons/calendar.png',
                   color: scheme.primary,
                   isWide: true,
                   onTap: _openWeeklyPlanDialog,
@@ -246,7 +331,7 @@ class _StatsBodyState extends State<_StatsBody> {
 
               // Weekly Activity
               _SectionHeader(
-                title: 'Weekly Activity',
+                title: l10n.tr('Weekly Activity'),
                 icon: Icons.bar_chart_rounded,
               ),
               const SizedBox(height: 12),
@@ -256,7 +341,7 @@ class _StatsBodyState extends State<_StatsBody> {
 
               // Consistency
               _SectionHeader(
-                title: 'Consistency',
+                title: l10n.tr('Consistency'),
                 icon: Icons.calendar_today_rounded,
               ),
               const SizedBox(height: 12),
@@ -264,15 +349,37 @@ class _StatsBodyState extends State<_StatsBody> {
 
               const SizedBox(height: 24),
 
+              _SectionHeader(
+                title: l10n.tr('Personal Insights'),
+                icon: Icons.insights_rounded,
+              ),
+              const SizedBox(height: 12),
+              if (LevelUnlocks.canUseInsightModule(
+                level: widget.currentLevel,
+                module: InsightUnlockModule.personalInsights,
+              ))
+                _PersonalInsightsCard(
+                  hourCounts: data.completionHourCounts,
+                  topTasks: data.topTaskInsights,
+                  iconResolver: widget.iconResolver,
+                  colorResolver: widget.colorResolver,
+                )
+              else
+                _LockedInsightsCard(
+                  requiredLevel: LevelUnlocks.personalInsightsLevel,
+                ),
+
+              const SizedBox(height: 24),
+
               // Category Focus
               _SectionHeader(
-                title: 'Category Focus',
+                title: l10n.tr('Category Focus'),
                 icon: Icons.analytics_rounded,
               ),
               const SizedBox(height: 12),
               if (topCategories.isEmpty)
                 _EmptyCard(
-                  message: 'Your patterns will appear here.',
+                  message: l10n.tr('Your patterns will appear here.'),
                   icon: Icons.auto_awesome_rounded,
                 )
               else
@@ -292,7 +399,7 @@ class _StatsBodyState extends State<_StatsBody> {
 
               // Recent Win
               _SectionHeader(
-                title: 'Recent Win',
+                title: l10n.tr('Recent Win'),
                 icon: Icons.emoji_events_rounded,
               ),
               const SizedBox(height: 12),
@@ -307,13 +414,15 @@ class _StatsBodyState extends State<_StatsBody> {
 
               // Badges
               _SectionHeader(
-                title: 'Badges',
+                title: l10n.tr('Badges'),
                 icon: Icons.workspace_premium_rounded,
               ),
               const SizedBox(height: 12),
               _MilestoneLane(
                 badges: badges,
-                emptyMessage: 'Your first milestone is closer than you think.',
+                emptyMessage: l10n.tr(
+                  'Your first milestone is closer than you think.',
+                ),
               ),
             ]),
           ),
@@ -325,6 +434,7 @@ class _StatsBodyState extends State<_StatsBody> {
   Future<void> _openWeeklyPlanDialog() async {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final targets =
         widget.data.weeklyTargets.entries
             .where((entry) => entry.value > 0)
@@ -336,68 +446,112 @@ class _StatsBodyState extends State<_StatsBody> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
           ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: _neoGlassDecoration(
+                    scheme,
+                    tint: const Color(0xFF8B7CFF),
+                    radius: 24,
+                    tintOpacity: 0.08,
+                    surfaceOpacity: 1.0,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.calendar_view_week_rounded,
-                        color: scheme.primary,
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/in_app_icons/calendar.png',
+                            width: 22,
+                            height: 22,
+                            color: scheme.primary.withOpacity(0.84),
+                            colorBlendMode: BlendMode.srcIn,
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 1.5,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  const Color(0xFF8B7CFF).withOpacity(0.95),
+                                  const Color(0xFF5DE1FF).withOpacity(0.78),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              l10n.tr('Weekly progress'),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface.withOpacity(0.9),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: scheme.onSurfaceVariant.withOpacity(0.72),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Weekly progress',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
+                      const SizedBox(height: 4),
+                      Text(
+                        '${l10n.tr('This week')}: ${widget.data.weeklyDone}/${widget.data.weeklyTarget}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant.withOpacity(0.76),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              for (final entry in targets)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: _WeeklyProgressRow(
+                                    label: widget.labelResolver(entry.key),
+                                    color: widget.colorResolver(entry.key),
+                                    done:
+                                        widget.data.weeklyDoneByCategory[entry
+                                            .key] ??
+                                        0,
+                                    target: entry.value,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Total: ${widget.data.weeklyDone}/${widget.data.weeklyTarget}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          for (final entry in targets)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _WeeklyProgressRow(
-                                label: widget.labelResolver(entry.key),
-                                color: widget.colorResolver(entry.key),
-                                done:
-                                    widget.data.weeklyDoneByCategory[entry
-                                        .key] ??
-                                    0,
-                                target: entry.value,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -418,22 +572,46 @@ class _SectionHeader extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: scheme.primary.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 16, color: scheme.primary),
-        ),
-        const SizedBox(width: 12),
+        Icon(icon, size: 16, color: scheme.primary.withOpacity(0.88)),
+        const SizedBox(width: 8),
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w400,
+            color: scheme.onSurface.withOpacity(0.68),
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _StatsTopIconButton extends StatelessWidget {
+  const _StatsTopIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        splashColor: scheme.primary.withOpacity(0.08),
+        highlightColor: scheme.primary.withOpacity(0.03),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            icon,
+            size: 18,
+            color: scheme.onSurface.withOpacity(0.86),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -447,33 +625,34 @@ class _StatsAmbientBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: DecoratedBox(
-        decoration: BoxDecoration(color: scheme.background),
+        decoration: const BoxDecoration(color: Color(0xFF0B0F1A)),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -1.02),
-                  radius: 1.18,
-                  colors: [
-                    Color.alphaBlend(
-                      scheme.primary.withOpacity(0.22),
-                      scheme.background,
+            Positioned(
+              right: -150,
+              bottom: -150,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: 380,
+                  height: 380,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Color.fromRGBO(0, 220, 255, 0.04),
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.5],
                     ),
-                    Color.alphaBlend(
-                      scheme.secondary.withOpacity(0.12),
-                      scheme.background,
-                    ),
-                    scheme.background,
-                  ],
-                  stops: const [0.0, 0.38, 1.0],
+                  ),
                 ),
               ),
             ),
             CustomPaint(
               painter: _NoisePainter(
-                opacity: 0.04,
+                opacity: 0.018,
                 lightColor: Colors.white,
                 darkColor: Colors.black,
               ),
@@ -530,6 +709,7 @@ class _StatCard extends StatelessWidget {
     this.subtitle,
     required this.color,
     required this.icon,
+    this.iconAssetPath,
     this.isWide = false,
     this.onTap,
   });
@@ -539,6 +719,7 @@ class _StatCard extends StatelessWidget {
   final String? subtitle;
   final Color color;
   final IconData icon;
+  final String? iconAssetPath;
   final bool isWide;
   final VoidCallback? onTap;
 
@@ -546,27 +727,29 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
+    final isRhythmCard = subtitle == 'day streak';
+    final rhythmValue = int.tryParse(value) ?? 0;
+    final streakBoost = isRhythmCard
+        ? (rhythmValue.clamp(0, 14) / 14).toDouble()
+        : 0.0;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(color.withOpacity(0.08), scheme.surface),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.14), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.2),
-                blurRadius: 20,
-                spreadRadius: -6,
-              ),
-            ],
+          decoration: _neoGlassDecoration(
+            scheme,
+            tint: color,
+            radius: 16,
+            surfaceOpacity: 1.0,
+            tintOpacity: isRhythmCard
+                ? (0.16 + (streakBoost * 0.22)).clamp(0.16, 0.38)
+                : 0.07,
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             child: Stack(
               children: [
                 Positioned.fill(
@@ -576,7 +759,17 @@ class _StatCard extends StatelessWidget {
                         gradient: RadialGradient(
                           center: const Alignment(-0.9, -1.0),
                           radius: 1.28,
-                          colors: [color.withOpacity(0.18), Colors.transparent],
+                          colors: [
+                            color.withOpacity(
+                              isRhythmCard
+                                  ? (0.22 + (streakBoost * 0.24)).clamp(
+                                      0.22,
+                                      0.46,
+                                    )
+                                  : 0.1,
+                            ),
+                            Colors.transparent,
+                          ],
                         ),
                       ),
                     ),
@@ -591,20 +784,50 @@ class _StatCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              color.withOpacity(0.52),
-                              color.withOpacity(0.84),
+                              color.withOpacity(
+                                isRhythmCard
+                                    ? (0.48 + (streakBoost * 0.2)).clamp(
+                                        0.48,
+                                        0.68,
+                                      )
+                                    : 0.22,
+                              ),
+                              color.withOpacity(
+                                isRhythmCard
+                                    ? (0.82 + (streakBoost * 0.16)).clamp(
+                                        0.82,
+                                        0.98,
+                                      )
+                                    : 0.42,
+                              ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withOpacity(0.26),
-                              blurRadius: 14,
-                              spreadRadius: -4,
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: isRhythmCard
+                              ? [
+                                  BoxShadow(
+                                    color: color.withOpacity(
+                                      (0.48 + (streakBoost * 0.24)).clamp(
+                                        0.48,
+                                        0.72,
+                                      ),
+                                    ),
+                                    blurRadius: 20 + (streakBoost * 8),
+                                    spreadRadius: -4,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : null,
                         ),
-                        child: Icon(icon, color: Colors.white, size: 24),
+                        child: iconAssetPath != null
+                            ? Image.asset(
+                                iconAssetPath!,
+                                width: 24,
+                                height: 24,
+                                color: Colors.white,
+                                colorBlendMode: BlendMode.srcIn,
+                              )
+                            : Icon(icon, color: Colors.white, size: 24),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -614,7 +837,9 @@ class _StatCard extends StatelessWidget {
                             Text(
                               title,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant,
+                                color: scheme.onSurfaceVariant.withOpacity(
+                                  0.74,
+                                ),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -627,6 +852,18 @@ class _StatCard extends StatelessWidget {
                                       ?.copyWith(
                                         fontWeight: FontWeight.w800,
                                         color: color,
+                                        shadows: subtitle == 'day streak'
+                                            ? [
+                                                Shadow(
+                                                  color: color.withOpacity(
+                                                    (0.6 + (streakBoost * 0.25))
+                                                        .clamp(0.6, 0.85),
+                                                  ),
+                                                  blurRadius:
+                                                      13 + (streakBoost * 5),
+                                                ),
+                                              ]
+                                            : null,
                                       ),
                                 ),
                                 if (subtitle != null) ...[
@@ -681,9 +918,23 @@ class _WeeklyProgressRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: scheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scheme.outline.withOpacity(0.35)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF111A2B),
+            Color.alphaBlend(color.withOpacity(0.08), const Color(0xFF0E1523)),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.24),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,15 +944,16 @@ class _WeeklyProgressRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface.withOpacity(0.84),
+                  ),
                 ),
               ),
               Text(
                 '$safeDone / $target',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: color,
+                  color: color.withOpacity(0.92),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -713,7 +965,7 @@ class _WeeklyProgressRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: scheme.surfaceVariant,
+              backgroundColor: Colors.white.withOpacity(0.12),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -790,10 +1042,11 @@ class _BarChartState extends State<_BarChart>
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        radius: 20,
+        tintOpacity: 0.14,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -844,12 +1097,17 @@ class _BarChartState extends State<_BarChart>
                           duration: const Duration(milliseconds: 600),
                           curve: Curves.easeOutCubic,
                           builder: (context, value, child) {
-                            final barHeight = (80 * value)
-                                .clamp(8, 80)
-                                .toDouble();
+                            final normalized = value.clamp(0.0, 1.0);
+                            final barHeight = day.count <= 0
+                                ? 8.0
+                                : (18 + (62 * math.sqrt(normalized)))
+                                      .clamp(18, 80)
+                                      .toDouble();
                             final glowOpacity =
-                                (0.1 + (value * 0.18) + (selected ? 0.08 : 0.0))
-                                    .clamp(0.0, 0.34)
+                                (0.12 +
+                                        (normalized * 0.22) +
+                                        (selected ? 0.1 : 0.0))
+                                    .clamp(0.0, 0.4)
                                     .toDouble();
                             return SizedBox(
                               height: 84,
@@ -857,17 +1115,18 @@ class _BarChartState extends State<_BarChart>
                                 alignment: Alignment.bottomCenter,
                                 children: [
                                   Container(
-                                    width: 22,
+                                    width: 24,
                                     height: 84,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(10),
-                                      color: scheme.surfaceVariant.withOpacity(
-                                        0.34,
+                                      color: Colors.white.withOpacity(0.11),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.06),
                                       ),
                                     ),
                                   ),
                                   Container(
-                                    width: 22,
+                                    width: 24,
                                     height: barHeight,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(10),
@@ -875,14 +1134,14 @@ class _BarChartState extends State<_BarChart>
                                         begin: Alignment.bottomCenter,
                                         end: Alignment.topCenter,
                                         colors: [
-                                          scheme.primary.withOpacity(0.68),
+                                          scheme.primary.withOpacity(0.82),
                                           Color.alphaBlend(
                                             const Color(
                                               0xFF22D3EE,
-                                            ).withOpacity(0.28),
+                                            ).withOpacity(0.36),
                                             scheme.primary,
                                           ),
-                                          const Color(0xFF7DD3FC),
+                                          const Color(0xFF9BE7FF),
                                         ],
                                       ),
                                       boxShadow: [
@@ -890,8 +1149,8 @@ class _BarChartState extends State<_BarChart>
                                           color: scheme.primary.withOpacity(
                                             glowOpacity,
                                           ),
-                                          blurRadius: 14 + (value * 10),
-                                          spreadRadius: -4 + (value * 2),
+                                          blurRadius: 16 + (normalized * 12),
+                                          spreadRadius: -4 + (normalized * 2),
                                         ),
                                       ],
                                     ),
@@ -957,10 +1216,10 @@ class _BarChartState extends State<_BarChart>
                       day.label,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: selected
-                            ? scheme.onSurface.withOpacity(0.86)
-                            : scheme.onSurfaceVariant.withOpacity(0.72),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 10,
+                            ? scheme.onSurface.withOpacity(0.9)
+                            : scheme.onSurfaceVariant.withOpacity(0.8),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10.5,
                         letterSpacing: 0.12,
                       ),
                     ),
@@ -1011,10 +1270,11 @@ class _HeatRowState extends State<_HeatRow>
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
+        radius: 20,
+        tintOpacity: 0.12,
       ),
       child: AnimatedBuilder(
         animation: _breatheController,
@@ -1136,10 +1396,11 @@ class _CategoryBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: color,
+        radius: 16,
+        tintOpacity: 0.14,
       ),
       child: Row(
         children: [
@@ -1208,6 +1469,20 @@ class _RecentWinCard extends StatelessWidget {
   final String Function(String) labelResolver;
   final IconData Function(String) iconResolver;
 
+  String _localizedCompletedDate(DateTime value) {
+    final code = LocaleService.instance.effectiveLanguageCode;
+    switch (code) {
+      case 'tr':
+        return DateFormat('d MMM', 'tr').format(value);
+      case 'es':
+        return DateFormat('d MMM', 'es').format(value);
+      case 'de':
+        return DateFormat('d. MMM', 'de').format(value);
+      default:
+        return DateFormat('MMM d', 'en').format(value);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1222,17 +1497,28 @@ class _RecentWinCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color.alphaBlend(color.withOpacity(0.06), scheme.surface),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFF59E0B).withOpacity(0.14),
-            blurRadius: 20,
-            spreadRadius: -5,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              color.withOpacity(0.18),
+              Color.alphaBlend(
+                Colors.black.withOpacity(0.22),
+                scheme.surface.withOpacity(0.94),
+              ),
+            ),
+            Color.alphaBlend(
+              const Color(0xFF8B5CF6).withOpacity(0.12),
+              Color.alphaBlend(
+                Colors.black.withOpacity(0.22),
+                scheme.surface.withOpacity(0.94),
+              ),
+            ),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
       ),
       child: Row(
         children: [
@@ -1243,13 +1529,6 @@ class _RecentWinCard extends StatelessWidget {
                 colors: [color.withOpacity(0.7), color.withOpacity(0.92)],
               ),
               borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFF59E0B).withOpacity(0.26),
-                  blurRadius: 16,
-                  spreadRadius: -3,
-                ),
-              ],
             ),
             child: Icon(
               iconResolver(item!.category),
@@ -1263,7 +1542,11 @@ class _RecentWinCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item!.title,
+                  TaskLocalizer.localizeTitle(
+                    item!.title,
+                    localeCode: LocaleService.instance.effectiveLanguageCode,
+                    category: item!.category,
+                  ),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -1272,14 +1555,14 @@ class _RecentWinCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${labelResolver(item!.category)} • ${DateFormat('MMM d').format(item!.completedAt)}',
+                  '${labelResolver(item!.category)} - ${_localizedCompletedDate(item!.completedAt)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'You showed up yesterday.',
+                  context.l10n.tr('You showed up yesterday.'),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant.withOpacity(0.86),
                     fontWeight: FontWeight.w600,
@@ -1289,6 +1572,274 @@ class _RecentWinCard extends StatelessWidget {
             ),
           ),
           Icon(Icons.check_circle_rounded, color: color, size: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _LockedInsightsCard extends StatelessWidget {
+  const _LockedInsightsCard({required this.requiredLevel});
+
+  final int requiredLevel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
+        radius: 20,
+        tintOpacity: 0.1,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: scheme.surfaceContainerHighest.withOpacity(0.54),
+            ),
+            child: Icon(
+              Icons.lock_rounded,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.tr('Personal Insights locked'),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  context.l10n.trf(
+                    'Reach Level {level} to unlock this module.',
+                    {'level': requiredLevel},
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalInsightsCard extends StatelessWidget {
+  const _PersonalInsightsCard({
+    required this.hourCounts,
+    required this.topTasks,
+    required this.iconResolver,
+    required this.colorResolver,
+  });
+
+  final Map<int, int> hourCounts;
+  final List<TaskCompletionInsight> topTasks;
+  final IconData Function(String) iconResolver;
+  final Color Function(String) colorResolver;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    if (hourCounts.isEmpty && topTasks.isEmpty) {
+      return _EmptyCard(
+        message: context.l10n.tr(
+          'Complete more sparks to unlock personal insights.',
+        ),
+        icon: Icons.insights_rounded,
+      );
+    }
+
+    final peakHour = _peakHour(hourCounts);
+    final windows = _buildHourWindows(hourCounts);
+    final maxWindowCount = windows.isEmpty
+        ? 0
+        : windows.map((item) => item.count).reduce((a, b) => a > b ? a : b);
+    final safeTopTasks = topTasks.take(3).toList(growable: false);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        radius: 20,
+        tintOpacity: 0.1,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.l10n.tr('Best completion time'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (peakHour == null)
+            Text(
+              context.l10n.tr(
+                'We need a few more completions to detect your peak hour.',
+              ),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            )
+          else
+            Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 16, color: scheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  '${_hourLabel(peakHour)} • ${_timeWindowLabel(peakHour)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          if (windows.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: windows.map((window) {
+                final ratio = maxWindowCount <= 0
+                    ? 0.0
+                    : (window.count / maxWindowCount).clamp(0.0, 1.0);
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Container(
+                      height: 56,
+                      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: scheme.surfaceContainerHighest.withOpacity(0.42),
+                        border: Border.all(
+                          color: scheme.outline.withOpacity(0.18),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            window.label,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              minHeight: 6,
+                              value: ratio,
+                              backgroundColor: scheme.surfaceVariant,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                scheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(color: scheme.outline.withOpacity(0.2), height: 1),
+          const SizedBox(height: 12),
+          Text(
+            context.l10n.tr('Tasks that work best'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (safeTopTasks.isEmpty)
+            Text(
+              context.l10n.tr(
+                'We will suggest your best tasks once you complete more sparks.',
+              ),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            )
+          else
+            ...safeTopTasks.map((item) {
+              final color = colorResolver(item.category);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Color.alphaBlend(
+                      color.withOpacity(0.08),
+                      scheme.surface,
+                    ),
+                    border: Border.all(color: color.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(iconResolver(item.category), size: 16, color: color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          TaskLocalizer.localizeTitle(
+                            item.title,
+                            localeCode:
+                                LocaleService.instance.effectiveLanguageCode,
+                            category: item.category,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${item.count}x',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          if (safeTopTasks.isNotEmpty)
+            Text(
+              context.l10n.tr('Based on completed sparks only.'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.86),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
         ],
       ),
     );
@@ -1348,10 +1899,11 @@ class _MilestoneLane extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outline.withOpacity(0.26)),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF8B5CF6),
+        radius: 20,
+        tintOpacity: 0.1,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1366,25 +1918,25 @@ class _MilestoneLane extends StatelessWidget {
           const SizedBox(height: 10),
           if (isEmpty)
             Row(
-              children: const [
+              children: [
                 _ComingSoonMilestone(
                   icon: Icons.bolt_rounded,
-                  label: 'First spark',
+                  label: context.l10n.tr('First spark'),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _ComingSoonMilestone(
                   icon: Icons.local_fire_department_rounded,
-                  label: '3-day rhythm',
+                  label: context.l10n.tr('3-day rhythm'),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _ComingSoonMilestone(
                   icon: Icons.emoji_events_rounded,
-                  label: '10 sparks',
+                  label: context.l10n.tr('10 sparks'),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 _ComingSoonMilestone(
                   icon: Icons.workspace_premium_rounded,
-                  label: 'Momentum',
+                  label: context.l10n.tr('Momentum'),
                 ),
               ],
             )
@@ -1396,7 +1948,7 @@ class _MilestoneLane extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: _BadgeChip(
-                      label: badge.label,
+                      label: context.l10n.tr(badge.label),
                       icon: badge.icon,
                       color: badge.color,
                     ),
@@ -1424,8 +1976,8 @@ class _ComingSoonMilestone extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: scheme.surfaceVariant.withOpacity(0.38),
-          border: Border.all(color: scheme.outline.withOpacity(0.18)),
+          color: scheme.surfaceVariant.withOpacity(0.28),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1464,10 +2016,11 @@ class _EmptyCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outline.withOpacity(0.3)),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF34D5FF),
+        radius: 20,
+        tintOpacity: 0.12,
       ),
       child: Column(
         children: [
@@ -1501,6 +2054,8 @@ class _StatsData {
   final Map<String, int> categoryCounts;
   final Map<String, int> dailyHistory;
   final LastCompletedTask? lastCompleted;
+  final Map<int, int> completionHourCounts;
+  final List<TaskCompletionInsight> topTaskInsights;
   final int weeklyDone;
   final int weeklyTarget;
   final Map<String, int> weeklyTargets;
@@ -1513,6 +2068,8 @@ class _StatsData {
     required this.categoryCounts,
     required this.dailyHistory,
     required this.lastCompleted,
+    required this.completionHourCounts,
+    required this.topTaskInsights,
     required this.weeklyDone,
     required this.weeklyTarget,
     required this.weeklyTargets,
@@ -1532,6 +2089,13 @@ class _DayStat {
   });
 }
 
+class _HourWindowStat {
+  const _HourWindowStat({required this.label, required this.count});
+
+  final String label;
+  final int count;
+}
+
 class _Badge {
   final String label;
   final IconData icon;
@@ -1540,10 +2104,77 @@ class _Badge {
   const _Badge({required this.label, required this.icon, required this.color});
 }
 
+int? _peakHour(Map<int, int> hourCounts) {
+  if (hourCounts.isEmpty) return null;
+  final sorted = hourCounts.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  return sorted.first.key;
+}
+
+String _hourLabel(int hour) {
+  final safeHour = hour.clamp(0, 23);
+  return '${safeHour.toString().padLeft(2, '0')}:00';
+}
+
+String _timeWindowLabel(int hour) {
+  final safeHour = hour.clamp(0, 23);
+  final code = LocaleService.instance.effectiveLanguageCode;
+  if (safeHour >= 5 && safeHour <= 11) {
+    return AppLocalizations.lookup(code, 'Morning');
+  }
+  if (safeHour >= 12 && safeHour <= 16) {
+    return AppLocalizations.lookup(code, 'Afternoon');
+  }
+  if (safeHour >= 17 && safeHour <= 21) {
+    return AppLocalizations.lookup(code, 'Evening');
+  }
+  return AppLocalizations.lookup(code, 'Night');
+}
+
+List<_HourWindowStat> _buildHourWindows(Map<int, int> hourCounts) {
+  int countRange(int start, int end) {
+    var total = 0;
+    for (var h = start; h <= end; h++) {
+      total += hourCounts[h] ?? 0;
+    }
+    return total;
+  }
+
+  final night = countRange(0, 4) + countRange(22, 23);
+  final code = LocaleService.instance.effectiveLanguageCode;
+  return <_HourWindowStat>[
+    _HourWindowStat(
+      label: AppLocalizations.lookup(code, 'Morning'),
+      count: countRange(5, 11),
+    ),
+    _HourWindowStat(
+      label: AppLocalizations.lookup(code, 'Afternoon'),
+      count: countRange(12, 16),
+    ),
+    _HourWindowStat(
+      label: AppLocalizations.lookup(code, 'Evening'),
+      count: countRange(17, 21),
+    ),
+    _HourWindowStat(
+      label: AppLocalizations.lookup(code, 'Night'),
+      count: night,
+    ),
+  ];
+}
+
 List<_DayStat> _buildDailySeries(Map<String, int> history, {int days = 7}) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final labels = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  final code = LocaleService.instance.effectiveLanguageCode;
+  final labels = [
+    AppLocalizations.lookup(code, 'Mon'),
+    AppLocalizations.lookup(code, 'Tue'),
+    AppLocalizations.lookup(code, 'Wed'),
+    AppLocalizations.lookup(code, 'Thu'),
+    AppLocalizations.lookup(code, 'Fri'),
+    AppLocalizations.lookup(code, 'Sat'),
+    AppLocalizations.lookup(code, 'Sun'),
+  ];
   final list = <_DayStat>[];
   for (var i = days - 1; i >= 0; i--) {
     final date = today.subtract(Duration(days: i));

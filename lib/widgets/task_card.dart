@@ -4,7 +4,9 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_strings.dart';
 import '../models/task.dart';
+import '../services/locale_service.dart';
 import '../theme/task_category_style.dart';
 
 class TaskCard extends StatelessWidget {
@@ -37,14 +39,15 @@ class TaskCard extends StatelessWidget {
   final double? progress;
   final String progressLabel;
 
-  String _difficultyLabel(String d) {
+  String _difficultyLabel(BuildContext context, String d) {
+    final l10n = context.l10n;
     switch (d) {
       case 'hard':
-        return 'Hard';
+        return l10n.tr('Hard');
       case 'medium':
-        return 'Medium';
+        return l10n.tr('Medium');
       default:
-        return 'Easy';
+        return l10n.tr('Easy');
     }
   }
 
@@ -75,7 +78,8 @@ class TaskCard extends StatelessWidget {
     return t.isSpecial ? base + 2 : base;
   }
 
-  String _invitationHeadline(Task t) {
+  String _invitationHeadline(BuildContext context, Task t) {
+    final l10n = context.l10n;
     var text = t.title.trim();
     text = text.replaceFirst(
       RegExp(
@@ -96,32 +100,51 @@ class TaskCard extends StatelessWidget {
     if (text.isEmpty) {
       text = t.title.trim();
     }
-    if (text.isEmpty) return 'Start your spark';
+    if (text.isEmpty) return l10n.tr('Start your spark');
     return '${text[0].toUpperCase()}${text.substring(1)}';
   }
 
   String _invitationDuration(Task t) {
-    final match = RegExp(
-      r'(\d+)\s*(seconds?|secs?|minutes?|mins?|min)\b',
-      caseSensitive: false,
-    ).firstMatch(t.title);
-    if (match != null) {
-      final amount = int.tryParse(match.group(1) ?? '') ?? t.durationMinutes;
-      final rawUnit = (match.group(2) ?? '').toLowerCase();
-      final isSeconds = rawUnit.startsWith('sec');
-      if (isSeconds) return '$amount seconds. That\'s it.';
-      final unit = amount == 1 ? 'minute' : 'minutes';
-      return '$amount $unit. That\'s it.';
+    final code = LocaleService.instance.effectiveLanguageCode;
+    final totalSeconds = t.totalDurationSeconds;
+    if (totalSeconds < 60) {
+      return '$totalSeconds ${AppLocalizations.lookup(code, 'seconds')}. ${AppLocalizations.lookup(code, "That's it.")}';
     }
-    final mins = t.durationMinutes.clamp(1, 120);
-    final unit = mins == 1 ? 'minute' : 'minutes';
-    return '$mins $unit. That\'s it.';
+    if (totalSeconds % 60 == 0) {
+      final mins = (totalSeconds ~/ 60).clamp(1, 120);
+      final unit = mins == 1
+          ? AppLocalizations.lookup(code, 'minute')
+          : AppLocalizations.lookup(code, 'minutes');
+      return '$mins $unit. ${AppLocalizations.lookup(code, "That's it.")}';
+    }
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    return '$mins ${AppLocalizations.lookup(code, 'min')} $secs ${AppLocalizations.lookup(code, 'seconds')}. ${AppLocalizations.lookup(code, "That's it.")}';
   }
 
-  String _invitationFooter({required bool checked, required bool timerActive}) {
+  String _durationChipLabel(Task t) {
+    final code = LocaleService.instance.effectiveLanguageCode;
+    final totalSeconds = t.totalDurationSeconds;
+    if (totalSeconds < 60) {
+      return '$totalSeconds ${AppLocalizations.lookup(code, 'seconds')}';
+    }
+    if (totalSeconds % 60 == 0) {
+      return '${totalSeconds ~/ 60} ${AppLocalizations.lookup(code, 'min')}';
+    }
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    return '$mins ${AppLocalizations.lookup(code, 'min')} $secs ${AppLocalizations.lookup(code, 'seconds')}';
+  }
+
+  String _invitationFooter(
+    BuildContext context, {
+    required bool checked,
+    required bool timerActive,
+  }) {
+    final l10n = context.l10n;
     if (checked) return '';
     if (timerActive) return '';
-    return 'Ready when you are.';
+    return l10n.tr('Ready when you are.');
   }
 
   @override
@@ -134,19 +157,19 @@ class TaskCard extends StatelessWidget {
       fallback: scheme.primary,
     );
     const timerAccent = Color(0xFF38BDF8);
-    const skipAccent = Color(0xFF22D3EE);
 
     final hasInlineTimer = timerRemaining != null;
     final timerActive = (isTimerActive || hasInlineTimer) && !checked;
     final remaining = timerRemaining ?? Duration.zero;
-    final totalSeconds = (task.durationMinutes * 60).clamp(1, 360000);
+    final totalSeconds = task.totalDurationSeconds.toDouble();
     final timerProgress = hasInlineTimer
         ? 1 - (remaining.inSeconds / totalSeconds)
         : 0.0;
     final xp = _xpReward(task);
-    final invitationHeadline = _invitationHeadline(task);
+    final invitationHeadline = _invitationHeadline(context, task);
     final invitationDuration = _invitationDuration(task);
     final invitationFooter = _invitationFooter(
+      context,
       checked: checked,
       timerActive: timerActive,
     );
@@ -157,28 +180,28 @@ class TaskCard extends StatelessWidget {
               : _TaskStatusType.pending);
 
     const doneTint = Color(0xFFF59E0B);
-    final baseSurface = isDark ? const Color(0xFF121A2A) : scheme.surface;
+    final baseSurface = isDark ? const Color(0xFF030812) : scheme.surface;
+    final flatSurface = isDark
+        ? const Color(0xFF0A1321)
+        : Color.alphaBlend(Colors.black.withOpacity(0.05), scheme.surface);
+    final matteSurface = isDark
+        ? const Color(0xFF0A111C)
+        : Color.alphaBlend(Colors.black.withOpacity(0.02), scheme.surface);
     final background = checked
         ? Color.alphaBlend(
-            doneTint.withOpacity(isDark ? 0.06 : 0.03),
-            baseSurface,
+            doneTint.withOpacity(isDark ? 0.03 : 0.02),
+            matteSurface,
           )
         : timerActive
         ? Color.alphaBlend(
-            accent.withOpacity(isDark ? 0.14 : 0.08),
+            timerAccent.withOpacity(isDark ? 0.14 : 0.1),
             baseSurface,
           )
-        : Color.alphaBlend(
-            (isDark ? const Color(0xFF1D2A44) : scheme.primary).withOpacity(
-              isDark ? 0.1 : 0.02,
-            ),
-            baseSurface,
-          );
-    final ambientGlow = checked
-        ? Colors.transparent
-        : accent.withOpacity(
-            timerActive ? (isDark ? 0.08 : 0.06) : (isDark ? 0.07 : 0.06),
-          );
+        : flatSurface;
+
+    if (checked) {
+      return _CompletedTaskRow(title: invitationHeadline, xp: xp);
+    }
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 220),
@@ -205,38 +228,12 @@ class TaskCard extends StatelessWidget {
                 child: _LiveCardShell(
                   timerActive: timerActive,
                   checked: checked,
-                  accent: accent,
+                  accent: timerAccent,
                   background: background,
                   child: Stack(
                     children: [
-                      if (!checked)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                gradient: RadialGradient(
-                                  center: const Alignment(-0.92, -1.0),
-                                  radius: 1.25,
-                                  colors: [ambientGlow, Colors.transparent],
-                                  stops: const [0.0, 1.0],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      Positioned(
-                        left: 0,
-                        top: 2,
-                        bottom: 2,
-                        child: _EnergyEdge(
-                          accent: accent,
-                          live: timerActive && !checked,
-                          checked: checked,
-                        ),
-                      ),
                       Padding(
-                        padding: const EdgeInsets.only(left: 10),
+                        padding: EdgeInsets.zero,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -263,7 +260,7 @@ class TaskCard extends StatelessWidget {
                                             ).toUpperCase(),
                                             color: checked
                                                 ? Color.alphaBlend(
-                                                    accent.withOpacity(0.2),
+                                                    accent.withOpacity(0.16),
                                                     scheme.onSurfaceVariant
                                                         .withOpacity(0.28),
                                                   )
@@ -272,7 +269,7 @@ class TaskCard extends StatelessWidget {
                                           if (checked) ...[
                                             const SizedBox(width: 8),
                                             Text(
-                                              'Completed today',
+                                              context.l10n.tr('Completed today'),
                                               style: theme.textTheme.labelSmall
                                                   ?.copyWith(
                                                     color: scheme
@@ -286,7 +283,7 @@ class TaskCard extends StatelessWidget {
                                           if (timerActive && timerDone) ...[
                                             const SizedBox(width: 6),
                                             Text(
-                                              'Ready to finish',
+                                              context.l10n.tr('Ready to finish'),
                                               style: theme.textTheme.labelSmall
                                                   ?.copyWith(
                                                     color: timerDone
@@ -358,10 +355,26 @@ class TaskCard extends StatelessWidget {
                                               ),
                                         )
                                       else ...[
-                                        _XpRewardBadge(
-                                          xp: xp,
-                                          checked: checked,
-                                          accent: accent,
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: [
+                                            _XpRewardBadge(
+                                              xp: xp,
+                                              checked: checked,
+                                              accent: timerActive
+                                                  ? timerAccent
+                                                  : Color.alphaBlend(
+                                                      scheme.primary
+                                                          .withOpacity(0.28),
+                                                      scheme.onSurfaceVariant
+                                                          .withOpacity(0.8),
+                                                    ),
+                                            ),
+                                            if (status ==
+                                                _TaskStatusType.streakBonus)
+                                              _TaskStatusChip(status: status),
+                                          ],
                                         ),
                                         const SizedBox(height: 8),
                                         Wrap(
@@ -370,18 +383,34 @@ class TaskCard extends StatelessWidget {
                                           children: [
                                             _MetricChip(
                                               icon: Icons.schedule_rounded,
-                                              label:
-                                                  '${task.durationMinutes} min',
-                                              color: const Color(0xFF14B8A6),
+                                              label: _durationChipLabel(task),
+                                              color: timerActive
+                                                  ? const Color(0xFF14B8A6)
+                                                  : Color.alphaBlend(
+                                                      const Color(
+                                                        0xFF14B8A6,
+                                                      ).withOpacity(0.22),
+                                                      scheme.onSurfaceVariant
+                                                          .withOpacity(0.78),
+                                                    ),
                                             ),
                                             _MetricChip(
                                               icon: Icons.bolt_rounded,
                                               label: _difficultyLabel(
+                                                context,
                                                 task.difficulty,
                                               ),
-                                              color: _difficultyColor(
-                                                task.difficulty,
-                                              ),
+                                              color: timerActive
+                                                  ? _difficultyColor(
+                                                      task.difficulty,
+                                                    )
+                                                  : Color.alphaBlend(
+                                                      _difficultyColor(
+                                                        task.difficulty,
+                                                      ).withOpacity(0.2),
+                                                      scheme.onSurfaceVariant
+                                                          .withOpacity(0.78),
+                                                    ),
                                             ),
                                             if (task.aiSuggested)
                                               const _MetaChip(
@@ -389,23 +418,13 @@ class TaskCard extends StatelessWidget {
                                                     Icons.auto_awesome_rounded,
                                                 label: 'AI',
                                               ),
-                                            if (task.isCustom)
-                                              const _MetaChip(
-                                                icon: Icons.edit_rounded,
-                                                label: 'Custom',
-                                              ),
                                             if (task.premiumOnly)
-                                              const _MetaChip(
+                                              _MetaChip(
                                                 icon: Icons
                                                     .workspace_premium_rounded,
                                                 iconAsset:
                                                     'assets/in_app_icons/premium.png',
-                                                label: 'Premium',
-                                              ),
-                                            if (task.isSpecial)
-                                              const _MetaChip(
-                                                icon: Icons.star_rounded,
-                                                label: 'Special',
+                                                label: context.l10n.tr('Premium'),
                                               ),
                                           ],
                                         ),
@@ -417,37 +436,13 @@ class TaskCard extends StatelessWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    if (status == _TaskStatusType.streakBonus)
-                                      _TaskStatusChip(status: status),
-                                    if (!checked &&
-                                        !timerActive &&
-                                        onSkip != null) ...[
+                                    if (!checked && !timerActive) ...[
                                       const SizedBox(height: 8),
-                                      IconButton(
-                                        onPressed: canSkip ? onSkip : null,
-                                        tooltip: canSkip
-                                            ? 'Skip task'
-                                            : 'Skip limit reached',
-                                        icon: const Icon(
-                                          Icons.fast_forward_rounded,
-                                          size: 19,
-                                        ),
-                                        style: IconButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          foregroundColor: canSkip
-                                              ? skipAccent
-                                              : scheme.onSurfaceVariant
-                                                    .withOpacity(0.6),
-                                          backgroundColor: canSkip
-                                              ? skipAccent.withOpacity(0.12)
-                                              : scheme.surfaceContainerHighest
-                                                    .withOpacity(0.18),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                        ),
+                                      _TaskStartCtaButton(
+                                        onPressed: () {
+                                          HapticFeedback.lightImpact();
+                                          onTap();
+                                        },
                                       ),
                                     ],
                                   ],
@@ -498,7 +493,7 @@ class TaskCard extends StatelessWidget {
                                       Icons.close_rounded,
                                       size: 16,
                                     ),
-                                    label: const Text('Cancel timer'),
+                                    label: Text(context.l10n.tr('Cancel timer')),
                                     style: OutlinedButton.styleFrom(
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
@@ -534,7 +529,7 @@ class TaskCard extends StatelessWidget {
                                       Icons.check_rounded,
                                       size: 16,
                                     ),
-                                    label: const Text('Mark complete'),
+                                    label: Text(context.l10n.tr('Mark complete')),
                                     style: FilledButton.styleFrom(
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
@@ -564,6 +559,71 @@ class TaskCard extends StatelessWidget {
 }
 
 enum _TaskStatusType { pending, done, streakBonus }
+
+class _TaskStartCtaButton extends StatelessWidget {
+  const _TaskStartCtaButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final primaryBlend = Color.alphaBlend(
+      scheme.primary.withOpacity(0.9),
+      const Color(0xFF8B5CF6),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(11),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.primary.withOpacity(0.28),
+            blurRadius: 14,
+            spreadRadius: -1,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(11),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(11),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryBlend.withOpacity(0.96),
+                  primaryBlend.withOpacity(0.82),
+                ],
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.play_arrow_rounded, size: 20, color: Colors.white),
+                const SizedBox(width: 3),
+                Text(
+                  context.l10n.tr('Start'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _LiveCardShell extends StatefulWidget {
   const _LiveCardShell({
@@ -646,12 +706,7 @@ class _LiveCardShellState extends State<_LiveCardShell>
         final pulse = active ? t : 0.0;
         final settleScale = widget.checked ? ((1 - settleT) * 0.01) : 0.0;
         final scale = 1 + (pulse * 0.0045) + settleScale;
-        final borderOpacity = active ? (0.22 + (pulse * 0.12)) : 0.0;
-        final glowOpacity = active ? (0.16 + (pulse * 0.18)) : 0.0;
-        final glowTailOpacity = active ? (0.04 + (pulse * 0.05)) : 0.0;
         final ambientOpacity = active ? (0.05 + (pulse * 0.07)) : 0.0;
-        final settleGlow = widget.checked ? ((1 - settleT) * 0.16) : 0.0;
-        final settleGlowTail = widget.checked ? ((1 - settleT) * 0.06) : 0.0;
         final settleOverlayOpacity = widget.checked
             ? ((1 - settleT) * 0.1)
             : 0.0;
@@ -675,46 +730,33 @@ class _LiveCardShellState extends State<_LiveCardShell>
         return Transform.scale(
           scale: scale,
           child: Container(
-            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: shellColor,
-              borderRadius: BorderRadius.circular(18),
-              border: active
-                  ? Border.all(
-                      color: widget.accent.withOpacity(borderOpacity),
-                      width: 1,
+              color: active ? null : shellColor,
+              gradient: active
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color.alphaBlend(
+                          const Color(0xFF34D5FF).withOpacity(0.22),
+                          shellColor,
+                        ),
+                        Color.alphaBlend(
+                          const Color(0xFF8B5CF6).withOpacity(0.24),
+                          shellColor,
+                        ),
+                      ],
                     )
                   : null,
-              boxShadow: [
-                if (active)
-                  BoxShadow(
-                    color: widget.accent.withOpacity(glowOpacity),
-                    blurRadius: 18 + (pulse * 12),
-                    spreadRadius: -5 + (pulse * 1.6),
-                    offset: Offset(-5 - (pulse * 2), -6 - (pulse * 2)),
-                  ),
-                if (active)
-                  BoxShadow(
-                    color: widget.accent.withOpacity(glowTailOpacity),
-                    blurRadius: 22 + (pulse * 6),
-                    spreadRadius: -8,
-                    offset: Offset(6 + (pulse * 2), 10 + (pulse * 2)),
-                  ),
-                if (widget.checked && settleGlow > 0.001)
-                  BoxShadow(
-                    color: widget.accent.withOpacity(settleGlow),
-                    blurRadius: 16,
-                    spreadRadius: -6,
-                    offset: const Offset(0, 4),
-                  ),
-                if (widget.checked && settleGlowTail > 0.001)
-                  BoxShadow(
-                    color: widget.accent.withOpacity(settleGlowTail),
-                    blurRadius: 20,
-                    spreadRadius: -10,
-                    offset: const Offset(0, 10),
-                  ),
-              ],
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: widget.checked
+                    ? Colors.white.withOpacity(0.06)
+                    : (active
+                          ? widget.accent.withOpacity(0.22)
+                          : Colors.white.withOpacity(0.07)),
+                width: 0.8,
+              ),
             ),
             child: Stack(
               children: [
@@ -753,8 +795,8 @@ class _LiveCardShellState extends State<_LiveCardShell>
                             ),
                             radius: 1.04,
                             colors: [
-                              widget.accent.withOpacity(ambientOpacity * 1.28),
-                              widget.accent.withOpacity(ambientOpacity * 0.42),
+                              widget.accent.withOpacity(ambientOpacity * 1.6),
+                              widget.accent.withOpacity(ambientOpacity * 0.58),
                               Colors.transparent,
                             ],
                             stops: const [0.0, 0.38, 1.0],
@@ -773,11 +815,27 @@ class _LiveCardShellState extends State<_LiveCardShell>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              widget.accent.withOpacity(0.06 + (pulse * 0.05)),
-                              widget.accent.withOpacity(0.015),
+                              widget.accent.withOpacity(0.1 + (pulse * 0.08)),
+                              widget.accent.withOpacity(0.03),
                               Colors.transparent,
                             ],
                             stops: const [0.0, 0.44, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (active)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: const RadialGradient(
+                            center: Alignment(1.05, -0.95),
+                            radius: 1.05,
+                            colors: [Color(0x1AFFFFFF), Colors.transparent],
+                            stops: [0.0, 1.0],
                           ),
                         ),
                       ),
@@ -808,7 +866,13 @@ class _LiveCardShellState extends State<_LiveCardShell>
                       ),
                     ),
                   ),
-                widget.child,
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: widget.child,
+                ),
               ],
             ),
           ),
@@ -875,11 +939,15 @@ class _LiveIconOrbState extends State<_LiveIconOrb>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final breathe = widget.live
-            ? Curves.easeInOut.transform(_controller.value)
-            : 0.0;
-        final glow = widget.live ? (0.14 + (breathe * 0.24)) : 0.0;
-        final fillOpacity = (isDark ? 0.2 : 0.14) + (widget.live ? 0.03 : 0.0);
+        final fillOpacity = (isDark ? 0.16 : 0.12) + (widget.live ? 0.05 : 0.0);
+        final orbBase = Color.alphaBlend(
+          Colors.black.withOpacity(isDark ? 0.52 : 0.2),
+          scheme.surface.withOpacity(isDark ? 0.92 : 0.96),
+        );
+        final passiveOrb = Color.alphaBlend(
+          Colors.black.withOpacity(isDark ? 0.46 : 0.14),
+          scheme.surface.withOpacity(isDark ? 0.9 : 0.97),
+        );
         final doneFill = Color.alphaBlend(
           scheme.surfaceVariant.withOpacity(isDark ? 0.54 : 0.62),
           scheme.surface.withOpacity(isDark ? 0.92 : 0.97),
@@ -892,17 +960,36 @@ class _LiveIconOrbState extends State<_LiveIconOrb>
           height: 44,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: widget.checked
-                ? doneFill
-                : widget.accent.withOpacity(fillOpacity),
-            boxShadow: [
-              if (widget.live && !widget.checked)
-                BoxShadow(
-                  color: widget.accent.withOpacity(glow),
-                  blurRadius: 12 + (breathe * 10),
-                  spreadRadius: -3 + (breathe * 1.5),
-                ),
-            ],
+            color: (!widget.checked && !widget.live) ? passiveOrb : null,
+            gradient: (widget.checked || widget.live)
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: widget.checked
+                        ? [doneFill, doneFill]
+                        : [
+                            Color.alphaBlend(
+                              const Color(
+                                0xFF34D5FF,
+                              ).withOpacity(fillOpacity + 0.04),
+                              orbBase,
+                            ),
+                            Color.alphaBlend(
+                              const Color(
+                                0xFF8B5CF6,
+                              ).withOpacity(fillOpacity + 0.06),
+                              orbBase,
+                            ),
+                          ],
+                  )
+                : null,
+            border: Border.all(
+              color: widget.checked
+                  ? Colors.white.withOpacity(0.08)
+                  : (widget.live
+                        ? Colors.white.withOpacity(0.16)
+                        : Colors.white.withOpacity(0.08)),
+            ),
           ),
           child: Stack(
             children: [
@@ -1096,109 +1183,6 @@ class _CalmTimerProgressBarState extends State<_CalmTimerProgressBar>
   }
 }
 
-class _EnergyEdge extends StatefulWidget {
-  const _EnergyEdge({
-    required this.accent,
-    required this.live,
-    required this.checked,
-  });
-
-  final Color accent;
-  final bool live;
-  final bool checked;
-
-  @override
-  State<_EnergyEdge> createState() => _EnergyEdgeState();
-}
-
-class _EnergyEdgeState extends State<_EnergyEdge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _shimmerController;
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 10000),
-    );
-    if (widget.live) {
-      _shimmerController.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _EnergyEdge oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.live && !oldWidget.live) {
-      _shimmerController.repeat();
-    } else if (!widget.live && oldWidget.live) {
-      _shimmerController
-        ..stop()
-        ..value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AnimatedBuilder(
-      animation: _shimmerController,
-      builder: (context, _) {
-        if (widget.checked) {
-          final settledEdge = Color.alphaBlend(
-            scheme.onSurfaceVariant.withOpacity(0.18),
-            scheme.surfaceVariant.withOpacity(0.46),
-          );
-          return Container(
-            width: 3.0,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              color: settledEdge,
-            ),
-          );
-        }
-
-        // Move the energy band upward (bottom -> top) very slowly.
-        final shimmerT = widget.live ? (1 - _shimmerController.value) : 0.5;
-        final lead = (shimmerT - 0.18).clamp(0.0, 1.0).toDouble();
-        final center = shimmerT.clamp(0.0, 1.0).toDouble();
-        final trail = (shimmerT + 0.18).clamp(0.0, 1.0).toDouble();
-
-        final lowColor = widget.accent.withOpacity(widget.live ? 0.62 : 0.86);
-        final highColor = widget.accent.withOpacity(widget.live ? 0.98 : 0.94);
-
-        return Container(
-          width: 3.5,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [lowColor, lowColor, highColor, lowColor, lowColor],
-              stops: [0.0, lead, center, trail, 1.0],
-            ),
-            boxShadow: [
-              if (widget.live)
-                BoxShadow(
-                  color: widget.accent.withOpacity(0.3),
-                  blurRadius: 8,
-                  spreadRadius: 0.8,
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 class _NoiseGrainLayer extends StatelessWidget {
   const _NoiseGrainLayer({required this.color});
 
@@ -1296,6 +1280,69 @@ class _TaskStatusChip extends StatelessWidget {
   }
 }
 
+class _CompletedTaskRow extends StatelessWidget {
+  const _CompletedTaskRow({required this.title, required this.xp});
+
+  final String title;
+  final int xp;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final rowSurface = Color.alphaBlend(
+      Colors.white.withOpacity(0.025),
+      scheme.surface.withOpacity(0.25),
+    );
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      opacity: 0.92,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: rowSurface,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_rounded,
+                size: 15,
+                color: const Color(0xFF34D399).withOpacity(0.9),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurface.withOpacity(0.82),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '+$xp XP',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant.withOpacity(0.72),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MetaChip extends StatelessWidget {
   const _MetaChip({required this.icon, required this.label, this.iconAsset});
 
@@ -1310,7 +1357,12 @@ class _MetaChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(9),
-        color: scheme.surfaceContainerHighest.withOpacity(0.24),
+        gradient: LinearGradient(
+          colors: [
+            scheme.surfaceContainerHighest.withOpacity(0.26),
+            scheme.surfaceContainerHighest.withOpacity(0.16),
+          ],
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1354,31 +1406,34 @@ class _MetricChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 5, 10, 5),
+      padding: const EdgeInsets.fromLTRB(6, 4, 8, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: color.withOpacity(0.13),
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.24), color.withOpacity(0.14)],
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 16,
-            height: 16,
+            width: 14,
+            height: 14,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.16),
+              color: color.withOpacity(0.18),
             ),
-            child: Icon(icon, size: 10, color: color),
+            child: Icon(icon, size: 9, color: color.withOpacity(0.78)),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w400,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
               color: Color.alphaBlend(
-                color.withOpacity(0.12),
-                scheme.onSurface,
+                color.withOpacity(0.16),
+                scheme.onSurfaceVariant.withOpacity(0.74),
               ),
             ),
           ),
@@ -1400,13 +1455,15 @@ class _PillTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: color.withOpacity(0.14),
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.38), color.withOpacity(0.22)],
+        ),
       ),
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w600,
           letterSpacing: 0.35,
         ),
       ),
@@ -1460,7 +1517,7 @@ class _XpRewardBadgeState extends State<_XpRewardBadge>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textStyle = Theme.of(context).textTheme.labelMedium;
+    final textStyle = Theme.of(context).textTheme.labelSmall;
 
     return AnimatedBuilder(
       animation: _burstController,
@@ -1468,18 +1525,17 @@ class _XpRewardBadgeState extends State<_XpRewardBadge>
         final t = Curves.easeOutCubic.transform(_burstController.value);
         final burst = widget.checked ? math.sin(math.pi * t) : 0.0;
         final scale = 1 + (burst * 0.08);
-        final glow = widget.checked ? 0.22 + (burst * 0.34) : 0.0;
         final sparkOpacity = widget.checked ? (1 - t).clamp(0.0, 1.0) : 0.0;
 
         final baseTextColor = widget.checked
-            ? const Color(0xFF22C55E)
+            ? const Color(0xFF22C55E).withOpacity(0.92)
             : Color.alphaBlend(
-                widget.accent.withOpacity(0.45),
-                scheme.onSurfaceVariant.withOpacity(0.86),
+                widget.accent.withOpacity(0.2),
+                scheme.onSurfaceVariant.withOpacity(0.76),
               );
         final baseIconColor = widget.checked
-            ? const Color(0xFF22C55E)
-            : widget.accent.withOpacity(0.78);
+            ? const Color(0xFF22C55E).withOpacity(0.92)
+            : widget.accent.withOpacity(0.62);
 
         return Transform.scale(
           scale: scale,
@@ -1488,31 +1544,24 @@ class _XpRewardBadgeState extends State<_XpRewardBadge>
             clipBehavior: Clip.none,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
                   color: widget.checked
-                      ? const Color(0xFF22C55E).withOpacity(0.12)
-                      : widget.accent.withOpacity(0.09),
-                  boxShadow: [
-                    if (widget.checked)
-                      BoxShadow(
-                        color: const Color(0xFF22C55E).withOpacity(glow),
-                        blurRadius: 14 + (burst * 10),
-                        spreadRadius: burst * 1.5,
-                      ),
-                  ],
+                      ? const Color(0xFF22C55E).withOpacity(0.1)
+                      : widget.accent.withOpacity(0.1),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.bolt_rounded, size: 14, color: baseIconColor),
-                    const SizedBox(width: 5),
+                    Icon(Icons.bolt_rounded, size: 12, color: baseIconColor),
+                    const SizedBox(width: 4),
                     Text(
                       widget.checked
                           ? 'Earned +${widget.xp} XP'
                           : '+${widget.xp} XP reward',
                       style: textStyle?.copyWith(
+                        fontSize: 11,
                         color: baseTextColor,
                         fontWeight: widget.checked
                             ? FontWeight.w600
@@ -1584,3 +1633,7 @@ class _XpSpark extends StatelessWidget {
     );
   }
 }
+
+
+
+

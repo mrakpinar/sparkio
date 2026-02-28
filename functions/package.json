@@ -2,12 +2,16 @@
   "name": "sparkio-functions",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
+  "scripts": {
+    "tasks:normalize": "node scripts/normalize_tasks_in_firestore.js",
+    "tasks:normalize:apply": "node scripts/normalize_tasks_in_firestore.js --apply"
+  },
   "dependencies": {
-    "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.0.0",
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^7.0.5",
     "googleapis": "^140.0.0"
   }
 }

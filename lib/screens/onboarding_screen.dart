@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+
 // ─── Animation timing constants ───────────────────────────────────────────────
 const double _kBenefitIntervalBase = 0.12;
 const double _kBenefitIntervalStep = 0.16;
@@ -24,56 +26,63 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const List<_OnboardingSlide> _slides = [
-    _OnboardingSlide(
-      icon: Icons.flash_on_rounded,
-      eyebrow: 'Daily Momentum',
-      title: 'Small actions. Real change.',
-      description: '3 quick tasks a day to build momentum.',
-      highlights: [
-        '3 focused tasks',
-        'Streak + XP motivation',
-        'Quick daily wins',
-      ],
-      accentStart: Color(0xFF3B82F6),
-      accentEnd: Color(0xFF2EA7D6),
-      animateTitle: true,
-    ),
-    _OnboardingSlide(
-      icon: Icons.timer_rounded,
-      eyebrow: 'Focus Engine',
-      title: 'Build your daily rhythm',
-      description: 'A few minutes a day is enough to keep moving forward.',
-      highlights: [
-        'Stay focused for a few minutes',
-        'See your progress grow daily',
-        'Keep your routine on track',
-      ],
-      accentStart: Color(0xFF06B6D4),
-      accentEnd: Color(0xFF3B82F6),
-      animateTitle: true,
-    ),
-    _OnboardingSlide(
-      icon: Icons.insights_rounded,
-      eyebrow: 'Progress Clarity',
-      title: 'Watch your momentum grow',
-      description: 'Small actions add up faster than you think.',
-      highlights: [
-        'Notice your consistency build',
-        'Feel the progress over time',
-        'Turn effort into momentum',
-      ],
-      accentStart: Color(0xFF22C55E),
-      accentEnd: Color(0xFF14B8A6),
-      animateTitle: true,
-    ),
-  ];
+  static const int _slideCount = 3;
 
   final PageController _pageController = PageController();
   int _currentPage = 0;
   bool _finishing = false;
 
-  bool get _isLastPage => _currentPage == _slides.length - 1;
+  bool get _isLastPage => _currentPage == _slideCount - 1;
+
+  List<_OnboardingSlide> _slidesFor(BuildContext context) {
+    final l10n = context.l10n;
+    return [
+      _OnboardingSlide(
+        icon: Icons.flash_on_rounded,
+        eyebrow: l10n.tr('Daily Momentum'),
+        title: l10n.tr('Small actions. Real change.'),
+        description: l10n.tr('3 quick tasks a day to build momentum.'),
+        highlights: [
+          l10n.tr('3 focused tasks'),
+          l10n.tr('Streak + XP motivation'),
+          l10n.tr('Quick daily wins'),
+        ],
+        accentStart: const Color(0xFF3B82F6),
+        accentEnd: const Color(0xFF2EA7D6),
+        animateTitle: true,
+      ),
+      _OnboardingSlide(
+        icon: Icons.timer_rounded,
+        eyebrow: l10n.tr('Focus Engine'),
+        title: l10n.tr('Build your daily rhythm'),
+        description: l10n.tr(
+          'A few minutes a day is enough to keep moving forward.',
+        ),
+        highlights: [
+          l10n.tr('Stay focused for a few minutes'),
+          l10n.tr('See your progress grow daily'),
+          l10n.tr('Keep your routine on track'),
+        ],
+        accentStart: const Color(0xFF06B6D4),
+        accentEnd: const Color(0xFF3B82F6),
+        animateTitle: true,
+      ),
+      _OnboardingSlide(
+        icon: Icons.insights_rounded,
+        eyebrow: l10n.tr('Progress Clarity'),
+        title: l10n.tr('Watch your momentum grow'),
+        description: l10n.tr('Small actions add up faster than you think.'),
+        highlights: [
+          l10n.tr('Notice your consistency build'),
+          l10n.tr('Feel the progress over time'),
+          l10n.tr('Turn effort into momentum'),
+        ],
+        accentStart: const Color(0xFF22C55E),
+        accentEnd: const Color(0xFF14B8A6),
+        animateTitle: true,
+      ),
+    ];
+  }
 
   @override
   void dispose() {
@@ -96,7 +105,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Guard against calling after dispose
     if (!mounted) return;
     await _pageController.animateToPage(
-      _slides.length - 1,
+      _slideCount - 1,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
@@ -115,7 +124,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
-    final activeSlide = _slides[_currentPage];
+    final slides = _slidesFor(context);
+    final activeSlide = slides[_currentPage];
 
     // withValues(alpha:) replaces deprecated withOpacity()
     final topColor = isDark
@@ -236,7 +246,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               decoration: TextDecoration.none,
                             ),
                           ),
-                          child: const Text('Skip'),
+                          child: Text(context.l10n.tr('Skip')),
                         ),
                     ],
                   ),
@@ -244,11 +254,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
-                    itemCount: _slides.length,
+                    itemCount: slides.length,
                     onPageChanged: (index) =>
                         setState(() => _currentPage = index),
                     itemBuilder: (context, index) {
-                      final slide = _slides[index];
+                      final slide = slides[index];
                       return _OnboardingPage(
                         slide: slide,
                         isDark: isDark,
@@ -286,7 +296,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(_slides.length, (index) {
+                              children: List.generate(slides.length, (index) {
                                 final selected = index == _currentPage;
                                 return AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
@@ -342,8 +352,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                               // FIX: "Get started" only on the
                                               // last page, not the first.
                                               _isLastPage
-                                                  ? 'Get started'
-                                                  : 'Continue',
+                                                  ? context.l10n.tr('Get started')
+                                                  : context.l10n.tr('Continue'),
                                             ),
                                     ),
                                   ),
@@ -703,3 +713,7 @@ class _GlowOrb extends StatelessWidget {
     );
   }
 }
+
+
+
+

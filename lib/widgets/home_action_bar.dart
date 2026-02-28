@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+
 class HomeActionBar extends StatelessWidget {
   const HomeActionBar({
     super.key,
@@ -18,6 +20,7 @@ class HomeActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -30,7 +33,7 @@ class HomeActionBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 2),
             child: Text(
-              'Quick actions',
+              l10n.tr('Quick actions'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isDark
                     ? Colors.white.withOpacity(0.5)
@@ -46,8 +49,8 @@ class HomeActionBar extends StatelessWidget {
             children: [
               Expanded(
                 child: _ActionTile(
-                  title: 'Add a custom task',
-                  subtitle: 'Personalize your list',
+                  title: l10n.tr('Add a custom task'),
+                  subtitle: l10n.tr('Personalize your list'),
                   icon: Icons.add_rounded,
                   tint: isDark ? const Color(0xFF3B82F6) : scheme.primary,
                   onTap: onAddTask,
@@ -57,7 +60,7 @@ class HomeActionBar extends StatelessWidget {
               Expanded(
                 child: premiumActive
                     ? _StatusTile(
-                        title: 'Premium active',
+                        title: l10n.tr('Premium active'),
                         subtitle: premiumRemaining,
                         icon: Icons.verified_rounded,
                         tint: isDark
@@ -66,8 +69,8 @@ class HomeActionBar extends StatelessWidget {
                         onTap: onStatusTap,
                       )
                     : _ActionTile(
-                        title: 'Unlock perks',
-                        subtitle: 'Boosts & no-ads',
+                        title: l10n.tr('Unlock perks'),
+                        subtitle: l10n.tr('Boosts & no-ads'),
                         icon: Icons.workspace_premium_rounded,
                         iconAsset: 'assets/in_app_icons/premium.png',
                         tint: isDark
@@ -123,15 +126,6 @@ class _ActionTile extends StatelessWidget {
                   ? const Color(0xFF1E3A5F).withOpacity(0.35)
                   : theme.colorScheme.outline.withOpacity(0.25),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withOpacity(0.2)
-                    : theme.colorScheme.shadow.withOpacity(0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,15 +241,6 @@ class _StatusTile extends StatelessWidget {
                   ? const Color(0xFF1E3A5F).withOpacity(0.35)
                   : theme.colorScheme.outline.withOpacity(0.25),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withOpacity(0.2)
-                    : theme.colorScheme.shadow.withOpacity(0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,3 +286,7 @@ class _StatusTile extends StatelessWidget {
     );
   }
 }
+
+
+
+

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../app_strings.dart';
+import 'locale_service.dart';
 import 'premium_service.dart';
 
 class IapState {
@@ -55,6 +57,9 @@ class IapService {
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
+  String _t(String key) =>
+      AppLocalizations.lookup(LocaleService.instance.effectiveLanguageCode, key);
+
   Future<void> init() async {
     if (state.value.loading == false && state.value.available) {
       return;
@@ -66,7 +71,7 @@ class IapService {
     if (!available) {
       state.value = state.value.copyWith(
         loading: false,
-        message: 'Store not available.',
+        message: _t('Store not available.'),
       );
       return;
     }
@@ -78,7 +83,7 @@ class IapService {
       onError: (error) {
         state.value = state.value.copyWith(
           loading: false,
-          message: 'Purchase error.',
+          message: _t('Purchase error.'),
         );
       },
     );
@@ -89,7 +94,7 @@ class IapService {
     if (response.error != null) {
       state.value = state.value.copyWith(
         loading: false,
-        message: 'Unable to load products.',
+        message: _t('Unable to load products.'),
       );
       return;
     }
@@ -100,7 +105,7 @@ class IapService {
     state.value = state.value.copyWith(
       loading: false,
       products: products,
-      message: products.isEmpty ? 'No products found.' : null,
+      message: products.isEmpty ? _t('No products found.') : null,
     );
   }
 
@@ -121,12 +126,12 @@ class IapService {
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
       if (purchase.status == PurchaseStatus.pending) {
-        state.value = state.value.copyWith(message: 'Purchase pending...');
+        state.value = state.value.copyWith(message: _t('Purchase pending...'));
         continue;
       }
 
       if (purchase.status == PurchaseStatus.error) {
-        state.value = state.value.copyWith(message: 'Purchase failed.');
+        state.value = state.value.copyWith(message: _t('Purchase failed.'));
         if (purchase.pendingCompletePurchase) {
           await _iap.completePurchase(purchase);
         }
@@ -138,9 +143,9 @@ class IapService {
         final valid = await _verifyPurchase(purchase);
         if (valid) {
           await _grantPremiumForProduct(purchase.productID);
-          state.value = state.value.copyWith(message: 'Premium active.');
+          state.value = state.value.copyWith(message: _t('Premium active.'));
         } else {
-          state.value = state.value.copyWith(message: 'Purchase invalid.');
+          state.value = state.value.copyWith(message: _t('Purchase invalid.'));
         }
       }
 

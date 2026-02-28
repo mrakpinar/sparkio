@@ -46,14 +46,6 @@ class HomeAllDoneSliver extends StatelessWidget {
                     color: scheme.outline.withOpacity(0.22),
                     width: 1.2,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: scheme.primary.withOpacity(0.08),
-                      blurRadius: 18,
-                      spreadRadius: -6,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,13 +72,6 @@ class HomeAllDoneSliver extends StatelessWidget {
                               color: scheme.primary.withOpacity(0.2),
                               width: 1.2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: scheme.primary.withOpacity(0.12),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
                           ),
                           child: PulseIcon(
                             icon: Icons.check_circle_rounded,
@@ -187,13 +172,6 @@ class _AllDonePill extends StatelessWidget {
         color: scheme.surface.withOpacity(0.8),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: scheme.outline.withOpacity(0.35), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.primary.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

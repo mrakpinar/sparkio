@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
 import '../models/task.dart';
 import '../theme/task_category_style.dart';
 
@@ -19,9 +20,16 @@ class HomeActiveTimerCard extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback? onComplete;
 
-  String _difficultyLabel(String value) {
-    if (value.isEmpty) return 'Easy';
-    return value[0].toUpperCase() + value.substring(1).toLowerCase();
+  String _difficultyLabel(BuildContext context, String value) {
+    final l10n = context.l10n;
+    switch (value.toLowerCase()) {
+      case 'hard':
+        return l10n.tr('Hard');
+      case 'medium':
+        return l10n.tr('Medium');
+      default:
+        return l10n.tr('Easy');
+    }
   }
 
   String _format(Duration d) {
@@ -31,14 +39,27 @@ class HomeActiveTimerCard extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  String _durationLabel(BuildContext context, Task task) {
+    final l10n = context.l10n;
+    final totalSeconds = task.totalDurationSeconds;
+    if (totalSeconds < 60) {
+      return '$totalSeconds ${l10n.tr('seconds')}';
+    }
+    if (totalSeconds % 60 == 0) {
+      return '${totalSeconds ~/ 60} ${l10n.tr('min')}';
+    }
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    return '$mins ${l10n.tr('min')} $secs ${l10n.tr('seconds')}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final totalSeconds = (task.durationMinutes * 60)
-        .clamp(1, 360000)
-        .toDouble();
+    final totalSeconds = task.totalDurationSeconds.toDouble();
     final progress = 1 - (remaining.inSeconds.clamp(0, 360000) / totalSeconds);
     final categoryColor = TaskCategoryStyle.color(
       task.category,
@@ -82,20 +103,6 @@ class HomeActiveTimerCard extends StatelessWidget {
           color: statusGlow.withOpacity(isDark ? 0.45 : 0.22),
           width: done ? 1.7 : 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: statusGlow.withOpacity(isDark ? 0.22 : 0.12),
-            blurRadius: isDark ? 24 : 14,
-            spreadRadius: isDark ? 1.1 : 0.2,
-            offset: const Offset(0, 8),
-          ),
-          if (isDark)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-        ],
       ),
       child: Stack(
         children: [
@@ -152,7 +159,9 @@ class HomeActiveTimerCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          done ? 'Time is up!' : 'Active Timer',
+                          done
+                              ? l10n.tr('Time is up!')
+                              : l10n.tr('Active Timer'),
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: subtitleColor,
                             fontWeight: FontWeight.w700,
@@ -189,16 +198,9 @@ class HomeActiveTimerCard extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: statusGlow.withOpacity(0.42)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: statusGlow.withOpacity(isDark ? 0.24 : 0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: Text(
-                      done ? 'DONE' : 'LIVE',
+                      done ? l10n.tr('DONE') : l10n.tr('LIVE'),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: done ? const Color(0xFF86EFAC) : statusGlow,
                         fontWeight: FontWeight.w800,
@@ -220,12 +222,12 @@ class HomeActiveTimerCard extends StatelessWidget {
                   ),
                   _MetaChip(
                     icon: Icons.schedule_rounded,
-                    label: '${task.durationMinutes} min',
+                    label: _durationLabel(context, task),
                     color: scheme.primary,
                   ),
                   _MetaChip(
                     icon: Icons.bar_chart_rounded,
-                    label: _difficultyLabel(task.difficulty),
+                    label: _difficultyLabel(context, task.difficulty),
                     color: const Color(0xFF10B981),
                   ),
                 ],
@@ -274,8 +276,10 @@ class HomeActiveTimerCard extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 done
-                    ? 'Ready to mark as completed.'
-                    : 'Keep focus - $leftSeconds sec left',
+                    ? l10n.tr('Ready to mark as completed.')
+                    : l10n.trf('Keep focus - {count} sec left', {
+                        'count': leftSeconds,
+                      }),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: subtitleColor,
                 ),
@@ -287,7 +291,7 @@ class HomeActiveTimerCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Progress',
+                        l10n.tr('Progress'),
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
@@ -340,7 +344,7 @@ class HomeActiveTimerCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onCancel,
                       icon: const Icon(Icons.close_rounded, size: 20),
-                      label: const Text('Cancel'),
+                      label: Text(l10n.tr('Cancel')),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -364,7 +368,9 @@ class HomeActiveTimerCard extends StatelessWidget {
                         done ? Icons.check_rounded : Icons.play_arrow_rounded,
                         size: 20,
                       ),
-                      label: Text(done ? 'Complete' : 'Continue'),
+                      label: Text(
+                        done ? l10n.tr('Complete') : l10n.tr('Continue'),
+                      ),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -422,3 +428,7 @@ class _MetaChip extends StatelessWidget {
     );
   }
 }
+
+
+
+

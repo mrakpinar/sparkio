@@ -18,6 +18,9 @@
       }
     }
   },
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": "web",
     "ignore": [

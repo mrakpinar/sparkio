@@ -1,3 +1,4 @@
 serviceAccount.json
 firebaseAdmin.json
+*-firebase-adminsdk-*.json
 node_modules

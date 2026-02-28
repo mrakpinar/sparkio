@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../models/task.dart';
+import '../models/challenge_mode.dart';
 import '../models/weekly_plan.dart';
+import 'task_localizer.dart';
 
 class TaskRepository {
   FirebaseFirestore get _db =>
@@ -43,12 +46,32 @@ class TaskRepository {
   static const _kActiveTimerEndAtMs = 'active_timer_end_at_ms_v1';
   static const _kWeeklyPlan = 'weekly_plan_v1';
   static const _kWeeklyProgress = 'weekly_progress_v1';
+  static const _kQueuedWeeklyPlan = 'queued_weekly_plan_v1';
   static const _kProfileName = 'profile_name_v1';
   static const _kProfileAvatar = 'profile_avatar_v1';
   static const _kAddTaskCtaVariant = 'add_task_cta_variant_v1';
   static const _kRatePromptShownTriggers = 'rate_prompt_shown_triggers_v1';
   static const _kStatsScreenshotPresetApplied =
       'stats_screenshot_preset_applied_v1';
+  static const _kInstallAtMs = 'install_at_ms_v1';
+  static const _kRetentionDay1Logged = 'retention_day1_logged_v1';
+  static const _kRetentionDay7Logged = 'retention_day7_logged_v1';
+  static const _kStreakRescueShownDate = 'streak_rescue_shown_date_v1';
+  static const _kWeeklyReviewShownWeek = 'weekly_review_shown_week_v1';
+  static const _kNudgesDismissedDate = 'nudges_dismissed_date_v1';
+  static const _kNudgesDismissedIds = 'nudges_dismissed_ids_v1';
+  static const _kCoachMorningIntentionDate = 'coach_morning_intention_date_v1';
+  static const _kCoachMorningIntentionValue =
+      'coach_morning_intention_value_v1';
+  static const _kCoachEveningReviewDate = 'coach_evening_review_date_v1';
+  static const _kCoachEveningReviewDone = 'coach_evening_review_done_v1';
+  static const _kInstallId = 'install_id_v1';
+  static const _kReferralExtraSparkSlots = 'referral_extra_spark_slots_v1';
+  static const _kActiveChallenge = 'active_challenge_v1';
+  static const _kCompletionHourCounts = 'completion_hour_counts_v1';
+  static const _kTaskInsightCounts = 'task_insight_counts_v1';
+  static const _kSavedCreatorPackIds = 'saved_creator_pack_ids_v1';
+  static const _kCreatorPackRatings = 'creator_pack_ratings_v1';
 
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
@@ -103,6 +126,236 @@ class TaskRepository {
     ),
   ];
 
+  static const List<Task> _localCatalog = [
+    Task(
+      id: 'local_mind_1',
+      title: 'Take 3 slow breaths',
+      category: 'mind',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_mind_2',
+      title: 'Write one clear priority for today',
+      category: 'mind',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_mind_3',
+      title: 'Clear one distraction from your desk',
+      category: 'mind',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_mind_4',
+      title: 'Close extra tabs and focus for 3 minutes',
+      category: 'mind',
+      difficulty: 'medium',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_mind_5',
+      title: 'Name one thing you can control today',
+      category: 'mind',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_mind_6',
+      title: 'Write one win from your day',
+      category: 'mind',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_body_1',
+      title: 'Stand up and stretch your neck and shoulders',
+      category: 'body',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_body_2',
+      title: 'Do 10 squats at your own pace',
+      category: 'body',
+      difficulty: 'medium',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_body_3',
+      title: 'Walk for 4 minutes',
+      category: 'body',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_body_4',
+      title: 'Roll your shoulders for 60 seconds',
+      category: 'body',
+      difficulty: 'easy',
+      durationMinutes: 1,
+      durationSeconds: 60,
+    ),
+    Task(
+      id: 'local_body_5',
+      title: 'Do 8 wall push-ups',
+      category: 'body',
+      difficulty: 'medium',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_body_6',
+      title: 'Stretch your calves for 2 minutes',
+      category: 'body',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_growth_1',
+      title: 'Read one page of something useful',
+      category: 'growth',
+      difficulty: 'easy',
+      durationMinutes: 5,
+    ),
+    Task(
+      id: 'local_growth_2',
+      title: 'Learn one new word and use it in a sentence',
+      category: 'growth',
+      difficulty: 'medium',
+      durationMinutes: 5,
+    ),
+    Task(
+      id: 'local_growth_3',
+      title: 'Plan tomorrow in three bullet points',
+      category: 'growth',
+      difficulty: 'easy',
+      durationMinutes: 5,
+    ),
+    Task(
+      id: 'local_growth_4',
+      title: 'Organize one small area around you',
+      category: 'growth',
+      difficulty: 'easy',
+      durationMinutes: 5,
+    ),
+    Task(
+      id: 'local_growth_5',
+      title: 'Write one idea to improve your routine',
+      category: 'growth',
+      difficulty: 'medium',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_growth_6',
+      title: 'Start a task you avoid for just 2 minutes',
+      category: 'growth',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_calm_1',
+      title: 'Breathe in for 4 and out for 6 for 2 minutes',
+      category: 'calm',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_calm_2',
+      title: 'Sit quietly and notice sounds for 2 minutes',
+      category: 'calm',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_calm_3',
+      title: 'Relax your jaw and shoulders',
+      category: 'calm',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_calm_4',
+      title: 'Do a short body scan for 3 minutes',
+      category: 'calm',
+      difficulty: 'medium',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_calm_5',
+      title: 'Step away from your screen for 2 minutes',
+      category: 'calm',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_calm_6',
+      title: 'Put your phone down and breathe for 60 seconds',
+      category: 'calm',
+      difficulty: 'easy',
+      durationMinutes: 1,
+      durationSeconds: 60,
+    ),
+    Task(
+      id: 'local_health_1',
+      title: 'Drink one full glass of water',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_health_2',
+      title: 'Refill your water bottle now',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_health_3',
+      title: 'Eat one healthy snack',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 4,
+    ),
+    Task(
+      id: 'local_health_4',
+      title: 'Step outside for fresh air for 3 minutes',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+    Task(
+      id: 'local_health_5',
+      title: 'Reset your posture for 2 minutes',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 2,
+    ),
+    Task(
+      id: 'local_health_6',
+      title: 'Do a 20-20-20 eye break',
+      category: 'health',
+      difficulty: 'easy',
+      durationMinutes: 3,
+    ),
+  ];
+
+  List<Task> _dedupeTasks(List<Task> tasks) {
+    final seenIds = <String>{};
+    final seenTitleKeys = <String>{};
+    final result = <Task>[];
+    for (final task in tasks) {
+      if (seenIds.contains(task.id)) continue;
+      final titleKey = '${task.category}|${task.title.toLowerCase().trim()}';
+      if (seenTitleKeys.contains(titleKey)) continue;
+      seenIds.add(task.id);
+      seenTitleKeys.add(titleKey);
+      result.add(task);
+    }
+    return result;
+  }
+
   Future<List<Task>> loadPool() async {
     _lastPoolError = null;
     final remote = await _loadRemoteTasks();
@@ -111,7 +364,13 @@ class TaskRepository {
           'No tasks available right now. Please try again later.';
     }
     final custom = await getCustomTasks();
-    return [...remote, ...custom];
+    return _dedupeTasks(
+      [
+        ...TaskLocalizer.localizeTasks(remote),
+        ...TaskLocalizer.localizeTasks(_localCatalog),
+        ...custom,
+      ],
+    );
   }
 
   Future<List<Task>> _loadRemoteTasks() async {
@@ -238,7 +497,7 @@ class TaskRepository {
     final raw = sp.getString(_kSelectedTasks);
     if (raw == null) return [];
     final decoded = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-    return decoded.map(Task.fromMap).toList();
+    return TaskLocalizer.localizeTasks(decoded.map(Task.fromMap).toList());
   }
 
   Future<void> saveSelectedTasks(List<Task> tasks) async {
@@ -246,6 +505,22 @@ class TaskRepository {
     await sp.setString(
       _kSelectedTasks,
       jsonEncode(tasks.map((t) => t.toMap()).toList()),
+    );
+  }
+
+  List<Task> localizeTasksForCurrentLocale(List<Task> tasks) {
+    return TaskLocalizer.localizeTasks(tasks);
+  }
+
+  String localizeTaskTitleForCurrentLocale(
+    String title, {
+    String? category,
+    String? taskId,
+  }) {
+    return TaskLocalizer.localizeTitle(
+      title,
+      category: category,
+      taskId: taskId,
     );
   }
 
@@ -300,6 +575,294 @@ class TaskRepository {
   Future<void> setReminderEnabled(bool value) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool(_kReminderEnabled, value);
+  }
+
+  Future<String?> getStreakRescueShownDate() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kStreakRescueShownDate);
+  }
+
+  Future<void> setStreakRescueShownDate(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kStreakRescueShownDate, dateKey);
+  }
+
+  Future<String?> getWeeklyReviewShownWeek() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kWeeklyReviewShownWeek);
+  }
+
+  Future<void> setWeeklyReviewShownWeek(String weekKey) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kWeeklyReviewShownWeek, weekKey);
+  }
+
+  Future<Set<String>> getDismissedInAppNudges(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kNudgesDismissedDate);
+    if (savedDate != dateKey) return <String>{};
+    final raw = sp.getString(_kNudgesDismissedIds);
+    if (raw == null || raw.trim().isEmpty) return <String>{};
+    try {
+      final decoded = (jsonDecode(raw) as List).cast<String>();
+      return decoded
+          .map((id) => id.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<void> dismissInAppNudge({
+    required String dateKey,
+    required String nudgeId,
+  }) async {
+    final trimmed = nudgeId.trim();
+    if (trimmed.isEmpty) return;
+    final sp = await SharedPreferences.getInstance();
+    final current = await getDismissedInAppNudges(dateKey);
+    current.add(trimmed);
+    await sp.setString(_kNudgesDismissedDate, dateKey);
+    await sp.setString(_kNudgesDismissedIds, jsonEncode(current.toList()));
+  }
+
+  Future<String?> getCoachMorningIntention(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kCoachMorningIntentionDate);
+    if (savedDate != dateKey) return null;
+    final value = sp.getString(_kCoachMorningIntentionValue)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  Future<void> setCoachMorningIntention({
+    required String dateKey,
+    required String intention,
+  }) async {
+    final trimmed = intention.trim();
+    if (trimmed.isEmpty) return;
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kCoachMorningIntentionDate, dateKey);
+    await sp.setString(_kCoachMorningIntentionValue, trimmed);
+  }
+
+  Future<bool> getCoachEveningReviewDone(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kCoachEveningReviewDate);
+    if (savedDate != dateKey) return false;
+    return sp.getBool(_kCoachEveningReviewDone) ?? false;
+  }
+
+  Future<void> setCoachEveningReviewDone({
+    required String dateKey,
+    required bool done,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kCoachEveningReviewDate, dateKey);
+    await sp.setBool(_kCoachEveningReviewDone, done);
+  }
+
+  Future<FunnelOpenState> registerOpenForFunnel() async {
+    final sp = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    var installAtMs = sp.getInt(_kInstallAtMs);
+    var isFirstOpen = false;
+    if (installAtMs == null) {
+      installAtMs = now.millisecondsSinceEpoch;
+      isFirstOpen = true;
+      await sp.setInt(_kInstallAtMs, installAtMs);
+    }
+
+    final installDate = DateTime.fromMillisecondsSinceEpoch(installAtMs);
+    final installDay = DateTime(
+      installDate.year,
+      installDate.month,
+      installDate.day,
+    );
+    final daysSinceInstall = today.difference(installDay).inDays;
+
+    final d1Logged = sp.getBool(_kRetentionDay1Logged) ?? false;
+    final d7Logged = sp.getBool(_kRetentionDay7Logged) ?? false;
+
+    final day1Retained = !d1Logged && daysSinceInstall == 1;
+    final day7Retained = !d7Logged && daysSinceInstall == 7;
+
+    if (day1Retained) {
+      await sp.setBool(_kRetentionDay1Logged, true);
+    }
+    if (day7Retained) {
+      await sp.setBool(_kRetentionDay7Logged, true);
+    }
+
+    return FunnelOpenState(
+      isFirstOpen: isFirstOpen,
+      day1Retained: day1Retained,
+      day7Retained: day7Retained,
+      daysSinceInstall: daysSinceInstall,
+    );
+  }
+
+  Future<String> getOrCreateInstallId() async {
+    final sp = await SharedPreferences.getInstance();
+    final existing = sp.getString(_kInstallId)?.trim();
+    if (existing != null && existing.isNotEmpty) return existing;
+    final generated = const Uuid().v4();
+    await sp.setString(_kInstallId, generated);
+    return generated;
+  }
+
+  Future<int> getReferralExtraSparkSlots() async {
+    final sp = await SharedPreferences.getInstance();
+    final stored = sp.getInt(_kReferralExtraSparkSlots) ?? 0;
+    return stored < 0 ? 0 : stored;
+  }
+
+  Future<int> addReferralExtraSparkSlots(int delta) async {
+    if (delta <= 0) return getReferralExtraSparkSlots();
+    final sp = await SharedPreferences.getInstance();
+    final current = await getReferralExtraSparkSlots();
+    final next = (current + delta).clamp(0, 99);
+    await sp.setInt(_kReferralExtraSparkSlots, next);
+    return next;
+  }
+
+  Future<int> getFreeSparkSlotLimit({required bool premiumActive}) async {
+    if (premiumActive) return 999;
+    final extra = await getReferralExtraSparkSlots();
+    return (1 + extra).clamp(1, 999);
+  }
+
+  Future<Set<String>> getSavedCreatorPackIds() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kSavedCreatorPackIds);
+    if (raw == null || raw.trim().isEmpty) return <String>{};
+    try {
+      final decoded = (jsonDecode(raw) as List).cast<String>();
+      return decoded
+          .map((id) => id.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<void> setCreatorPackSaved({
+    required String packId,
+    required bool saved,
+  }) async {
+    final trimmed = packId.trim();
+    if (trimmed.isEmpty) return;
+    final sp = await SharedPreferences.getInstance();
+    final current = await getSavedCreatorPackIds();
+    if (saved) {
+      current.add(trimmed);
+    } else {
+      current.remove(trimmed);
+    }
+    await sp.setString(_kSavedCreatorPackIds, jsonEncode(current.toList()));
+  }
+
+  Future<Map<String, int>> getCreatorPackRatings() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kCreatorPackRatings);
+    if (raw == null || raw.trim().isEmpty) return <String, int>{};
+    try {
+      final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      final ratings = <String, int>{};
+      for (final entry in decoded.entries) {
+        final id = entry.key.trim();
+        final value = (entry.value as num?)?.toInt() ?? 0;
+        if (id.isEmpty || value < 1 || value > 5) continue;
+        ratings[id] = value;
+      }
+      return ratings;
+    } catch (_) {
+      return <String, int>{};
+    }
+  }
+
+  Future<void> setCreatorPackRating({
+    required String packId,
+    required int rating,
+  }) async {
+    final trimmed = packId.trim();
+    if (trimmed.isEmpty) return;
+    final safeRating = rating.clamp(1, 5).toInt();
+    final sp = await SharedPreferences.getInstance();
+    final ratings = await getCreatorPackRatings();
+    ratings[trimmed] = safeRating;
+    await sp.setString(_kCreatorPackRatings, jsonEncode(ratings));
+  }
+
+  Future<ActiveChallenge?> getActiveChallenge() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kActiveChallenge);
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      final challenge = ActiveChallenge.fromMap(map);
+      if (challenge.templateId.isEmpty ||
+          challenge.startDateKey.isEmpty ||
+          challenge.durationDays <= 0) {
+        await sp.remove(_kActiveChallenge);
+        return null;
+      }
+      return challenge;
+    } catch (_) {
+      await sp.remove(_kActiveChallenge);
+      return null;
+    }
+  }
+
+  Future<void> saveActiveChallenge(ActiveChallenge challenge) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kActiveChallenge, jsonEncode(challenge.toMap()));
+  }
+
+  Future<void> clearActiveChallenge() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kActiveChallenge);
+  }
+
+  Future<ChallengeProgressUpdate?> markActiveChallengeProgress({
+    required String dateKey,
+    required int completedToday,
+  }) async {
+    final active = await getActiveChallenge();
+    if (active == null) return null;
+    if (completedToday < active.dailyGoal) {
+      return ChallengeProgressUpdate(
+        challenge: active,
+        dayLogged: false,
+        completedNow: false,
+      );
+    }
+    if (!active.includesDate(dateKey) || active.hasLoggedDate(dateKey)) {
+      return ChallengeProgressUpdate(
+        challenge: active,
+        dayLogged: false,
+        completedNow: false,
+      );
+    }
+
+    final nextCompleted = {...active.completedDateKeys, dateKey}.toList()
+      ..sort();
+    var updated = active.copyWith(completedDateKeys: nextCompleted);
+    var completedNow = false;
+    if (updated.isCompleted && !updated.completionNotified) {
+      completedNow = true;
+      updated = updated.copyWith(completionNotified: true);
+    }
+    await saveActiveChallenge(updated);
+    return ChallengeProgressUpdate(
+      challenge: updated,
+      dayLogged: true,
+      completedNow: completedNow,
+    );
   }
 
   Future<String?> getProfileName() async {
@@ -486,7 +1049,11 @@ class TaskRepository {
     return decoded;
   }
 
-  Future<void> incrementCompleted(String category) async {
+  Future<void> incrementCompleted(
+    String category, {
+    Task? task,
+    DateTime? completedAt,
+  }) async {
     final sp = await SharedPreferences.getInstance();
     final total = (sp.getInt(_kTotalCompleted) ?? 0) + 1;
     await sp.setInt(_kTotalCompleted, total);
@@ -494,6 +1061,125 @@ class TaskRepository {
     final counts = await getCategoryCounts();
     counts[category] = (counts[category] ?? 0) + 1;
     await sp.setString(_kCategoryCounts, jsonEncode(counts));
+
+    if (task != null) {
+      final timestamp = completedAt ?? DateTime.now();
+      await _incrementHourInsight(sp, timestamp.hour);
+      await _incrementTaskInsight(sp, task: task, completedAt: timestamp);
+    }
+  }
+
+  Future<void> _incrementHourInsight(SharedPreferences sp, int hour) async {
+    final safeHour = hour.clamp(0, 23);
+    final current = await getCompletionHourCounts();
+    current[safeHour] = (current[safeHour] ?? 0) + 1;
+    final rawMap = <String, int>{
+      for (final entry in current.entries)
+        if (entry.key >= 0 && entry.key <= 23)
+          entry.key.toString(): entry.value,
+    };
+    await sp.setString(_kCompletionHourCounts, jsonEncode(rawMap));
+  }
+
+  Future<void> _incrementTaskInsight(
+    SharedPreferences sp, {
+    required Task task,
+    required DateTime completedAt,
+  }) async {
+    final raw = sp.getString(_kTaskInsightCounts);
+    final decoded = raw == null
+        ? <String, dynamic>{}
+        : (jsonDecode(raw) as Map<String, dynamic>);
+    final key = _taskInsightKey(task);
+    final existing = decoded[key] is Map
+        ? (decoded[key] as Map).cast<String, dynamic>()
+        : {};
+    final nextCount = ((existing['count'] as num?)?.toInt() ?? 0) + 1;
+    decoded[key] = <String, dynamic>{
+      'title': task.title.trim(),
+      'category': task.category,
+      'count': nextCount,
+      'lastCompletedAt': completedAt.millisecondsSinceEpoch,
+    };
+
+    if (decoded.length > 80) {
+      final entries = decoded.entries.toList()
+        ..sort((a, b) {
+          final aCount = (((a.value as Map?)?['count'] as num?)?.toInt() ?? 0);
+          final bCount = (((b.value as Map?)?['count'] as num?)?.toInt() ?? 0);
+          return bCount.compareTo(aCount);
+        });
+      final keep = entries.take(60);
+      final pruned = <String, dynamic>{
+        for (final entry in keep) entry.key: entry.value,
+      };
+      await sp.setString(_kTaskInsightCounts, jsonEncode(pruned));
+      return;
+    }
+
+    await sp.setString(_kTaskInsightCounts, jsonEncode(decoded));
+  }
+
+  String _taskInsightKey(Task task) {
+    final normalizedTitle = task.title
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return '${task.category}|$normalizedTitle';
+  }
+
+  Future<Map<int, int>> getCompletionHourCounts() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kCompletionHourCounts);
+    if (raw == null || raw.trim().isEmpty) return {};
+    try {
+      final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      final result = <int, int>{};
+      for (final entry in decoded.entries) {
+        final hour = int.tryParse(entry.key);
+        if (hour == null || hour < 0 || hour > 23) continue;
+        final value = (entry.value as num?)?.toInt() ?? 0;
+        if (value <= 0) continue;
+        result[hour] = value;
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<List<TaskCompletionInsight>> getTopTaskCompletionInsights({
+    int limit = 5,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kTaskInsightCounts);
+    if (raw == null || raw.trim().isEmpty) {
+      return const <TaskCompletionInsight>[];
+    }
+    try {
+      final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+      final list = <TaskCompletionInsight>[];
+      for (final entry in decoded.entries) {
+        if (entry.value is! Map) continue;
+        final map = (entry.value as Map).cast<String, dynamic>();
+        final title = (map['title'] as String?)?.trim() ?? '';
+        final category = (map['category'] as String?)?.trim() ?? 'mind';
+        final count = (map['count'] as num?)?.toInt() ?? 0;
+        if (title.isEmpty || count <= 0) continue;
+        list.add(
+          TaskCompletionInsight(
+            key: entry.key,
+            title: title,
+            category: category,
+            count: count,
+          ),
+        );
+      }
+      list.sort((a, b) => b.count.compareTo(a.count));
+      return list.take(limit.clamp(1, 20)).toList(growable: false);
+    } catch (_) {
+      return const <TaskCompletionInsight>[];
+    }
   }
 
   int xpForNextLevel(int level) {
@@ -778,6 +1464,36 @@ class TaskRepository {
     await sp.remove(_kWeeklyProgress);
   }
 
+  Future<void> queueWeeklyPlan(WeeklyPlan plan) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kQueuedWeeklyPlan, jsonEncode(plan.toMap()));
+  }
+
+  Future<WeeklyPlan?> getQueuedWeeklyPlan() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kQueuedWeeklyPlan);
+    if (raw == null) return null;
+    final decoded = (jsonDecode(raw) as Map).cast<String, dynamic>();
+    final queued = WeeklyPlan.fromMap(decoded);
+    if (queued.weekKey.isEmpty || !queued.hasTargets) return null;
+    return queued;
+  }
+
+  Future<void> clearQueuedWeeklyPlan() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kQueuedWeeklyPlan);
+  }
+
+  Future<bool> applyQueuedWeeklyPlanIfReady({String? weekKey}) async {
+    final queued = await getQueuedWeeklyPlan();
+    if (queued == null) return false;
+    final expectedWeek = weekKey ?? currentWeekKey();
+    if (queued.weekKey != expectedWeek) return false;
+    await saveWeeklyPlan(queued);
+    await clearQueuedWeeklyPlan();
+    return true;
+  }
+
   Future<WeeklyProgress> getWeeklyProgress({required String weekKey}) async {
     final sp = await SharedPreferences.getInstance();
     final raw = sp.getString(_kWeeklyProgress);
@@ -870,6 +1586,33 @@ class TaskRepository {
       'calm': 11,
       'health': 9,
     };
+    const completionHourCounts = <String, int>{
+      '6': 3,
+      '8': 7,
+      '12': 4,
+      '18': 6,
+      '21': 5,
+    };
+    const taskInsightCounts = <String, Map<String, dynamic>>{
+      'growth|evening focus sprint': {
+        'title': 'Evening focus sprint',
+        'category': 'growth',
+        'count': 8,
+        'lastCompletedAt': 0,
+      },
+      'mind|write one clear priority for today': {
+        'title': 'Write one clear priority for today',
+        'category': 'mind',
+        'count': 6,
+        'lastCompletedAt': 0,
+      },
+      'calm|breathe in for 4 and out for 6 for 2 minutes': {
+        'title': 'Breathe in for 4 and out for 6 for 2 minutes',
+        'category': 'calm',
+        'count': 5,
+        'lastCompletedAt': 0,
+      },
+    };
     const totalCompleted = 99;
     const weeklyTargets = <String, int>{
       'growth': 2,
@@ -888,6 +1631,11 @@ class TaskRepository {
     await sp.setInt(_kBestStreak, 14);
     await sp.setInt(_kStreakCount, 6);
     await sp.setString(_kCategoryCounts, jsonEncode(categoryCounts));
+    await sp.setString(
+      _kCompletionHourCounts,
+      jsonEncode(completionHourCounts),
+    );
+    await sp.setString(_kTaskInsightCounts, jsonEncode(taskInsightCounts));
     await sp.setString(_kDailyHistory, jsonEncode(dailyHistory));
     await sp.setString(_kDailyCompletedDate, todayKey);
     await sp.setInt(_kDailyCompletedCount, 3);
@@ -938,6 +1686,34 @@ class ActiveTaskTimer {
     required this.taskTitle,
     required this.endAt,
   });
+}
+
+class FunnelOpenState {
+  const FunnelOpenState({
+    required this.isFirstOpen,
+    required this.day1Retained,
+    required this.day7Retained,
+    required this.daysSinceInstall,
+  });
+
+  final bool isFirstOpen;
+  final bool day1Retained;
+  final bool day7Retained;
+  final int daysSinceInstall;
+}
+
+class TaskCompletionInsight {
+  const TaskCompletionInsight({
+    required this.key,
+    required this.title,
+    required this.category,
+    required this.count,
+  });
+
+  final String key;
+  final String title;
+  final String category;
+  final int count;
 }
 
 class XpProgress {

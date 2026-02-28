@@ -1,178 +1,223 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import '../app_strings.dart';
 
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     super.key,
     required this.userName,
     required this.isDark,
-    required this.reminderEnabled,
-    required this.refreshing,
-    required this.onContact,
-    required this.onToggleTheme,
-    required this.onToggleReminder,
-    required this.onSendTestNotification,
-    required this.onRefresh,
-    required this.onOpenPerks,
+    required this.onOpenProfile,
+    required this.onOpenStats,
     required this.onOpenMenu,
   });
 
   final String userName;
   final bool isDark;
-  final bool reminderEnabled;
-  final bool refreshing;
-  final VoidCallback onContact;
-  final VoidCallback onToggleTheme;
-  final VoidCallback onToggleReminder;
-  final VoidCallback onSendTestNotification;
-  final VoidCallback? onRefresh;
-  final VoidCallback onOpenPerks;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onOpenStats;
   final VoidCallback onOpenMenu;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final topText = theme.textTheme;
+    final l10n = context.l10n;
     final cleanName = userName.trim();
-    final displayName = cleanName.isEmpty ? 'Friend' : cleanName;
+    final displayName = cleanName.isEmpty ? l10n.friend : cleanName;
+    final greeting = l10n.greetingForHour(DateTime.now().hour);
 
     return SliverAppBar(
-      backgroundColor: scheme.background,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
       floating: true,
       snap: true,
       pinned: false,
       centerTitle: false,
-      toolbarHeight: 74,
+      toolbarHeight: 68,
       titleSpacing: 16,
       automaticallyImplyLeading: false,
-      title: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              gradient: LinearGradient(
-                colors: [
-                  scheme.primary.withOpacity(0.28),
-                  scheme.primary.withOpacity(0.16),
+      flexibleSpace: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(11, 15, 26, 0.55),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.05),
+                  width: 1,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(0, 0, 0, 0.25),
+                    blurRadius: 30,
+                    offset: Offset(0, 6),
+                  ),
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
               ),
             ),
-            child: Icon(Icons.bolt_rounded, color: scheme.primary, size: 27),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+        ),
+      ),
+      title: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpenProfile,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Row(
               children: [
-                Text(
-                  '$displayName \u{1F44B}',
-                  style: topText.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.05,
-                    fontSize: 20,
-                    color: scheme.onSurface.withOpacity(0.94),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF5B6CFF), Color(0xFF8FD3FF)],
+                    ),
+                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  ),
+                  child: Icon(
+                    Icons.bolt_rounded,
+                    color: Colors.white.withOpacity(0.92),
+                    size: 17,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '$greeting, ',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.22,
+                            fontSize: 15.5,
+                            color: scheme.onSurface.withOpacity(0.78),
+                            height: 1.1,
+                          ),
+                        ),
+                        TextSpan(
+                          text: displayName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.28,
+                            fontSize: 17.5,
+                            color: scheme.onSurface.withOpacity(0.98),
+                            height: 1.1,
+                            shadows: const [
+                              Shadow(
+                                color: Color.fromRGBO(5, 8, 18, 0.28),
+                                blurRadius: 12,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
       actions: [
-        _ModernIconButton(
-          iconAsset: refreshing ? null : 'assets/in_app_icons/sparkle.png',
-          tooltip: refreshing ? 'Loading...' : 'New tasks',
-          onTap: onRefresh,
+        _GlassIconButton(
+          icon: Icons.bar_chart_rounded,
+          tooltip: l10n.stats,
+          onTap: onOpenStats,
           isDark: isDark,
-          isLoading: refreshing,
-          tone: _ActionTone.spark,
-          filled: true,
+          emphasis: _IconEmphasis.primary,
         ),
         const SizedBox(width: 8),
-        _ModernIconButton(
-          iconAsset: 'assets/in_app_icons/premium.png',
-          tooltip: 'Perks',
-          onTap: onOpenPerks,
-          isDark: isDark,
-          tone: _ActionTone.premium,
-          filled: false,
-        ),
-        const SizedBox(width: 8),
-        _ModernIconButton(
+        _GlassIconButton(
           icon: Icons.menu_rounded,
-          tooltip: 'Menu',
+          tooltip: l10n.menu,
           onTap: onOpenMenu,
           isDark: isDark,
-          tone: _ActionTone.menu,
-          filled: false,
+          emphasis: _IconEmphasis.secondary,
         ),
         const SizedBox(width: 12),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(
+          height: 1,
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Colors.transparent,
+                Colors.white.withOpacity(0.08),
+                Colors.transparent,
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-enum _ActionTone { spark, premium, menu }
+enum _IconEmphasis { primary, secondary }
 
-class _ModernIconButton extends StatefulWidget {
-  const _ModernIconButton({
-    this.icon,
-    this.iconAsset,
+class _GlassIconButton extends StatefulWidget {
+  const _GlassIconButton({
+    required this.icon,
     required this.tooltip,
     required this.onTap,
     required this.isDark,
-    required this.tone,
-    this.filled = false,
-    this.isLoading = false,
+    required this.emphasis,
   });
 
-  final IconData? icon;
-  final String? iconAsset;
+  final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
   final bool isDark;
-  final _ActionTone tone;
-  final bool filled;
-  final bool isLoading;
+  final _IconEmphasis emphasis;
 
   @override
-  State<_ModernIconButton> createState() => _ModernIconButtonState();
+  State<_GlassIconButton> createState() => _GlassIconButtonState();
 }
 
-class _ModernIconButtonState extends State<_ModernIconButton> {
-  bool _hovered = false;
+class _GlassIconButtonState extends State<_GlassIconButton> {
   bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final palette = _paletteForTone(widget.tone);
-
-    final backgroundColor = widget.filled
-        ? Color.alphaBlend(
-            palette.$1.withOpacity(widget.isDark ? 0.16 : 0.12),
-            scheme.surface.withOpacity(widget.isDark ? 0.56 : 0.62),
-          )
-        : scheme.surface.withOpacity(widget.isDark ? 0.52 : 0.62);
-
-    final iconColor = widget.filled
-        ? palette.$1.withOpacity(0.96)
-        : scheme.onSurface.withOpacity(0.88);
-
+    final scheme = Theme.of(context).colorScheme;
     final disabledColor = widget.isDark
         ? Colors.white.withOpacity(0.3)
         : scheme.onSurface.withOpacity(0.3);
-    final glowLevel = (_hovered ? 0.28 : 0.0) + (_pressed ? 0.22 : 0.0);
-    final isInteractive = widget.onTap != null;
+    final isPrimary = widget.emphasis == _IconEmphasis.primary;
+    final iconColor = widget.onTap == null
+        ? disabledColor
+        : (isPrimary
+              ? scheme.onSurface.withOpacity(_pressed ? 0.96 : 0.80)
+              : scheme.onSurfaceVariant.withOpacity(_pressed ? 0.82 : 0.70));
 
     return Tooltip(
       message: widget.tooltip,
@@ -180,72 +225,39 @@ class _ModernIconButtonState extends State<_ModernIconButton> {
         color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
-          onHover: (value) {
-            if (_hovered == value) return;
-            setState(() => _hovered = value);
-          },
-          onHighlightChanged: (value) {
-            if (_pressed == value) return;
-            setState(() => _pressed = value);
-          },
-          borderRadius: BorderRadius.circular(13),
+          onTapDown: (_) => _setPressed(true),
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          borderRadius: BorderRadius.circular(15),
           splashColor: scheme.primary.withOpacity(0.08),
           highlightColor: scheme.primary.withOpacity(0.03),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(15),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOutCubic,
-                width: 42,
-                height: 42,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(13),
-                  boxShadow: [
-                    if (isInteractive)
-                      BoxShadow(
-                        color: palette.$1.withOpacity(0.06 + glowLevel),
-                        blurRadius: 10 + (glowLevel * 18),
-                        spreadRadius: -2 + (glowLevel * 2),
-                      ),
+                  borderRadius: BorderRadius.circular(15),
+                  color: const Color.fromRGBO(255, 255, 255, 0.04),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromRGBO(0, 0, 0, 0.10),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
                   ],
                 ),
                 child: Center(
-                  child: widget.isLoading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              widget.filled
-                                  ? Colors.white
-                                  : (widget.isDark
-                                        ? palette.$1
-                                        : scheme.primary),
-                            ),
-                          ),
-                        )
-                      : (widget.iconAsset != null
-                            ? Image.asset(
-                                widget.iconAsset!,
-                                width: 22,
-                                height: 22,
-                                fit: BoxFit.contain,
-                                color: widget.onTap == null
-                                    ? disabledColor
-                                    : iconColor,
-                                colorBlendMode: BlendMode.srcIn,
-                              )
-                            : Icon(
-                                widget.icon,
-                                size: 22,
-                                color: widget.onTap == null
-                                    ? disabledColor
-                                    : iconColor,
-                              )),
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    scale: _pressed ? 1.04 : 1.0,
+                    child: Icon(widget.icon, size: 20, color: iconColor),
+                  ),
                 ),
               ),
             ),
@@ -256,13 +268,6 @@ class _ModernIconButtonState extends State<_ModernIconButton> {
   }
 }
 
-(Color, Color) _paletteForTone(_ActionTone tone) {
-  switch (tone) {
-    case _ActionTone.spark:
-      return (const Color(0xFF3E8BFF), const Color(0xFF3E8BFF));
-    case _ActionTone.premium:
-      return (const Color(0xFF8B5CF6), const Color(0xFF8B5CF6));
-    case _ActionTone.menu:
-      return (const Color(0xFF64748B), const Color(0xFF64748B));
-  }
-}
+
+
+
