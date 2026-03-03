@@ -167,9 +167,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           title: l10n.tr('Challenge day is open'),
           subtitle: l10n.trf(
             '{title}: one spark logs today automatically.',
-            <String, Object>{
-              'title': _activeChallenge!.localizedTitle(),
-            },
+            <String, Object>{'title': _activeChallenge!.localizedTitle()},
           ),
           ctaLabel: l10n.tr('Start spark'),
           action: _InAppNudgeAction.startQuickTask,
@@ -704,10 +702,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           final scheme = theme.colorScheme;
           return AlertDialog(
             title: Text(
-              l10n.trf(
-                '{title} completed',
-                <String, Object>{'title': challenge.localizedTitle()},
-              ),
+              l10n.trf('{title} completed', <String, Object>{
+                'title': challenge.localizedTitle(),
+              }),
             ),
             content: Text(
               l10n.trf(
@@ -740,14 +737,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          l10n.trf(
-            '{title}: {done}/{total} days logged.',
-            <String, Object>{
-              'title': challenge.localizedTitle(),
-              'done': challenge.completedDaysCount,
-              'total': challenge.durationDays,
-            },
-          ),
+          l10n.trf('{title}: {done}/{total} days logged.', <String, Object>{
+            'title': challenge.localizedTitle(),
+            'done': challenge.completedDaysCount,
+            'total': challenge.durationDays,
+          }),
         ),
       ),
     );
@@ -1435,11 +1429,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return SafeArea(
           top: false,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: DailyMoodSheet(
-              onSelect: (mood) => Navigator.of(dialogContext).pop(mood),
-              onSkip: () => Navigator.of(dialogContext).pop(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: DailyMoodSheet(
+                onSelect: (mood) => Navigator.of(dialogContext).pop(mood),
+                onSkip: () => Navigator.of(dialogContext).pop(),
+              ),
             ),
           ),
         );
@@ -1970,10 +1967,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.trf(
-              '{title} is already active.',
-              <String, Object>{'title': selected.localizedTitle()},
-            ),
+            context.l10n.trf('{title} is already active.', <String, Object>{
+              'title': selected.localizedTitle(),
+            }),
           ),
         ),
       );
@@ -1993,10 +1989,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          context.l10n.trf(
-            '{title} challenge started.',
-            <String, Object>{'title': selected.localizedTitle()},
-          ),
+          context.l10n.trf('{title} challenge started.', <String, Object>{
+            'title': selected.localizedTitle(),
+          }),
         ),
       ),
     );
@@ -2781,7 +2776,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       onSendTestNotification: _sendTestNotification,
       onOpenDailyMoodSheet: _openDailyMoodSheetDebug,
       onOpenChallenges: _openChallengeModeSheet,
-      onOpenPremium: _openSubscribeSheet,
+      onOpenPremium: _openPremiumPerksSheet,
       selectedLocale: selectedLocale,
       onOpenLanguagePicker: _openLanguagePicker,
     );
@@ -3867,9 +3862,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     color: Color.alphaBlend(
-                      (selected
-                              ? const Color(0xFF8B7CFF)
-                              : Colors.white)
+                      (selected ? const Color(0xFF8B7CFF) : Colors.white)
                           .withOpacity(selected ? 0.10 : 0.04),
                       const Color(0xFF111827),
                     ),
@@ -3896,9 +3889,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             Text(
                               subtitle,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant.withOpacity(
-                                  0.8,
-                                ),
+                                color: scheme.onSurfaceVariant.withOpacity(0.8),
                               ),
                             ),
                           ],
@@ -4027,12 +4018,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     String durationLabel(Task task) {
       final totalSeconds = task.totalDurationSeconds.clamp(1, 360000);
-      if (totalSeconds < 90) return '~ 60 ${l10n.tr('seconds')}';
+      if (totalSeconds < 60) return '~ $totalSeconds ${l10n.tr('seconds')}';
       if (totalSeconds % 60 == 0) {
         final mins = totalSeconds ~/ 60;
         return mins == 1 ? '1 ${l10n.tr('min')}' : '$mins ${l10n.tr('min')}';
       }
-      return '${totalSeconds ~/ 60} ${l10n.tr('min')}';
+      final mins = totalSeconds ~/ 60;
+      final secs = totalSeconds % 60;
+      return '~ $mins ${l10n.tr('min')} $secs ${l10n.tr('seconds')}';
     }
 
     Widget divider() {
@@ -4264,7 +4257,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                         const SizedBox(width: 8),
                                         Text(
                                           laterExpanded
-                                              ? l10n.tr('Optional - no pressure.')
+                                              ? l10n.tr(
+                                                  'Optional - no pressure.',
+                                                )
                                               : l10n.trf('{count} optional', {
                                                   'count': laterTasks.length,
                                                 }),
@@ -4352,6 +4347,68 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _track('premium_started', {'source': 'iap'});
     }
     await _syncPremiumTopics(_premiumActive);
+  }
+
+  Future<void> _openPremiumPerksSheet() async {
+    final noAdsActive = _noAdsUntil?.isAfter(DateTime.now()) ?? false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          child: PremiumPerksSheet(
+            rewardBusy: _rewardBusy,
+            premiumActive: _premiumActive,
+            noAdsActive: noAdsActive,
+            premiumStatus: _formatRemaining(_premiumUntil),
+            noAdsStatus: _formatRemaining(_noAdsUntil),
+            onWatchPremium: () {
+              unawaited(
+                _watchAdForReward(
+                  duration: const Duration(minutes: 30),
+                  noAds: false,
+                ),
+              );
+            },
+            onWatchNoAds: () {
+              unawaited(
+                _watchAdForReward(
+                  duration: const Duration(days: 1),
+                  noAds: true,
+                ),
+              );
+            },
+            onOpenSubscribe: () {
+              Navigator.of(sheetContext).pop();
+              unawaited(
+                Future<void>.delayed(
+                  const Duration(milliseconds: 180),
+                  _openSubscribeSheet,
+                ),
+              );
+            },
+            onExtraTask: () {
+              unawaited(
+                _runRewardedAction(
+                  action: _addExtraTask,
+                  successMessage: 'Extra task added.',
+                ),
+              );
+            },
+            onRecoverStreak: () {
+              unawaited(
+                _runRewardedAction(
+                  action: _recoverStreak,
+                  successMessage: 'Streak recovered.',
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _toggle(Task t) async {
@@ -5167,7 +5224,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
               vertical: 24,
             ),
             backgroundColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
@@ -6275,16 +6334,15 @@ class _RefreshChoiceButtonState extends State<_RefreshChoiceButton> {
                   : LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: const [
-                        Color(0xFF101726),
-                        Color(0xFF101726),
-                      ],
+                      colors: const [Color(0xFF101726), Color(0xFF101726)],
                     ),
               boxShadow: [
                 BoxShadow(
                   color: tint.withOpacity(glowOpacity),
                   blurRadius: widget.emphasized ? 18 + (_pressed ? 4 : 0) : 8,
-                  spreadRadius: widget.emphasized ? -7 + (_pressed ? 1 : 0) : -9,
+                  spreadRadius: widget.emphasized
+                      ? -7 + (_pressed ? 1 : 0)
+                      : -9,
                   offset: const Offset(0, 7),
                 ),
               ],
@@ -6332,9 +6390,13 @@ class _RefreshChoiceButtonState extends State<_RefreshChoiceButton> {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.white.withOpacity(widget.emphasized ? 0.02 : 0.03),
+                              Colors.white.withOpacity(
+                                widget.emphasized ? 0.02 : 0.03,
+                              ),
                               Colors.transparent,
-                              Colors.black.withOpacity(widget.emphasized ? 0.02 : 0.03),
+                              Colors.black.withOpacity(
+                                widget.emphasized ? 0.02 : 0.03,
+                              ),
                             ],
                             stops: const [0.0, 0.45, 1.0],
                           ),

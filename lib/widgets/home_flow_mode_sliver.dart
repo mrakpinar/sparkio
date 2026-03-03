@@ -17,6 +17,7 @@ class HomeFlowModeSliver extends StatelessWidget {
     required this.weeklyTargetCount,
     required this.timerRunning,
     required this.timerPaused,
+    required this.timerFinished,
     required this.timerRemaining,
     required this.showMomentumPrompt,
     required this.onPrimaryAction,
@@ -33,6 +34,7 @@ class HomeFlowModeSliver extends StatelessWidget {
   final int weeklyTargetCount;
   final bool timerRunning;
   final bool timerPaused;
+  final bool timerFinished;
   final Duration? timerRemaining;
   final bool showMomentumPrompt;
   final VoidCallback? onPrimaryAction;
@@ -85,9 +87,11 @@ class HomeFlowModeSliver extends StatelessWidget {
   String _localizedDurationLabel(AppLocalizations l10n, Task? task) {
     if (task == null) return l10n.secondsLabel(60);
     final totalSeconds = task.totalDurationSeconds.clamp(1, 360000);
-    if (totalSeconds < 90) return l10n.secondsLabel(60);
+    if (totalSeconds < 60) return l10n.secondsLabel(totalSeconds);
     if (totalSeconds % 60 == 0) return l10n.minutesLabel(totalSeconds ~/ 60);
-    return l10n.minuteShortLabel(totalSeconds ~/ 60);
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${l10n.minuteShortLabel(minutes)} $seconds ${l10n.tr('seconds')}';
   }
 
   String _formatCountdown(Duration remaining) {
@@ -105,7 +109,7 @@ class HomeFlowModeSliver extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final activeTask = task;
     final visual = _categoryVisual(activeTask, l10n);
-    final timerActive = timerRunning || timerPaused;
+    final timerActive = timerRunning || timerPaused || timerFinished;
     final ctaEnabled = showMomentumPrompt || activeTask != null;
     final title = showMomentumPrompt ? l10n.nice : l10n.yourNextTinyStep;
     final localizedTaskTitle = activeTask == null
@@ -140,16 +144,24 @@ class HomeFlowModeSliver extends StatelessWidget {
 
     final subtitle = showMomentumPrompt
         ? 'Want another?'
+        : timerFinished
+        ? l10n.tr('Ready to finish')
         : timerActive
         ? l10n.keepYourRhythm
         : l10n.approxNoPressure(_localizedDurationLabel(l10n, activeTask));
     final ctaLabel = showMomentumPrompt
         ? l10n.startSparkNumber((safeDoneToday + 1).clamp(2, 99))
-        : timerActive
+        : timerFinished
+        ? l10n.tr('Mark complete')
+        : timerPaused
         ? 'Resume'
         : l10n.beginNow;
     final showPrimaryAction = ctaEnabled;
-    final showInlineCta = !timerActive && !showMomentumPrompt && showPrimaryAction;
+    final showInlineCta =
+        !showMomentumPrompt &&
+        showPrimaryAction &&
+        (timerFinished || !timerActive);
+    const contentColumnInset = 14.0;
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -199,289 +211,341 @@ class HomeFlowModeSliver extends StatelessWidget {
             ),
             child: Stack(
               children: [
-              Positioned(
-                left: -24,
-                top: 22,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          visual.tone.withOpacity(0.14),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: const Alignment(0.0, 0.02),
-                        radius: 0.88,
-                        colors: [
-                          visual.tone.withOpacity(0.06),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 2,
-                top: 18,
-                bottom: 18,
-                child: _AnimatedAccentLine(
-                  color: visual.tone,
-                  softColor: visual.toneSoft,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: showMomentumPrompt
-                    ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      l10n.niceYouShowedUp,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: scheme.onSurface.withOpacity(0.94),
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _MomentumMiniRing(
-                          progress: (safeDoneToday / safeDailyGoal)
-                              .clamp(0.0, 1.0)
-                              .toDouble(),
-                          color: const Color(0xFF8776FF),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            l10n.sparksToday(safeDoneToday, safeDailyGoal),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: scheme.onSurface.withOpacity(0.9),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                Positioned(
+                  left: -24,
+                  top: 22,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 96,
+                      height: 96,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(11),
-                        color: scheme.surface.withOpacity(isDark ? 0.26 : 0.6),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            size: 16,
-                            color: const Color(0xFF8776FF),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              latestWinTitle ?? l10n.oneSmallWinAdded,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurface.withOpacity(0.88),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            visual.tone.withOpacity(0.14),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 1.0],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(0.0, 0.02),
+                          radius: 0.88,
+                          colors: [
+                            visual.tone.withOpacity(0.06),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (showMomentumPrompt)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: Text(
-                            l10n.weeklyConsistency(
-                              safeWeeklyDone,
-                              safeWeeklyTarget,
-                            ),
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: scheme.onSurfaceVariant.withOpacity(0.9),
-                              fontWeight: FontWeight.w600,
-                            ),
+                        Text(
+                          l10n.niceYouShowedUp,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: scheme.onSurface.withOpacity(0.94),
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        minHeight: 3,
-                        value: weeklyProgress,
-                        color: const Color(0xFF8776FF),
-                        backgroundColor: scheme.onSurfaceVariant.withOpacity(
-                          0.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: _GradientActionButton(
-                        label: ctaLabel,
-                        onTap: onPrimaryAction,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: onDoneForToday,
-                      child: Text(l10n.iAmDoneForToday),
-                    ),
-                  ],
-                )
-                    : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: scheme.onSurface.withOpacity(0.78),
-                        fontWeight: FontWeight.w500,
-                        height: 1.2,
-                        fontSize: 19,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: _CategoryChip(visual: visual),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stepLine,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: Colors.white.withOpacity(0.96),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _MomentumMiniRing(
+                              progress: (safeDoneToday / safeDailyGoal)
+                                  .clamp(0.0, 1.0)
+                                  .toDouble(),
+                              color: const Color(0xFF8776FF),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                l10n.sparksToday(safeDoneToday, safeDailyGoal),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: scheme.onSurface.withOpacity(0.9),
                                   fontWeight: FontWeight.w700,
-                                  height: 1.25,
-                                  shadows: [
-                                    Shadow(
-                                      color: visual.tone.withOpacity(0.26),
-                                      blurRadius: 12,
-                                    ),
-                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 5),
-                              Text(
-                                _localizedDurationLabel(l10n, activeTask),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white.withOpacity(0.72),
-                                  fontWeight: FontWeight.w600,
-                                  shadows: [
-                                    Shadow(
-                                      color: visual.tone.withOpacity(0.18),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(11),
+                            color: scheme.surface.withOpacity(
+                              isDark ? 0.26 : 0.6,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 16,
+                                color: const Color(0xFF8776FF),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  latestWinTitle ?? l10n.oneSmallWinAdded,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurface.withOpacity(0.88),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l10n.weeklyConsistency(
+                                  safeWeeklyDone,
+                                  safeWeeklyTarget,
+                                ),
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant.withOpacity(
+                                    0.9,
+                                  ),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            minHeight: 3,
+                            value: weeklyProgress,
+                            color: const Color(0xFF8776FF),
+                            backgroundColor: scheme.onSurfaceVariant
+                                .withOpacity(0.2),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _GradientActionButton(
+                            label: ctaLabel,
+                            onTap: onPrimaryAction,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: onDoneForToday,
+                          child: Text(l10n.iAmDoneForToday),
+                        ),
                       ],
                     ),
-                    if (showInlineCta) ...[
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: _GradientActionButton(
-                          label: ctaLabel,
-                          onTap: onPrimaryAction,
-                          icon: Icons.bolt_rounded,
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: contentColumnInset,
                         ),
-                      ),
-                      const SizedBox(height: 7),
-                      Align(
-                        alignment: Alignment.center,
                         child: Text(
-                          l10n.noPressureJustMomentum,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant.withOpacity(0.82),
-                            fontWeight: FontWeight.w600,
-                            height: 1.25,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 9),
-                    if (!timerActive && !showInlineCta)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          l10n.approxNoPressure(
-                            _localizedDurationLabel(l10n, activeTask),
-                          ),
-                          textAlign: TextAlign.right,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant.withOpacity(0.84),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    if (timerActive) ...[
-                      _ActiveTimerControlBar(
-                        timerLabel: timerLabel,
-                        running: timerRunning,
-                        paused: timerPaused,
-                        onPauseTap: onPauseAction,
-                        onEndTap: onEndAction,
-                      ),
-                      const SizedBox(height: 10),
-                      _SparkProgressBar(
-                        value: timerProgress,
-                        color: const Color(0xFF8776FF),
-                        backgroundColor: scheme.onSurfaceVariant.withOpacity(
-                          0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Center(
-                        child: Text(
-                          timerPaused ? l10n.paused : subtitle,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurface.withOpacity(0.66),
+                          title,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: scheme.onSurface.withOpacity(0.78),
                             fontWeight: FontWeight.w500,
+                            height: 1.2,
+                            fontSize: 19,
                           ),
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _AnimatedAccentLine(
+                              color: visual.tone,
+                              softColor: visual.toneSoft,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _CategoryChip(visual: visual),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              stepLine,
+                                              style: theme.textTheme.bodyLarge
+                                                  ?.copyWith(
+                                                    color: Colors.white
+                                                        .withOpacity(0.96),
+                                                    fontWeight: FontWeight.w700,
+                                                    height: 1.25,
+                                                    shadows: [
+                                                      Shadow(
+                                                        color: visual.tone
+                                                            .withOpacity(0.26),
+                                                        blurRadius: 12,
+                                                      ),
+                                                    ],
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 5),
+                                            Text(
+                                              _localizedDurationLabel(
+                                                l10n,
+                                                activeTask,
+                                              ),
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors.white
+                                                        .withOpacity(0.72),
+                                                    fontWeight: FontWeight.w600,
+                                                    shadows: [
+                                                      Shadow(
+                                                        color: visual.tone
+                                                            .withOpacity(0.18),
+                                                        blurRadius: 8,
+                                                      ),
+                                                    ],
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (showInlineCta) ...[
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: _GradientActionButton(
+                                        label: ctaLabel,
+                                        onTap: onPrimaryAction,
+                                        icon: Icons.bolt_rounded,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: Text(
+                                        l10n.noPressureJustMomentum,
+                                        textAlign: TextAlign.center,
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                              color: scheme.onSurfaceVariant
+                                                  .withOpacity(0.82),
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.25,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                  if (!showInlineCta)
+                                    const SizedBox(height: 10),
+                                  if (!timerActive && !showInlineCta)
+                                    Text(
+                                      l10n.approxNoPressure(
+                                        _localizedDurationLabel(
+                                          l10n,
+                                          activeTask,
+                                        ),
+                                      ),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: scheme.onSurfaceVariant
+                                                .withOpacity(0.84),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  if (timerRunning || timerPaused) ...[
+                                    _ActiveTimerControlBar(
+                                      timerLabel: timerLabel,
+                                      running: timerRunning,
+                                      paused: timerPaused,
+                                      onPauseTap: onPauseAction,
+                                      onEndTap: onEndAction,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _SparkProgressBar(
+                                      value: timerProgress,
+                                      color: const Color(0xFF8776FF),
+                                      backgroundColor: scheme.onSurfaceVariant
+                                          .withOpacity(0.2),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Center(
+                                      child: Text(
+                                        timerPaused ? l10n.paused : subtitle,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: scheme.onSurface
+                                                  .withOpacity(0.66),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                  if (timerFinished) ...[
+                                    _SparkProgressBar(
+                                      value: 1,
+                                      color: const Color(0xFF8776FF),
+                                      backgroundColor: scheme.onSurfaceVariant
+                                          .withOpacity(0.2),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Center(
+                                      child: Text(
+                                        subtitle,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: scheme.onSurface
+                                                  .withOpacity(0.66),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  ],
-                ),
-              ),
+                  ),
               ],
             ),
           ),
@@ -538,15 +602,9 @@ class _CategoryChip extends StatelessWidget {
           Icon(
             visual.icon,
             size: 16,
-            color: Color.alphaBlend(
-              Colors.white.withOpacity(0.9),
-              visual.tone,
-            ),
+            color: Color.alphaBlend(Colors.white.withOpacity(0.9), visual.tone),
             shadows: [
-              Shadow(
-                color: visual.tone.withOpacity(1.0),
-                blurRadius: 20,
-              ),
+              Shadow(color: visual.tone.withOpacity(1.0), blurRadius: 20),
             ],
           ),
           const SizedBox(height: 4),
@@ -560,10 +618,7 @@ class _CategoryChip extends StatelessWidget {
               fontWeight: FontWeight.w800,
               letterSpacing: 0.48,
               shadows: [
-                Shadow(
-                  color: visual.tone.withOpacity(0.96),
-                  blurRadius: 18,
-                ),
+                Shadow(color: visual.tone.withOpacity(0.96), blurRadius: 18),
               ],
             ),
           ),
@@ -869,7 +924,11 @@ class _MiniIconButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-          child: Icon(icon, size: 17, color: scheme.onSurface.withOpacity(0.88)),
+          child: Icon(
+            icon,
+            size: 17,
+            color: scheme.onSurface.withOpacity(0.88),
+          ),
         ),
       ),
     );
@@ -932,7 +991,3 @@ class _AnimatedPulseDotState extends State<_AnimatedPulseDot>
     );
   }
 }
-
-
-
-

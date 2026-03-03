@@ -158,204 +158,214 @@ class SparkioApp extends StatelessWidget {
                 GlobalCupertinoLocalizations.delegate,
               ],
               theme: ThemeData(
-            useMaterial3: true,
-            fontFamily: 'Inter',
-            colorScheme: lightScheme,
-            scaffoldBackgroundColor: lightBackground,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: lightBackground,
-              elevation: 0,
-              centerTitle: true,
-            ),
-            cardTheme: CardThemeData(
-              color: lightSurface,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            textTheme: ThemeData(brightness: Brightness.light).textTheme
-                .copyWith(
-                  titleLarge: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                useMaterial3: true,
+                fontFamily: 'Inter',
+                colorScheme: lightScheme,
+                scaffoldBackgroundColor: lightBackground,
+                appBarTheme: const AppBarTheme(
+                  backgroundColor: lightBackground,
+                  elevation: 0,
+                  centerTitle: true,
+                ),
+                cardTheme: CardThemeData(
+                  color: lightSurface,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  titleMedium: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                ),
+                textTheme: ThemeData(brightness: Brightness.light).textTheme
+                    .copyWith(
+                      titleLarge: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      titleMedium: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
+                    ),
+                dividerTheme: const DividerThemeData(color: lightDivider),
+                inputDecorationTheme: InputDecorationTheme(
+                  filled: true,
+                  fillColor: lightCard.withOpacity(0.6),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: lightDivider),
                   ),
-                  bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: lightDivider.withOpacity(0.8),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: primary, width: 1.2),
+                  ),
                 ),
-            dividerTheme: const DividerThemeData(color: lightDivider),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: lightCard.withOpacity(0.6),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: lightDivider),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: lightDivider.withOpacity(0.8)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: primary, width: 1.2),
-              ),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+                elevatedButtonTheme: ElevatedButtonThemeData(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                outlinedButtonTheme: OutlinedButtonThemeData(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primary,
+                    side: BorderSide(color: primary.withOpacity(0.35)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                chipTheme: ChipThemeData(
+                  selectedColor: primary,
+                  backgroundColor: lightCard.withOpacity(0.75),
+                  labelStyle: const TextStyle(color: lightTextPrimary),
+                  secondaryLabelStyle: const TextStyle(color: Colors.white),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: lightDivider.withOpacity(0.7)),
+                  ),
+                ),
+                bottomSheetTheme: const BottomSheetThemeData(
+                  backgroundColor: lightSurface,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                ),
+                snackBarTheme: SnackBarThemeData(
+                  backgroundColor: lightSurface,
+                  contentTextStyle: const TextStyle(color: lightTextPrimary),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: lightDivider.withOpacity(0.8)),
+                  ),
                 ),
               ),
-            ),
-            outlinedButtonTheme: OutlinedButtonThemeData(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: primary,
-                side: BorderSide(color: primary.withOpacity(0.35)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            chipTheme: ChipThemeData(
-              selectedColor: primary,
-              backgroundColor: lightCard.withOpacity(0.75),
-              labelStyle: const TextStyle(color: lightTextPrimary),
-              secondaryLabelStyle: const TextStyle(color: Colors.white),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: lightDivider.withOpacity(0.7)),
-              ),
-            ),
-            bottomSheetTheme: const BottomSheetThemeData(
-              backgroundColor: lightSurface,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-            ),
-            snackBarTheme: SnackBarThemeData(
-              backgroundColor: lightSurface,
-              contentTextStyle: const TextStyle(color: lightTextPrimary),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: lightDivider.withOpacity(0.8)),
-              ),
-            ),
-          ),
               darkTheme: ThemeData(
-            useMaterial3: true,
-            fontFamily: 'Inter',
-            colorScheme: darkScheme,
-            scaffoldBackgroundColor: darkBackground,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: darkBackground,
-              elevation: 0,
-              centerTitle: true,
-            ),
-            cardTheme: CardThemeData(
-              color: darkCard,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            textTheme: ThemeData(brightness: Brightness.dark).textTheme
-                .copyWith(
-                  titleLarge: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                useMaterial3: true,
+                fontFamily: 'Inter',
+                colorScheme: darkScheme,
+                scaffoldBackgroundColor: darkBackground,
+                appBarTheme: const AppBarTheme(
+                  backgroundColor: darkBackground,
+                  elevation: 0,
+                  centerTitle: true,
+                ),
+                cardTheme: CardThemeData(
+                  color: darkCard,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  titleMedium: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                ),
+                textTheme: ThemeData(brightness: Brightness.dark).textTheme
+                    .copyWith(
+                      titleLarge: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      titleMedium: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
+                    ),
+                dividerTheme: const DividerThemeData(color: darkDivider),
+                inputDecorationTheme: InputDecorationTheme(
+                  filled: true,
+                  fillColor: darkCard.withOpacity(0.88),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: darkDivider.withOpacity(0.7)),
                   ),
-                  bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: darkDivider.withOpacity(0.75),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: primary, width: 1.2),
+                  ),
                 ),
-            dividerTheme: const DividerThemeData(color: darkDivider),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: darkCard.withOpacity(0.88),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: darkDivider.withOpacity(0.7)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: darkDivider.withOpacity(0.75)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: primary, width: 1.2),
-              ),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+                elevatedButtonTheme: ElevatedButtonThemeData(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                outlinedButtonTheme: OutlinedButtonThemeData(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: darkTextPrimary,
+                    side: BorderSide(color: darkDivider.withOpacity(0.9)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                chipTheme: ChipThemeData(
+                  selectedColor: primary,
+                  backgroundColor: darkCard,
+                  labelStyle: const TextStyle(color: darkTextPrimary),
+                  secondaryLabelStyle: const TextStyle(color: Colors.white),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: darkDivider.withOpacity(0.7)),
+                  ),
+                ),
+                bottomSheetTheme: const BottomSheetThemeData(
+                  backgroundColor: darkSurface,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                ),
+                snackBarTheme: SnackBarThemeData(
+                  backgroundColor: darkCard,
+                  contentTextStyle: const TextStyle(color: darkTextPrimary),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: darkDivider.withOpacity(0.9)),
+                  ),
                 ),
               ),
-            ),
-            outlinedButtonTheme: OutlinedButtonThemeData(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: darkTextPrimary,
-                side: BorderSide(color: darkDivider.withOpacity(0.9)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            chipTheme: ChipThemeData(
-              selectedColor: primary,
-              backgroundColor: darkCard,
-              labelStyle: const TextStyle(color: darkTextPrimary),
-              secondaryLabelStyle: const TextStyle(color: Colors.white),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: darkDivider.withOpacity(0.7)),
-              ),
-            ),
-            bottomSheetTheme: const BottomSheetThemeData(
-              backgroundColor: darkSurface,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-            ),
-            snackBarTheme: SnackBarThemeData(
-              backgroundColor: darkCard,
-              contentTextStyle: const TextStyle(color: darkTextPrimary),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: darkDivider.withOpacity(0.9)),
-              ),
-            ),
-          ),
-              themeMode: mode == ThemeMode.dark ? ThemeMode.dark : ThemeMode.light,
+              themeMode: mode == ThemeMode.dark
+                  ? ThemeMode.dark
+                  : ThemeMode.light,
               home: const _LaunchGate(),
             );
           },
@@ -411,7 +421,3 @@ class _LaunchGateState extends State<_LaunchGate> {
     return OnboardingScreen(onFinished: _completeOnboarding);
   }
 }
-
-
-
-

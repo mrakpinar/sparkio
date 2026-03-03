@@ -1,4 +1,5 @@
-﻿import '../models/task.dart';
+﻿import '../app_strings.dart';
+import '../models/task.dart';
 import 'locale_service.dart';
 
 class TaskLocalizer {
@@ -135,6 +136,11 @@ class TaskLocalizer {
       'es': 'Relaja tu mandíbula y tus hombros',
       'de': 'Entspanne Kiefer und Schultern',
     },
+    'Close your eyes and relax your jaw': {
+      'tr': 'Gözlerini kapat ve çeneni gevşet',
+      'es': 'Cierra los ojos y relaja la mandíbula',
+      'de': 'Schließe die Augen und entspanne deinen Kiefer',
+    },
     'Do a short body scan for 3 minutes': {
       'tr': '3 dakikalık kısa bir beden taraması yap',
       'es': 'Haz un escaneo corporal corto durante 3 minutos',
@@ -195,6 +201,46 @@ class TaskLocalizer {
       'es': 'Elimina distracciones durante 2 minutos',
       'de': 'Beseitige 2 Minuten lang Ablenkungen',
     },
+    'Write your top focus target': {
+      'tr': 'En önemli odak hedefini yaz',
+      'es': 'Escribe tu objetivo principal de enfoque',
+      'de': 'Schreibe dein wichtigstes Fokusziel auf',
+    },
+    'Run a 5-minute deep focus sprint': {
+      'tr': '5 dakikalık derin odak sprinti yap',
+      'es': 'Haz un sprint de enfoque profundo de 5 minutos',
+      'de': 'Mache einen 5-minütigen Tiefenfokus-Sprint',
+    },
+    'No screens for the next 10 minutes': {
+      'tr': 'Önümüzdeki 10 dakika ekran yok',
+      'es': 'Sin pantallas durante los próximos 10 minutos',
+      'de': 'Für die nächsten 10 Minuten keine Bildschirme',
+    },
+    'Do 4-7-8 breathing for 3 minutes': {
+      'tr': '3 dakika 4-7-8 nefesi yap',
+      'es': 'Haz respiración 4-7-8 durante 3 minutos',
+      'de': 'Mache 3 Minuten lang 4-7-8-Atmung',
+    },
+    'Prepare tomorrow with 2 bullet points': {
+      'tr': 'Yarını 2 maddeyle hazırla',
+      'es': 'Prepara mañana con 2 puntos',
+      'de': 'Bereite morgen mit 2 Stichpunkten vor',
+    },
+    'Box breathe for 2 minutes': {
+      'tr': '2 dakika kutu nefesi yap',
+      'es': 'Haz respiración en caja durante 2 minutos',
+      'de': 'Mache 2 Minuten Box-Atmung',
+    },
+    'Release shoulder tension for 90 seconds': {
+      'tr': '90 saniye omuz gerginliğini bırak',
+      'es': 'Libera la tensión de los hombros durante 90 segundos',
+      'de': 'Löse 90 Sekunden lang Schulterspannung',
+    },
+    'Write one thing you can control': {
+      'tr': 'Kontrol edebileceğin bir şeyi yaz',
+      'es': 'Escribe una cosa que puedas controlar',
+      'de': 'Schreibe eine Sache auf, die du kontrollieren kannst',
+    },
     'Write one tiny next step in 60 seconds': {
       'tr': '60 saniyede bir sonraki küçük adımı yaz',
       'es': 'Escribe un pequeño siguiente paso en 60 segundos',
@@ -214,6 +260,36 @@ class TaskLocalizer {
       'tr': '60 saniye nefesine dikkat et',
       'es': 'Observa tu respiración durante 60 segundos',
       'de': 'Nimm deinen Atem 60 Sekunden lang wahr',
+    },
+    'Write one tiny intention for today': {
+      'tr': 'Bugün için küçük bir niyet yaz',
+      'es': 'Escribe una pequeña intención para hoy',
+      'de': 'Schreibe eine kleine Absicht für heute auf',
+    },
+    'Take 5 slow breaths and reset': {
+      'tr': '5 yavaş nefes al ve resetlen',
+      'es': 'Haz 5 respiraciones lentas y reiníciate',
+      'de': 'Nimm 5 langsame Atemzüge und setze neu an',
+    },
+    'Write one priority and start for 2 minutes': {
+      'tr': 'Bir öncelik yaz ve 2 dakika başla',
+      'es': 'Escribe una prioridad y empieza durante 2 minutos',
+      'de': 'Schreibe eine Priorität auf und starte für 2 Minuten',
+    },
+    'Write one line about your day': {
+      'tr': 'Günün hakkında tek bir satır yaz',
+      'es': 'Escribe una línea sobre tu día',
+      'de': 'Schreibe eine Zeile über deinen Tag',
+    },
+    'Pause for 1 minute and breathe': {
+      'tr': '1 dakika dur ve nefes al',
+      'es': 'Pausa durante 1 minuto y respira',
+      'de': 'Halte 1 Minute inne und atme',
+    },
+    'Stand up and move for 2 minutes': {
+      'tr': 'Ayağa kalk ve 2 dakika hareket et',
+      'es': 'Ponte de pie y muévete durante 2 minutos',
+      'de': 'Steh auf und bewege dich 2 Minuten lang',
     },
     'AI pick: write one clear priority': {
       'tr': 'AI önerisi: tek bir net öncelik yaz',
@@ -368,7 +444,8 @@ class TaskLocalizer {
     'Do a 4-minute start sprint on your top task': {
       'tr': 'En önemli görevinde 4 dakikalık başlangıç sprinti yap',
       'es': 'Haz un sprint inicial de 4 minutos en tu tarea principal',
-      'de': 'Mache einen 4-minütigen Start-Sprint bei deiner wichtigsten Aufgabe',
+      'de':
+          'Mache einen 4-minütigen Start-Sprint bei deiner wichtigsten Aufgabe',
     },
     'Walk for 4 minutes without your phone': {
       'tr': 'Telefon olmadan 4 dakika yürü',
@@ -399,7 +476,52 @@ class TaskLocalizer {
       'tr': '3 dakika yavaş nefesle sessizce otur',
       'es': 'Siéntate en silencio con respiración lenta durante 3 minutos',
       'de': 'Sitze 3 Minuten ruhig mit langsamer Atmung',
-    },  };
+    },
+  };
+
+  static const List<String> _appStringTaskTitles = [
+    'Write your top focus target',
+    'Run a 5-minute deep focus sprint',
+    'No screens for the next 10 minutes',
+    'Do 4-7-8 breathing for 3 minutes',
+    'Prepare tomorrow with 2 bullet points',
+    'Box breathe for 2 minutes',
+    'Release shoulder tension for 90 seconds',
+    'Write one thing you can control',
+  ];
+
+  static const Map<String, Map<String, String>> _fallbackTitleTranslations = {
+    'Write one tiny intention for today': {
+      'tr': 'Bug\u00fcn i\u00e7in k\u00fc\u00e7\u00fck bir niyet yaz',
+      'es': 'Escribe una peque\u00f1a intenci\u00f3n para hoy',
+      'de': 'Schreibe eine kleine Absicht f\u00fcr heute auf',
+    },
+    'Take 5 slow breaths and reset': {
+      'tr': '5 yava\u015f nefes al ve resetlen',
+      'es': 'Haz 5 respiraciones lentas y rein\u00edciate',
+      'de': 'Nimm 5 langsame Atemz\u00fcge und setze neu an',
+    },
+    'Write one priority and start for 2 minutes': {
+      'tr': 'Bir \u00f6ncelik yaz ve 2 dakika ba\u015fla',
+      'es': 'Escribe una prioridad y empieza durante 2 minutos',
+      'de': 'Schreibe eine Priorit\u00e4t auf und starte f\u00fcr 2 Minuten',
+    },
+    'Write one line about your day': {
+      'tr': 'G\u00fcn\u00fcn hakk\u0131nda tek bir sat\u0131r yaz',
+      'es': 'Escribe una l\u00ednea sobre tu d\u00eda',
+      'de': 'Schreibe eine Zeile \u00fcber deinen Tag',
+    },
+    'Pause for 1 minute and breathe': {
+      'tr': '1 dakika dur ve nefes al',
+      'es': 'Pausa durante 1 minuto y respira',
+      'de': 'Halte 1 Minute inne und atme',
+    },
+    'Stand up and move for 2 minutes': {
+      'tr': 'Aya\u011fa kalk ve 2 dakika hareket et',
+      'es': 'Ponte de pie y mu\u00e9vete durante 2 minutos',
+      'de': 'Steh auf und bewege dich 2 Minuten lang',
+    },
+  };
 
   static final Map<String, String> _aliasToCanonical = () {
     final aliasMap = <String, String>{};
@@ -423,26 +545,34 @@ class TaskLocalizer {
     String? taskId,
   }) {
     final targetCode = (localeCode ?? currentLanguageCode()).toLowerCase();
-    if (targetCode == 'en') {
-      final canonical = _resolveCanonicalTitle(title, category: category, taskId: taskId);
-      return canonical ?? title;
+    final canonical = _resolveCanonicalTitle(
+      title,
+      category: category,
+      taskId: taskId,
+    );
+    if (canonical != null) {
+      if (targetCode == 'en') return canonical;
+
+      final appStringValue = AppLocalizations.lookup(targetCode, canonical);
+      if (appStringValue != canonical) return appStringValue;
+
+      final staticValue = _fallbackTitleTranslations[canonical]?[targetCode];
+      if (staticValue != null) return staticValue;
+
+      return _titleMap[canonical]?[targetCode] ?? canonical;
     }
-    final canonical = _resolveCanonicalTitle(title, category: category, taskId: taskId);
-    if (canonical == null) return title;
-    return _titleMap[canonical]?[targetCode] ?? canonical;
+
+    final generated = _localizeGeneratedTitle(title, targetCode: targetCode);
+    return generated ?? title;
   }
 
-  static List<Task> localizeTasks(
-    List<Task> tasks, {
-    String? localeCode,
-  }) {
-    return tasks.map((task) => localizeTask(task, localeCode: localeCode)).toList();
+  static List<Task> localizeTasks(List<Task> tasks, {String? localeCode}) {
+    return tasks
+        .map((task) => localizeTask(task, localeCode: localeCode))
+        .toList();
   }
 
-  static Task localizeTask(
-    Task task, {
-    String? localeCode,
-  }) {
+  static Task localizeTask(Task task, {String? localeCode}) {
     if (task.isCustom && !task.aiSuggested && !task.id.startsWith('starter_')) {
       return task;
     }
@@ -487,7 +617,256 @@ class TaskLocalizer {
           return 'Notice your breath for 60 seconds';
       }
     }
-    return _aliasToCanonical[_normalize(title)];
+    final normalized = _normalize(title);
+    final canonical = _aliasToCanonical[normalized];
+    if (canonical != null) return canonical;
+    final appStringCanonical = _resolveAppStringCanonicalTitle(normalized);
+    if (appStringCanonical != null) return appStringCanonical;
+    final staticCanonical = _resolveStaticCanonicalTitle(normalized);
+    if (staticCanonical != null) return staticCanonical;
+    if (normalized.contains('close your eyes') &&
+        normalized.contains('relax your jaw')) {
+      return 'Close your eyes and relax your jaw';
+    }
+    if (normalized.contains('relax your jaw') &&
+        normalized.contains('shoulder')) {
+      return 'Relax your jaw and shoulders';
+    }
+    return null;
+  }
+
+  static String? _resolveAppStringCanonicalTitle(String normalizedTitle) {
+    for (final title in _appStringTaskTitles) {
+      for (final code in const ['tr', 'es', 'de']) {
+        if (_normalize(AppLocalizations.lookup(code, title)) ==
+            normalizedTitle) {
+          return title;
+        }
+      }
+    }
+    return null;
+  }
+
+  static String? _resolveStaticCanonicalTitle(String normalizedTitle) {
+    for (final entry in _fallbackTitleTranslations.entries) {
+      if (_normalize(entry.key) == normalizedTitle) return entry.key;
+      for (final translated in entry.value.values) {
+        if (_normalize(translated) == normalizedTitle) return entry.key;
+      }
+    }
+    return null;
+  }
+
+  static String? _localizeGeneratedTitle(
+    String title, {
+    required String targetCode,
+  }) {
+    final generated = _matchGeneratedTitle(title);
+    if (generated == null) return null;
+    return _buildGeneratedTitle(
+      generated.kind,
+      generated.durationSeconds,
+      targetCode: targetCode,
+    );
+  }
+
+  static _GeneratedTitleMatch? _matchGeneratedTitle(String title) {
+    final normalized = _normalize(title);
+    final durationSeconds = _extractDurationSeconds(title);
+    if (durationSeconds == null) return null;
+
+    if (normalized.startsWith('move your body for ') ||
+        (normalized.startsWith('v\u00fccudunu ') &&
+            normalized.endsWith(' hareket ettir')) ||
+        normalized.startsWith('mueve tu cuerpo durante ') ||
+        normalized.startsWith('bewege deinen k\u00f6rper f\u00fcr ')) {
+      return _GeneratedTitleMatch('body', durationSeconds);
+    }
+
+    if (normalized.startsWith('start one small improvement for ') ||
+        normalized.endsWith(
+          ' boyunca k\u00fc\u00e7\u00fck bir geli\u015fim ba\u015flat',
+        ) ||
+        normalized.startsWith('empieza una peque\u00f1a mejora durante ') ||
+        normalized.startsWith('beginne f\u00fcr ')) {
+      return _GeneratedTitleMatch('growth', durationSeconds);
+    }
+
+    if ((normalized.startsWith('breathe slowly for ') &&
+            normalized.endsWith(' and relax your shoulders')) ||
+        normalized.endsWith(
+          ' yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet',
+        ) ||
+        (normalized.startsWith('respira despacio durante ') &&
+            normalized.endsWith(' y relaja tus hombros')) ||
+        (normalized.startsWith('atme f\u00fcr ') &&
+            normalized.endsWith(' langsam und entspanne deine schultern'))) {
+      return _GeneratedTitleMatch('calm', durationSeconds);
+    }
+
+    if (normalized.startsWith('drink water and reset posture for ') ||
+        normalized.endsWith(' su i\u00e7 ve duru\u015funu d\u00fczelt') ||
+        normalized.startsWith('bebe agua y corrige tu postura durante ') ||
+        normalized.startsWith(
+          'trink wasser und korrigiere deine haltung f\u00fcr ',
+        )) {
+      return _GeneratedTitleMatch('health', durationSeconds);
+    }
+
+    if (normalized.startsWith('write one clear priority and focus for ') ||
+        normalized.endsWith(' tek bir net \u00f6ncelik yaz ve odaklan') ||
+        normalized.startsWith(
+          'escribe una prioridad clara y conc\u00e9ntrate durante ',
+        ) ||
+        normalized.startsWith(
+          'schreibe eine klare priorit\u00e4t und fokussiere dich f\u00fcr ',
+        )) {
+      return _GeneratedTitleMatch('mind', durationSeconds);
+    }
+
+    return null;
+  }
+
+  static String _buildGeneratedTitle(
+    String kind,
+    int durationSeconds, {
+    required String targetCode,
+  }) {
+    final duration = _localizedGeneratedDuration(
+      durationSeconds,
+      code: targetCode,
+    );
+
+    switch (targetCode) {
+      case 'tr':
+        switch (kind) {
+          case 'body':
+            return 'V\u00fccudunu $duration hareket ettir';
+          case 'growth':
+            return '$duration boyunca k\u00fc\u00e7\u00fck bir geli\u015fim ba\u015flat';
+          case 'calm':
+            return '$duration yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet';
+          case 'health':
+            return '$duration su i\u00e7 ve duru\u015funu d\u00fczelt';
+          case 'mind':
+          default:
+            return '$duration tek bir net \u00f6ncelik yaz ve odaklan';
+        }
+      case 'es':
+        switch (kind) {
+          case 'body':
+            return 'Mueve tu cuerpo durante $duration';
+          case 'growth':
+            return 'Empieza una peque\u00f1a mejora durante $duration';
+          case 'calm':
+            return 'Respira despacio durante $duration y relaja tus hombros';
+          case 'health':
+            return 'Bebe agua y corrige tu postura durante $duration';
+          case 'mind':
+          default:
+            return 'Escribe una prioridad clara y conc\u00e9ntrate durante $duration';
+        }
+      case 'de':
+        switch (kind) {
+          case 'body':
+            return 'Bewege deinen K\u00f6rper f\u00fcr $duration';
+          case 'growth':
+            return 'Beginne f\u00fcr $duration eine kleine Verbesserung';
+          case 'calm':
+            return 'Atme f\u00fcr $duration langsam und entspanne deine Schultern';
+          case 'health':
+            return 'Trink Wasser und korrigiere deine Haltung f\u00fcr $duration';
+          case 'mind':
+          default:
+            return 'Schreibe eine klare Priorit\u00e4t und fokussiere dich f\u00fcr $duration';
+        }
+      case 'en':
+      default:
+        switch (kind) {
+          case 'body':
+            return 'Move your body for $duration';
+          case 'growth':
+            return 'Start one small improvement for $duration';
+          case 'calm':
+            return 'Breathe slowly for $duration and relax your shoulders';
+          case 'health':
+            return 'Drink water and reset posture for $duration';
+          case 'mind':
+          default:
+            return 'Write one clear priority and focus for $duration';
+        }
+    }
+  }
+
+  static String _localizedGeneratedDuration(
+    int durationSeconds, {
+    required String code,
+  }) {
+    final safe = durationSeconds.clamp(1, 360000);
+    if (safe < 60) {
+      switch (code) {
+        case 'tr':
+          return '$safe saniye';
+        case 'es':
+          return '$safe segundos';
+        case 'de':
+          return '$safe Sekunden';
+        case 'en':
+        default:
+          return '$safe seconds';
+      }
+    }
+
+    if (safe % 60 == 0) {
+      final minutes = safe ~/ 60;
+      switch (code) {
+        case 'tr':
+          return '$minutes dakika';
+        case 'es':
+          return '$minutes minutos';
+        case 'de':
+          return '$minutes Minuten';
+        case 'en':
+        default:
+          return minutes == 1 ? '1 minute' : '$minutes minutes';
+      }
+    }
+
+    final minutes = safe ~/ 60;
+    final seconds = safe % 60;
+    switch (code) {
+      case 'tr':
+        return '$minutes dk $seconds saniye';
+      case 'es':
+        return '$minutes min $seconds segundos';
+      case 'de':
+        return '$minutes Min $seconds Sekunden';
+      case 'en':
+      default:
+        return '$minutes min $seconds sec';
+    }
+  }
+
+  static int? _extractDurationSeconds(String value) {
+    final matches = RegExp(
+      r'(\\\\d+)(?:\\\\s*-\\\\s*|\\\\s+)(seconds?|secs?|sec|minutes?|mins?|min|saniye|dakika|segundos?|minutos?|sekunden|minute?n?)',
+      caseSensitive: false,
+    ).allMatches(value);
+
+    if (matches.isEmpty) return null;
+
+    var total = 0;
+    for (final match in matches) {
+      final rawValue = int.tryParse(match.group(1) ?? '');
+      final unit = (match.group(2) ?? '').toLowerCase();
+      if (rawValue == null || rawValue <= 0) continue;
+      if (unit.startsWith('min') || unit == 'dakika') {
+        total += rawValue * 60;
+      } else {
+        total += rawValue;
+      }
+    }
+    return total <= 0 ? null : total.clamp(1, 360000);
   }
 
   static String _normalize(String value) {
@@ -495,3 +874,9 @@ class TaskLocalizer {
   }
 }
 
+class _GeneratedTitleMatch {
+  const _GeneratedTitleMatch(this.kind, this.durationSeconds);
+
+  final String kind;
+  final int durationSeconds;
+}

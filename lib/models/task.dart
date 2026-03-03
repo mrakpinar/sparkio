@@ -33,17 +33,20 @@ class Task {
   factory Task.fromMap(Map<String, dynamic> m) {
     final difficulty = _normalizeDifficulty(m['difficulty'] as String?);
     final category = m['category'] as String? ?? 'mind';
+    final rawTitle = (m['title'] as String?) ?? '';
     final normalizedSeconds = _normalizeDurationSeconds(
       (m['durationSeconds'] as num?)?.toInt(),
     );
+    final titleDurationSeconds = _extractDurationSecondsFromTitle(rawTitle);
+    final effectiveDurationSeconds = titleDurationSeconds ?? normalizedSeconds;
     final normalizedMinutes = _normalizeDuration(
       difficulty,
       (m['durationMinutes'] as num?)?.toInt(),
-      durationSeconds: normalizedSeconds,
+      durationSeconds: effectiveDurationSeconds,
     );
-    final totalSeconds = normalizedSeconds ?? (normalizedMinutes * 60);
+    final totalSeconds = effectiveDurationSeconds ?? (normalizedMinutes * 60);
     final titleQuality = TaskQualityEngine.sanitize(
-      rawTitle: (m['title'] as String?) ?? '',
+      rawTitle: rawTitle,
       category: category,
       durationSeconds: totalSeconds,
     );
@@ -54,7 +57,7 @@ class Task {
       isCustom: (m['isCustom'] as bool?) ?? false,
       difficulty: difficulty,
       durationMinutes: normalizedMinutes,
-      durationSeconds: normalizedSeconds,
+      durationSeconds: effectiveDurationSeconds,
       aiSuggested: (m['aiSuggested'] as bool?) ?? false,
       premiumOnly: (m['premiumOnly'] as bool?) ?? false,
       isSpecial: (m['isSpecial'] as bool?) ?? false,
@@ -105,4 +108,25 @@ int? _normalizeDurationSeconds(int? raw) {
   if (raw == null) return null;
   if (raw <= 0) return null;
   return raw.clamp(1, 360000);
+}
+
+int? _extractDurationSecondsFromTitle(String rawTitle) {
+  if (rawTitle.trim().isEmpty) return null;
+
+  final matches = RegExp(
+    r'(\d+)\s*(seconds?|secs?|sec|saniye|dakika|minutes?|mins?|min)',
+    caseSensitive: false,
+  ).allMatches(rawTitle);
+
+  if (matches.isEmpty) return null;
+
+  final match = matches.last;
+  final value = int.tryParse(match.group(1) ?? '');
+  final unit = (match.group(2) ?? '').toLowerCase();
+  if (value == null || value <= 0) return null;
+
+  if (unit.startsWith('min') || unit == 'dakika') {
+    return (value * 60).clamp(1, 360000);
+  }
+  return value.clamp(1, 360000);
 }

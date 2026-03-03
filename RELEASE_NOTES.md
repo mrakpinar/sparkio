@@ -1,5 +1,11 @@
 # Sparkio Release Notes
 
+## 1.0.8+26 (2026-02-28)
+
+- Android hotfix: uygulama yeniden açıldığında bitmiş aktif görev kartının bazen hatalı şekilde `Begin now` göstermesi düzeltildi.
+- Restore edilen task timer state'i artık ana kartta doğru öncelikle gösteriliyor.
+- Timer bitmişse kart artık doğru şekilde `Mark complete` aksiyonunu sunuyor.
+
 ## 1.0.4+22 (2026-02-18)
 
 - Home deneyimi ve görev kartları premium hissiyat için kapsamlı görsel/motion iyileştirmeleriyle güncellendi.

@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -81,16 +81,18 @@ class TaskCard extends StatelessWidget {
   String _invitationHeadline(BuildContext context, Task t) {
     final l10n = context.l10n;
     var text = t.title.trim();
+    const durationUnits =
+        r'(?:seconds?|secs?|sec|minutes?|mins?|min|saniye|dakika|segundos?|minutos?|sekunden|minute?n?)';
     text = text.replaceFirst(
       RegExp(
-        r'\bfor\s+\d+\s*(seconds?|secs?|minutes?|mins?|min)\b',
+        '\\b(?:for|during|in|durante|f(?:u|\\u00fc)r)\\s+\\d+(?:\\s*-\\s*|\\s+)$durationUnits(?:\\s+(?:lang|lange))?\\b',
         caseSensitive: false,
       ),
       '',
     );
     text = text.replaceFirst(
       RegExp(
-        r'\b\d+\s*(seconds?|secs?|minutes?|mins?|min)\b',
+        '\\b\\d+(?:\\s*-\\s*|\\s+)$durationUnits(?:\\s+(?:boyunca|durante|lang|lange))?\\b',
         caseSensitive: false,
       ),
       '',
@@ -269,7 +271,9 @@ class TaskCard extends StatelessWidget {
                                           if (checked) ...[
                                             const SizedBox(width: 8),
                                             Text(
-                                              context.l10n.tr('Completed today'),
+                                              context.l10n.tr(
+                                                'Completed today',
+                                              ),
                                               style: theme.textTheme.labelSmall
                                                   ?.copyWith(
                                                     color: scheme
@@ -283,7 +287,9 @@ class TaskCard extends StatelessWidget {
                                           if (timerActive && timerDone) ...[
                                             const SizedBox(width: 6),
                                             Text(
-                                              context.l10n.tr('Ready to finish'),
+                                              context.l10n.tr(
+                                                'Ready to finish',
+                                              ),
                                               style: theme.textTheme.labelSmall
                                                   ?.copyWith(
                                                     color: timerDone
@@ -424,7 +430,9 @@ class TaskCard extends StatelessWidget {
                                                     .workspace_premium_rounded,
                                                 iconAsset:
                                                     'assets/in_app_icons/premium.png',
-                                                label: context.l10n.tr('Premium'),
+                                                label: context.l10n.tr(
+                                                  'Premium',
+                                                ),
                                               ),
                                           ],
                                         ),
@@ -493,7 +501,9 @@ class TaskCard extends StatelessWidget {
                                       Icons.close_rounded,
                                       size: 16,
                                     ),
-                                    label: Text(context.l10n.tr('Cancel timer')),
+                                    label: Text(
+                                      context.l10n.tr('Cancel timer'),
+                                    ),
                                     style: OutlinedButton.styleFrom(
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
@@ -529,7 +539,9 @@ class TaskCard extends StatelessWidget {
                                       Icons.check_rounded,
                                       size: 16,
                                     ),
-                                    label: Text(context.l10n.tr('Mark complete')),
+                                    label: Text(
+                                      context.l10n.tr('Mark complete'),
+                                    ),
                                     style: FilledButton.styleFrom(
                                       visualDensity: VisualDensity.compact,
                                       padding: const EdgeInsets.symmetric(
@@ -605,7 +617,11 @@ class _TaskStartCtaButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.play_arrow_rounded, size: 20, color: Colors.white),
+                const Icon(
+                  Icons.play_arrow_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 3),
                 Text(
                   context.l10n.tr('Start'),
@@ -1633,7 +1649,3 @@ class _XpSpark extends StatelessWidget {
     );
   }
 }
-
-
-
-

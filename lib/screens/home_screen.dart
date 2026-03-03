@@ -31,6 +31,7 @@ import '../services/locale_service.dart';
 import '../controllers/home_controller.dart';
 import '../app_strings.dart';
 import 'task_add_sheet.dart';
+import 'premium_perks_sheet.dart';
 import 'premium_purchase_sheet.dart';
 import 'profile_screen.dart';
 import 'package:sparkio/screens/stats_screen.dart';
@@ -362,29 +363,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         break;
       }
     }
-    Task? flowTask;
-    if (_flowModeEnabled) {
+    Task? heroTask;
+    if (_activeTimerTask != null && _completed[_activeTimerTask!.id] != true) {
+      for (final task in orderedTodayTasks) {
+        if (task.id == _activeTimerTask!.id) {
+          heroTask = task;
+          break;
+        }
+      }
+    }
+    if (heroTask == null && _flowModeEnabled) {
       if (_flowTaskId != null) {
         for (final task in orderedTodayTasks) {
           if (task.id == _flowTaskId && _completed[task.id] != true) {
-            flowTask = task;
+            heroTask = task;
             break;
           }
         }
       }
-      flowTask ??= nextSparkTask;
+      heroTask ??= nextSparkTask;
     }
-    final flowTaskHasTimer =
-        _flowModeEnabled &&
-        flowTask != null &&
-        _activeTimerTask?.id == flowTask.id &&
-        _completed[flowTask.id] != true;
-    final flowTaskIsActive = flowTaskHasTimer && !_activeTimerPaused;
-    final flowTaskIsPaused =
-        flowTaskHasTimer && _activeTimerPaused && !_activeTimerFinished;
-    final flowTimerProgress = flowTaskHasTimer
+    heroTask ??= nextSparkTask;
+    final heroTaskHasTimer =
+        heroTask != null &&
+        _activeTimerTask?.id == heroTask.id &&
+        _completed[heroTask.id] != true;
+    final heroTaskTimerFinished = heroTaskHasTimer && _activeTimerFinished;
+    final heroTaskIsActive =
+        heroTaskHasTimer && !_activeTimerPaused && !_activeTimerFinished;
+    final heroTaskIsPaused =
+        heroTaskHasTimer && _activeTimerPaused && !_activeTimerFinished;
+    final heroTimerProgress = heroTaskHasTimer
         ? (() {
-            final total = flowTask!.totalDurationSeconds.clamp(1, 360000);
+            final total = heroTask!.totalDurationSeconds.clamp(1, 360000);
             final remaining = _activeTimerRemaining.inSeconds.clamp(0, total);
             return (1 - (remaining / total)).clamp(0.0, 1.0).toDouble();
           })()
@@ -425,10 +436,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [
-                        bottomRightAmbient,
-                        Colors.transparent,
-                      ],
+                      colors: [bottomRightAmbient, Colors.transparent],
                       stops: const [0.0, 0.5],
                     ),
                   ),
@@ -460,7 +468,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       streakCount: _streak,
                       weeklyDoneCount: weeklyDoneTotal,
                       weeklyTotalCount: weeklyTargetTotal,
-                      syncedProgress: flowTaskHasTimer ? flowTimerProgress : null,
+                      syncedProgress: heroTaskHasTimer
+                          ? heroTimerProgress
+                          : null,
                       onShare: _openShareSheet,
                       onOpenWeekly: () => unawaited(_openWeeklyPlanSheet()),
                       onStartFirstSpark: nextSparkTask == null
@@ -473,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       const HomeAllDoneSliver()
                     else
                       HomeFlowModeSliver(
-                        task: _flowModeEnabled ? flowTask : nextSparkTask,
+                        task: heroTask,
                         completedTodayCount: completedTodayCount,
                         dailyGoalCount: _today.isEmpty
                             ? 3
@@ -481,69 +491,73 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         latestWinTitle: _lastCompletedTaskTitle,
                         weeklyDoneCount: weeklyDoneTotal,
                         weeklyTargetCount: weeklyTargetTotal,
-                        timerRunning:
-                            _flowModeEnabled &&
-                            flowTaskIsActive &&
-                            !_activeTimerFinished,
-                        timerPaused: _flowModeEnabled && flowTaskIsPaused,
-                        timerRemaining: _flowModeEnabled && flowTaskIsActive
-                            ? _activeTimerRemaining
-                            : _flowModeEnabled && flowTaskIsPaused
+                        timerRunning: heroTaskIsActive,
+                        timerPaused: heroTaskIsPaused,
+                        timerFinished: heroTaskTimerFinished,
+                        timerRemaining: heroTaskHasTimer
                             ? _activeTimerRemaining
                             : null,
                         showMomentumPrompt:
                             _flowModeEnabled &&
                             _flowMomentumPrompt &&
-                            flowTask != null,
+                            heroTask != null &&
+                            heroTask.id == _flowTaskId,
                         onPauseAction:
-                            _flowModeEnabled && flowTaskHasTimer
-                            ? () => _toggleFlowTimerPause(flowTask!)
+                            heroTaskHasTimer && !heroTaskTimerFinished
+                            ? () => _toggleFlowTimerPause(heroTask!)
                             : null,
-                        onEndAction:
-                            _flowModeEnabled && flowTaskHasTimer
-                            ? () => _endFlowTimer(flowTask!)
+                        onEndAction: heroTaskHasTimer && !heroTaskTimerFinished
+                            ? () => _endFlowTimer(heroTask!)
                             : null,
-                        onDoneForToday:
-                            _flowModeEnabled && _flowMomentumPrompt
+                        onDoneForToday: _flowModeEnabled && _flowMomentumPrompt
                             ? _finishFlowForToday
                             : null,
                         onPrimaryAction: _flowModeEnabled
-                            ? (flowTask == null
+                            ? (heroTask == null
                                   ? null
-                                  : flowTaskHasTimer
-                                  ? () => unawaited(_resumeTaskTimer(flowTask!))
-                                  : () => _handleFlowPrimaryAction(flowTask!))
+                                  : heroTaskTimerFinished
+                                  ? () => unawaited(
+                                      _completeFinishedTimerFromNudge(),
+                                    )
+                                  : heroTaskIsPaused
+                                  ? () => unawaited(_resumeTaskTimer(heroTask!))
+                                  : heroTaskIsActive
+                                  ? null
+                                  : () => _handleFlowPrimaryAction(heroTask!))
                             : (nextSparkTask == null
+                                  ? null
+                                  : heroTaskTimerFinished
+                                  ? () => unawaited(
+                                      _completeFinishedTimerFromNudge(),
+                                    )
+                                  : heroTaskIsPaused
+                                  ? () => unawaited(_resumeTaskTimer(heroTask!))
+                                  : heroTaskIsActive
                                   ? null
                                   : () => _startFlowFromHome(nextSparkTask!)),
                       ),
                     if (!allDone && _today.isNotEmpty)
                       HomePlanPreviewSliver(
                         doneCount: completedTodayCount,
-                        nowLabel: (flowTask ?? nextSparkTask) == null
+                        nowLabel: heroTask == null
                             ? null
                             : _repo.localizeTaskTitleForCurrentLocale(
-                                (flowTask ?? nextSparkTask)!.title,
-                                category: (flowTask ?? nextSparkTask)!.category,
-                                taskId: (flowTask ?? nextSparkTask)!.id,
+                                heroTask.title,
+                                category: heroTask.category,
+                                taskId: heroTask.id,
                               ),
                         laterCount: max(
-                          pendingTasks.length -
-                              (((flowTask ?? nextSparkTask) == null) ? 0 : 1),
+                          pendingTasks.length - (heroTask == null ? 0 : 1),
                           0,
                         ),
                         onTap: () => unawaited(
                           _openTodayPlanSheet(
                             doneTasks: completedTasks,
-                            nextTask: flowTask ?? nextSparkTask,
-                            laterTasks: (flowTask ?? nextSparkTask) == null
+                            nextTask: heroTask,
+                            laterTasks: heroTask == null
                                 ? pendingTasks
                                 : pendingTasks
-                                      .where(
-                                        (task) =>
-                                            task.id !=
-                                            (flowTask ?? nextSparkTask)!.id,
-                                      )
+                                      .where((task) => task.id != heroTask!.id)
                                       .toList(),
                           ),
                         ),
@@ -579,9 +593,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               left: 0,
               right: 0,
               bottom: 0,
-              child: BannerAdBar(
-                onOpenRemoveAds: _openSubscribeSheet,
-              ),
+              child: BannerAdBar(onOpenRemoveAds: _openSubscribeSheet),
             ),
         ],
       ),
@@ -594,7 +606,3 @@ enum _RefreshChoice { rewarded, premium, cancel }
 enum _SkipChoice { rewarded, premium, cancel }
 
 enum _WeeklyReviewChoice { applySuggestion, later }
-
-
-
-

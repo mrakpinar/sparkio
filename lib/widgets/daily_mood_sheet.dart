@@ -88,263 +88,286 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final media = MediaQuery.of(context);
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final maxSheetHeight = min(
+      media.size.height * 0.78,
+      media.size.height - media.padding.top - 44,
+    );
 
-    return Container(
-      decoration: _dailyMoodSurface(
-        scheme,
-        tint: const Color(0xFF34D5FF),
-        radius: 32,
-        tintOpacity: 0.06,
-        surfaceOpacity: 0.99,
-      ).copyWith(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: const [Color(0xFF101726), Color(0xFF0E1523)],
-                  ),
-                ),
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxSheetHeight),
+      child: Container(
+        decoration:
+            _dailyMoodSurface(
+              scheme,
+              tint: const Color(0xFF34D5FF),
+              radius: 32,
+              tintOpacity: 0.06,
+              surfaceOpacity: 0.99,
+            ).copyWith(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
               ),
             ),
-            Positioned(
-              top: -90,
-              left: -50,
-              child: IgnorePointer(
-                child: Container(
-                  width: 220,
-                  height: 220,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        scheme.primary.withOpacity(isDark ? 0.08 : 0.05),
-                        Colors.transparent,
-                      ],
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: const [Color(0xFF101726), Color(0xFF0E1523)],
                     ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              top: 70,
-              right: -65,
-              child: IgnorePointer(
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        scheme.tertiary.withOpacity(isDark ? 0.06 : 0.03),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _atmosphereController,
-                  builder: (context, _) {
-                    return CustomPaint(
-                      painter: _MoodAtmosphereDriftPainter(
-                        isDark: isDark,
-                        opacity: isDark ? 0.015 : 0.01,
-                        phase: _atmosphereController.value,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Drag handle
-                    Container(
-                      width: 48,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: scheme.onSurfaceVariant.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(999),
+              Positioned(
+                top: -90,
+                left: -50,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          scheme.primary.withOpacity(isDark ? 0.08 : 0.05),
+                          Colors.transparent,
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 20),
-
-                    // Header
-                    Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: _dailyMoodSurface(
-                            scheme,
-                            tint: const Color(0xFF8B7CFF),
-                            radius: 18,
-                            tintOpacity: 0.14,
-                            surfaceOpacity: 0.96,
-                          ),
-                          child: Icon(
-                            Icons.waving_hand_rounded,
-                            color: Colors.white.withOpacity(0.92),
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.tr("Let's reset your day."),
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
-                                  color: Colors.white.withOpacity(0.95),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                l10n.tr("Pick what you need. We'll handle the rest."),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: scheme.onSurfaceVariant.withOpacity(0.74),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          decoration: _dailyMoodSurface(
-                            scheme,
-                            tint: const Color(0xFF8B7CFF),
-                            radius: 999,
-                            tintOpacity: 0.04,
-                            surfaceOpacity: 0.96,
-                          ),
-                          child: IconButton(
-                            onPressed: widget.onSkip,
-                            icon: const Icon(Icons.close_rounded),
-                            tooltip: l10n.tr('Close'),
-                          ),
-                        ),
-                      ],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 70,
+                right: -65,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          scheme.tertiary.withOpacity(isDark ? 0.06 : 0.03),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    IgnorePointer(
-                      child: Transform.translate(
-                        offset: const Offset(0, 6),
-                        child: Container(
-                          width: double.infinity,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              center: const Alignment(0, -0.85),
-                              radius: 1.25,
-                              colors: [
-                                Color.lerp(
-                                  scheme.primary,
-                                  scheme.tertiary,
-                                  0.35,
-                                )!.withOpacity(isDark ? 0.2 : 0.09),
-                                Colors.transparent,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _atmosphereController,
+                    builder: (context, _) {
+                      return CustomPaint(
+                        painter: _MoodAtmosphereDriftPainter(
+                          isDark: isDark,
+                          opacity: isDark ? 0.015 : 0.01,
+                          phase: _atmosphereController.value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: scheme.onSurfaceVariant.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: _dailyMoodSurface(
+                              scheme,
+                              tint: const Color(0xFF8B7CFF),
+                              radius: 18,
+                              tintOpacity: 0.14,
+                              surfaceOpacity: 0.96,
+                            ),
+                            child: Icon(
+                              Icons.waving_hand_rounded,
+                              color: Colors.white.withOpacity(0.92),
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.tr("Let's reset your day."),
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.3,
+                                    color: Colors.white.withOpacity(0.95),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  l10n.tr(
+                                    "Pick what you need. We'll handle the rest.",
+                                  ),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant.withOpacity(
+                                      0.74,
+                                    ),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            decoration: _dailyMoodSurface(
+                              scheme,
+                              tint: const Color(0xFF8B7CFF),
+                              radius: 999,
+                              tintOpacity: 0.04,
+                              surfaceOpacity: 0.96,
+                            ),
+                            child: IconButton(
+                              onPressed: widget.onSkip,
+                              icon: const Icon(Icons.close_rounded),
+                              tooltip: l10n.tr('Close'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      IgnorePointer(
+                        child: Transform.translate(
+                          offset: const Offset(0, 6),
+                          child: Container(
+                            width: double.infinity,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: const Alignment(0, -0.85),
+                                radius: 1.25,
+                                colors: [
+                                  Color.lerp(
+                                    scheme.primary,
+                                    scheme.tertiary,
+                                    0.35,
+                                  )!.withOpacity(isDark ? 0.2 : 0.09),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ClipRect(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(6, 10, 6, 14),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _MoodOption(
+                                  value: 'stressed',
+                                  title: l10n.tr('Feeling stressed'),
+                                  subtitle: l10n.tr(
+                                    'Slow down. 2 minutes is enough.',
+                                  ),
+                                  outcome: l10n.tr('2-minute breathing reset'),
+                                  icon: Icons.spa_rounded,
+                                  accent: const Color(0xFF38BDF8),
+                                  dnaTint: const Color(0xFFA78BFA),
+                                  glowProfile: _MoodGlowProfile.soft,
+                                  isFeatured: _featuredMood == 'stressed',
+                                  onTap: () => widget.onSelect('stressed'),
+                                ),
+                                const SizedBox(height: 10),
+                                _MoodOption(
+                                  value: 'low_energy',
+                                  title: l10n.tr('Low energy'),
+                                  subtitle: l10n.tr(
+                                    "Let's wake your brain up.",
+                                  ),
+                                  outcome: l10n.tr('2-minute energy reset'),
+                                  icon: Icons.battery_2_bar_rounded,
+                                  accent: const Color(0xFF67E8F9),
+                                  dnaTint: const Color(0xFFFBBF24),
+                                  glowProfile: _MoodGlowProfile.warm,
+                                  isFeatured: _featuredMood == 'low_energy',
+                                  onTap: () => widget.onSelect('low_energy'),
+                                ),
+                                const SizedBox(height: 10),
+                                _MoodOption(
+                                  value: 'focus',
+                                  title: l10n.tr('Need focus'),
+                                  subtitle: l10n.tr('One small win. Ready?'),
+                                  outcome: l10n.tr('2-minute focus reset'),
+                                  icon: Icons.center_focus_strong_rounded,
+                                  accent: const Color(0xFF06B6D4),
+                                  dnaTint: const Color(0xFF2563EB),
+                                  glowProfile: _MoodGlowProfile.sharp,
+                                  isFeatured: _featuredMood == 'focus',
+                                  onTap: () => widget.onSelect('focus'),
+                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Mood options
-                    _MoodOption(
-                      value: 'stressed',
-                      title: l10n.tr('Feeling stressed'),
-                      subtitle: l10n.tr('Slow down. 2 minutes is enough.'),
-                      outcome: l10n.tr('2-minute breathing reset'),
-                      icon: Icons.spa_rounded,
-                      accent: const Color(0xFF38BDF8),
-                      dnaTint: const Color(0xFFA78BFA),
-                      glowProfile: _MoodGlowProfile.soft,
-                      isFeatured: _featuredMood == 'stressed',
-                      onTap: () => widget.onSelect('stressed'),
-                    ),
-                    const SizedBox(height: 12),
-                    _MoodOption(
-                      value: 'low_energy',
-                      title: l10n.tr('Low energy'),
-                      subtitle: l10n.tr("Let's wake your brain up."),
-                      outcome: l10n.tr('2-minute energy reset'),
-                      icon: Icons.battery_2_bar_rounded,
-                      accent: const Color(0xFF67E8F9),
-                      dnaTint: const Color(0xFFFBBF24),
-                      glowProfile: _MoodGlowProfile.warm,
-                      isFeatured: _featuredMood == 'low_energy',
-                      onTap: () => widget.onSelect('low_energy'),
-                    ),
-                    const SizedBox(height: 12),
-                    _MoodOption(
-                      value: 'focus',
-                      title: l10n.tr('Need focus'),
-                      subtitle: l10n.tr('One small win. Ready?'),
-                      outcome: l10n.tr('2-minute focus reset'),
-                      icon: Icons.center_focus_strong_rounded,
-                      accent: const Color(0xFF06B6D4),
-                      dnaTint: const Color(0xFF2563EB),
-                      glowProfile: _MoodGlowProfile.sharp,
-                      isFeatured: _featuredMood == 'focus',
-                      onTap: () => widget.onSelect('focus'),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Skip button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: widget.onSkip,
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: const Color(0xFF101726),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: widget.onSkip,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFF101726),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            side: BorderSide(
+                              color: Colors.white.withOpacity(0.08),
+                              width: 1,
+                            ),
                           ),
-                          side: BorderSide(
-                            color: Colors.white.withOpacity(0.08),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          l10n.tr('Maybe later'),
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurface.withOpacity(0.86),
+                          child: Text(
+                            l10n.tr('Maybe later'),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface.withOpacity(0.86),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -555,7 +578,7 @@ class _MoodOptionState extends State<_MoodOption>
                 isFeatured ? 0.48 : 0.34,
               ) ??
               widget.accent;
-          final featuredScale = isFeatured ? 1.02 : 1.0;
+          final featuredScale = isFeatured ? 1.01 : 1.0;
           final pulseScale = isFeatured ? (0.995 + (0.005 * pulseT)) : 1.0;
           final tapScale = 1 - (0.056 * pressT);
           final effectiveScale = featuredScale * pulseScale * tapScale;
@@ -674,13 +697,13 @@ class _MoodOptionState extends State<_MoodOption>
                   onTapDown: _onTapDown,
                   onTapCancel: _onTapCancel,
                   onHover: _setHover,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       color: scheme.surface,
                       border: Border.all(
                         color: borderColor,
@@ -694,6 +717,7 @@ class _MoodOptionState extends State<_MoodOption>
                       ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _MoodGlowIcon(
                           icon: widget.icon,
@@ -701,7 +725,7 @@ class _MoodOptionState extends State<_MoodOption>
                           glowTint: widget.dnaTint,
                           profile: widget.glowProfile,
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,25 +776,26 @@ class _MoodOptionState extends State<_MoodOption>
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 5),
                               ],
                               Text(
                                 widget.title,
                                 style: theme.textTheme.bodyLarge?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.2,
+                                  height: 1.1,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Text(
                                 widget.subtitle,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: scheme.onSurfaceVariant,
                                   fontWeight: FontWeight.w500,
-                                  height: 1.25,
+                                  height: 1.2,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 7),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -779,26 +804,22 @@ class _MoodOptionState extends State<_MoodOption>
                                     text: widget.outcome,
                                     accent: widget.accent,
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 5),
                                   Transform.translate(
-                                    offset: const Offset(0, 2),
+                                    offset: const Offset(0, 1),
                                     child: Wrap(
-                                      spacing: 7,
+                                      spacing: 6,
+                                      runSpacing: 6,
                                       children: [
                                         _OutcomePill(
                                           icon: Icons.flash_on_rounded,
                                           text: l10n.tr('1 quick action'),
                                           accent: widget.accent,
                                         ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 2,
-                                          ),
-                                          child: _OutcomePill(
-                                            icon: Icons.tune_rounded,
-                                            text: l10n.tr('No setup needed'),
-                                            accent: widget.accent,
-                                          ),
+                                        _OutcomePill(
+                                          icon: Icons.tune_rounded,
+                                          text: l10n.tr('No setup needed'),
+                                          accent: widget.accent,
                                         ),
                                       ],
                                     ),
@@ -815,7 +836,7 @@ class _MoodOptionState extends State<_MoodOption>
                             child: Icon(
                               Icons.arrow_forward_ios_rounded,
                               color: arrowColor,
-                              size: 15,
+                              size: 13,
                               shadows: [
                                 Shadow(
                                   color: signatureGlowColor.withOpacity(
@@ -862,7 +883,7 @@ class _OutcomePill extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
             color: baseFill,
@@ -871,8 +892,8 @@ class _OutcomePill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 12, color: accent.withOpacity(0.83)),
-              const SizedBox(width: 5),
+              Icon(icon, size: 11, color: accent.withOpacity(0.83)),
+              const SizedBox(width: 4),
               Text(
                 text,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -1129,7 +1150,3 @@ class _MoodGlowIconState extends State<_MoodGlowIcon>
     );
   }
 }
-
-
-
-

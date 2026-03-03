@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AppLocalizations {
@@ -1274,12 +1274,7 @@ class AppLocalizations {
       'de': 'Diese Woche',
       'en': 'This week',
     },
-    'sparks': {
-      'tr': 'spark',
-      'es': 'sparks',
-      'de': 'Sparks',
-      'en': 'sparks',
-    },
+    'sparks': {'tr': 'spark', 'es': 'sparks', 'de': 'Sparks', 'en': 'sparks'},
     'Weekly Activity': {
       'tr': 'Haftalık aktivite',
       'es': 'Actividad semanal',
@@ -1370,54 +1365,24 @@ class AppLocalizations {
       'de': 'Momentum',
       'en': 'Momentum',
     },
-    'Morning': {
-      'tr': 'Sabah',
-      'es': 'Mañana',
-      'de': 'Morgen',
-      'en': 'Morning',
-    },
+    'Morning': {'tr': 'Sabah', 'es': 'Mañana', 'de': 'Morgen', 'en': 'Morning'},
     'Afternoon': {
       'tr': 'Öğleden sonra',
       'es': 'Tarde',
       'de': 'Nachmittag',
       'en': 'Afternoon',
     },
-    'Evening': {
-      'tr': 'Akşam',
-      'es': 'Noche',
-      'de': 'Abend',
-      'en': 'Evening',
-    },
-    'Night': {
-      'tr': 'Gece',
-      'es': 'Noche',
-      'de': 'Nacht',
-      'en': 'Night',
-    },
-    'Mind': {
-      'tr': 'Zihin',
-      'es': 'Mente',
-      'de': 'Geist',
-      'en': 'Mind',
-    },
-    'Body': {
-      'tr': 'Vücut',
-      'es': 'Cuerpo',
-      'de': 'Körper',
-      'en': 'Body',
-    },
+    'Evening': {'tr': 'Akşam', 'es': 'Noche', 'de': 'Abend', 'en': 'Evening'},
+    'Night': {'tr': 'Gece', 'es': 'Noche', 'de': 'Nacht', 'en': 'Night'},
+    'Mind': {'tr': 'Zihin', 'es': 'Mente', 'de': 'Geist', 'en': 'Mind'},
+    'Body': {'tr': 'Vücut', 'es': 'Cuerpo', 'de': 'Körper', 'en': 'Body'},
     'Growth': {
       'tr': 'Gelişim',
       'es': 'Crecimiento',
       'de': 'Wachstum',
       'en': 'Growth',
     },
-    'Calm': {
-      'tr': 'Sakin',
-      'es': 'Calma',
-      'de': 'Ruhe',
-      'en': 'Calm',
-    },
+    'Calm': {'tr': 'Sakin', 'es': 'Calma', 'de': 'Ruhe', 'en': 'Calm'},
     'Health': {
       'tr': 'Sağlık',
       'es': 'Salud',
@@ -1438,16 +1403,13 @@ class AppLocalizations {
     },
     'We need a few more completions to detect your peak hour.': {
       'tr': 'En verimli saatini bulmak için birkaç tamamlama daha gerekiyor.',
-      'es': 'Necesitamos algunas completaciones más para detectar tu hora pico.',
-      'de': 'Wir brauchen noch ein paar Abschlüsse, um deine Spitzenzeit zu erkennen.',
+      'es':
+          'Necesitamos algunas completaciones más para detectar tu hora pico.',
+      'de':
+          'Wir brauchen noch ein paar Abschlüsse, um deine Spitzenzeit zu erkennen.',
       'en': 'We need a few more completions to detect your peak hour.',
     },
-    'Skip': {
-      'tr': 'Geç',
-      'es': 'Saltar',
-      'de': 'Überspringen',
-      'en': 'Skip',
-    },
+    'Skip': {'tr': 'Geç', 'es': 'Saltar', 'de': 'Überspringen', 'en': 'Skip'},
     'Continue': {
       'tr': 'Devam et',
       'es': 'Continuar',
@@ -1647,16 +1609,21 @@ class AppLocalizations {
       'en': 'Restore purchases',
     },
     'Cancel anytime in Google Play > Payments & subscriptions.': {
-      'tr': 'İstediğin zaman Google Play > Ödemeler ve abonelikler kısmından iptal et.',
+      'tr':
+          'İstediğin zaman Google Play > Ödemeler ve abonelikler kısmından iptal et.',
       'es': 'Cancela cuando quieras en Google Play > Pagos y suscripciones.',
       'de': 'Jederzeit in Google Play > Zahlungen und Abos kündbar.',
       'en': 'Cancel anytime in Google Play > Payments & subscriptions.',
     },
     'By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.': {
-      'tr': 'Abone olarak seçtiğin plana göre yinelenen ücretleri onaylamış olursun. Varsa deneme veya tanıtım teklifi satın alma onayından önce gösterilir.',
-      'es': 'Al suscribirte, autorizas cobros recurrentes según el plan que elijas. Cualquier prueba u oferta se mostrará antes de confirmar la compra.',
-      'de': 'Mit dem Abo autorisierst du wiederkehrende Zahlungen gemäß dem gewählten Plan. Eine Probe- oder Einführungsaktion wird vor dem Kauf angezeigt.',
-      'en': 'By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.',
+      'tr':
+          'Abone olarak seçtiğin plana göre yinelenen ücretleri onaylamış olursun. Varsa deneme veya tanıtım teklifi satın alma onayından önce gösterilir.',
+      'es':
+          'Al suscribirte, autorizas cobros recurrentes según el plan que elijas. Cualquier prueba u oferta se mostrará antes de confirmar la compra.',
+      'de':
+          'Mit dem Abo autorisierst du wiederkehrende Zahlungen gemäß dem gewählten Plan. Eine Probe- oder Einführungsaktion wird vor dem Kauf angezeigt.',
+      'en':
+          'By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.',
     },
     'Billed yearly, auto-renews every year.': {
       'tr': 'Yıllık faturalandırılır, her yıl otomatik yenilenir.',
@@ -1673,7 +1640,8 @@ class AppLocalizations {
     'Recurring subscription, auto-renews until canceled.': {
       'tr': 'Yinelenen abonelik, iptal edilene kadar otomatik yenilenir.',
       'es': 'Suscripción recurrente, se renueva hasta que se cancele.',
-      'de': 'Wiederkehrendes Abo, verlängert sich bis zur Kündigung automatisch.',
+      'de':
+          'Wiederkehrendes Abo, verlängert sich bis zur Kündigung automatisch.',
       'en': 'Recurring subscription, auto-renews until canceled.',
     },
     'Best value': {
@@ -1814,12 +1782,7 @@ class AppLocalizations {
       'de': 'Wähle, was du brauchst. Den Rest übernehmen wir.',
       'en': "Pick what you need. We'll handle the rest.",
     },
-    'Close': {
-      'tr': 'Kapat',
-      'es': 'Cerrar',
-      'de': 'Schließen',
-      'en': 'Close',
-    },
+    'Close': {'tr': 'Kapat', 'es': 'Cerrar', 'de': 'Schließen', 'en': 'Close'},
     'Feeling stressed': {
       'tr': 'Stresli misin',
       'es': '¿Te sientes estresado?',
@@ -1952,12 +1915,7 @@ class AppLocalizations {
       'de': 'Starte diese Woche',
       'en': 'Start this week',
     },
-    'Light': {
-      'tr': 'Hafif',
-      'es': 'Ligero',
-      'de': 'Leicht',
-      'en': 'Light',
-    },
+    'Light': {'tr': 'Hafif', 'es': 'Ligero', 'de': 'Leicht', 'en': 'Light'},
     'Stronger': {
       'tr': 'Daha güçlü',
       'es': 'Más fuerte',
@@ -1994,24 +1952,9 @@ class AppLocalizations {
       'de': 'Wie anspruchsvoll?',
       'en': 'How challenging?',
     },
-    'Chill': {
-      'tr': 'Rahat',
-      'es': 'Suave',
-      'de': 'Locker',
-      'en': 'Chill',
-    },
-    'Focus': {
-      'tr': 'Odak',
-      'es': 'Enfoque',
-      'de': 'Fokus',
-      'en': 'Focus',
-    },
-    'Beast': {
-      'tr': 'Güçlü',
-      'es': 'Bestia',
-      'de': 'Beast',
-      'en': 'Beast',
-    },
+    'Chill': {'tr': 'Rahat', 'es': 'Suave', 'de': 'Locker', 'en': 'Chill'},
+    'Focus': {'tr': 'Odak', 'es': 'Enfoque', 'de': 'Fokus', 'en': 'Focus'},
+    'Beast': {'tr': 'Güçlü', 'es': 'Bestia', 'de': 'Beast', 'en': 'Beast'},
     'Task Packs': {
       'tr': 'Görev paketleri',
       'es': 'Paquetes de tareas',
@@ -2060,12 +2003,7 @@ class AppLocalizations {
       'de': 'Beliebt',
       'en': 'Popular',
     },
-    'New': {
-      'tr': 'Yeni',
-      'es': 'Nuevo',
-      'de': 'Neu',
-      'en': 'New',
-    },
+    'New': {'tr': 'Yeni', 'es': 'Nuevo', 'de': 'Neu', 'en': 'New'},
     'For you': {
       'tr': 'Senin için',
       'es': 'Para ti',
@@ -2096,12 +2034,7 @@ class AppLocalizations {
       'de': 'Wie lange dauert es?',
       'en': 'How long will it take?',
     },
-    'Add': {
-      'tr': 'Ekle',
-      'es': 'Añadir',
-      'de': 'Hinzufügen',
-      'en': 'Add',
-    },
+    'Add': {'tr': 'Ekle', 'es': 'Añadir', 'de': 'Hinzufügen', 'en': 'Add'},
     'Your rating': {
       'tr': 'Puanın',
       'es': 'Tu valoración',
@@ -2114,17 +2047,16 @@ class AppLocalizations {
       'de': 'gespeichert',
       'en': 'saved',
     },
-    'NEW': {
-      'tr': 'YENİ',
-      'es': 'NUEVO',
-      'de': 'NEU',
-      'en': 'NEW',
-    },
+    'NEW': {'tr': 'YENİ', 'es': 'NUEVO', 'de': 'NEU', 'en': 'NEW'},
     'Referral reward unlocked: +1 extra spark slot and 1 day premium boost.': {
-      'tr': 'Davet ödülü açıldı: +1 ekstra spark slotu ve 1 gün premium desteği.',
-      'es': 'Recompensa por invitación desbloqueada: +1 espacio extra de spark y 1 día premium.',
-      'de': 'Empfehlungsbelohnung freigeschaltet: +1 Extra-Spark-Slot und 1 Tag Premium.',
-      'en': 'Referral reward unlocked: +1 extra spark slot and 1 day premium boost.',
+      'tr':
+          'Davet ödülü açıldı: +1 ekstra spark slotu ve 1 gün premium desteği.',
+      'es':
+          'Recompensa por invitación desbloqueada: +1 espacio extra de spark y 1 día premium.',
+      'de':
+          'Empfehlungsbelohnung freigeschaltet: +1 Extra-Spark-Slot und 1 Tag Premium.',
+      'en':
+          'Referral reward unlocked: +1 extra spark slot and 1 day premium boost.',
     },
     'Tap to open': {
       'tr': 'Açmak için dokun',
@@ -2138,12 +2070,7 @@ class AppLocalizations {
       'de': 'Erneut versuchen',
       'en': 'Retry',
     },
-    'Copy': {
-      'tr': 'Kopyala',
-      'es': 'Copiar',
-      'de': 'Kopieren',
-      'en': 'Copy',
-    },
+    'Copy': {'tr': 'Kopyala', 'es': 'Copiar', 'de': 'Kopieren', 'en': 'Copy'},
     'Invite used: {code}': {
       'tr': 'Kullanılan davet: {code}',
       'es': 'Invitación usada: {code}',
@@ -2156,12 +2083,7 @@ class AppLocalizations {
       'de': 'Einladungscode eingeben',
       'en': 'Enter invite code',
     },
-    'Claim': {
-      'tr': 'Al',
-      'es': 'Canjear',
-      'de': 'Einlösen',
-      'en': 'Claim',
-    },
+    'Claim': {'tr': 'Al', 'es': 'Canjear', 'de': 'Einlösen', 'en': 'Claim'},
     'Profile': {
       'tr': 'Profil',
       'es': 'Perfil',
@@ -2246,24 +2168,9 @@ class AppLocalizations {
       'de': 'Täglicher Fortschritt',
       'en': 'Daily progress',
     },
-    'Hard': {
-      'tr': 'Zor',
-      'es': 'Difícil',
-      'de': 'Schwer',
-      'en': 'Hard',
-    },
-    'Medium': {
-      'tr': 'Orta',
-      'es': 'Medio',
-      'de': 'Mittel',
-      'en': 'Medium',
-    },
-    'Easy': {
-      'tr': 'Kolay',
-      'es': 'Fácil',
-      'de': 'Leicht',
-      'en': 'Easy',
-    },
+    'Hard': {'tr': 'Zor', 'es': 'Difícil', 'de': 'Schwer', 'en': 'Hard'},
+    'Medium': {'tr': 'Orta', 'es': 'Medio', 'de': 'Mittel', 'en': 'Medium'},
+    'Easy': {'tr': 'Kolay', 'es': 'Fácil', 'de': 'Leicht', 'en': 'Easy'},
     'Start your spark': {
       'tr': 'Sparkını başlat',
       'es': 'Inicia tu spark',
@@ -2312,24 +2219,14 @@ class AppLocalizations {
       'de': 'Als erledigt markieren',
       'en': 'Mark complete',
     },
-    'Start': {
-      'tr': 'Başla',
-      'es': 'Empezar',
-      'de': 'Start',
-      'en': 'Start',
-    },
+    'Start': {'tr': 'Başla', 'es': 'Empezar', 'de': 'Start', 'en': 'Start'},
     'minutes': {
       'tr': 'dakika',
       'es': 'minutos',
       'de': 'Minuten',
       'en': 'minutes',
     },
-    'min': {
-      'tr': 'dk',
-      'es': 'min',
-      'de': 'Min',
-      'en': 'min',
-    },
+    'min': {'tr': 'dk', 'es': 'min', 'de': 'Min', 'en': 'min'},
     'seconds': {
       'tr': 'saniye',
       'es': 'segundos',
@@ -2396,24 +2293,9 @@ class AppLocalizations {
       'de': 'Heutiger Rhythmus',
       'en': "Today's rhythm",
     },
-    'Now': {
-      'tr': 'Şimdi',
-      'es': 'Ahora',
-      'de': 'Jetzt',
-      'en': 'Now',
-    },
-    'Done': {
-      'tr': 'Bitti',
-      'es': 'Hecho',
-      'de': 'Erledigt',
-      'en': 'Done',
-    },
-    'Later': {
-      'tr': 'Sonra',
-      'es': 'Después',
-      'de': 'Später',
-      'en': 'Later',
-    },
+    'Now': {'tr': 'Şimdi', 'es': 'Ahora', 'de': 'Jetzt', 'en': 'Now'},
+    'Done': {'tr': 'Bitti', 'es': 'Hecho', 'de': 'Erledigt', 'en': 'Done'},
+    'Later': {'tr': 'Sonra', 'es': 'Después', 'de': 'Später', 'en': 'Later'},
     'Start small.': {
       'tr': 'Küçük başla.',
       'es': 'Empieza pequeño.',
@@ -2432,12 +2314,7 @@ class AppLocalizations {
       'de': '{count} optional',
       'en': '{count} optional',
     },
-    'Edit': {
-      'tr': 'Düzenle',
-      'es': 'Editar',
-      'de': 'Bearbeiten',
-      'en': 'Edit',
-    },
+    'Edit': {'tr': 'Düzenle', 'es': 'Editar', 'de': 'Bearbeiten', 'en': 'Edit'},
     'Choose avatar': {
       'tr': 'Avatar seç',
       'es': 'Elegir avatar',
@@ -2462,24 +2339,14 @@ class AppLocalizations {
       'de': 'Avatar entfernen',
       'en': 'Remove avatar',
     },
-    'Done button': {
-      'tr': 'Tamam',
-      'es': 'Hecho',
-      'de': 'Fertig',
-      'en': 'Done',
-    },
+    'Done button': {'tr': 'Tamam', 'es': 'Hecho', 'de': 'Fertig', 'en': 'Done'},
     'Cancel': {
       'tr': 'Vazgeç',
       'es': 'Cancelar',
       'de': 'Abbrechen',
       'en': 'Cancel',
     },
-    'Save': {
-      'tr': 'Kaydet',
-      'es': 'Guardar',
-      'de': 'Speichern',
-      'en': 'Save',
-    },
+    'Save': {'tr': 'Kaydet', 'es': 'Guardar', 'de': 'Speichern', 'en': 'Save'},
     'Enter your first name': {
       'tr': 'Adını gir',
       'es': 'Ingresa tu nombre',
@@ -2687,7 +2554,8 @@ class AppLocalizations {
     'We will suggest your best tasks once you complete more sparks.': {
       'tr': 'Daha fazla spark tamamladığında en iyi görevlerini önereceğiz.',
       'es': 'Te sugeriremos tus mejores tareas cuando completes más sparks.',
-      'de': 'Wir schlagen dir deine besten Aufgaben vor, sobald du mehr Sparks abschließt.',
+      'de':
+          'Wir schlagen dir deine besten Aufgaben vor, sobald du mehr Sparks abschließt.',
       'en': 'We will suggest your best tasks once you complete more sparks.',
     },
     'Based on completed sparks only.': {
@@ -2696,78 +2564,18 @@ class AppLocalizations {
       'de': 'Basiert nur auf abgeschlossenen Sparks.',
       'en': 'Based on completed sparks only.',
     },
-    'Mon': {
-      'tr': 'Pzt',
-      'es': 'Lun',
-      'de': 'Mo',
-      'en': 'Mon',
-    },
-    'Tue': {
-      'tr': 'Sal',
-      'es': 'Mar',
-      'de': 'Di',
-      'en': 'Tue',
-    },
-    'Wed': {
-      'tr': 'Çar',
-      'es': 'Mié',
-      'de': 'Mi',
-      'en': 'Wed',
-    },
-    'Thu': {
-      'tr': 'Per',
-      'es': 'Jue',
-      'de': 'Do',
-      'en': 'Thu',
-    },
-    'Fri': {
-      'tr': 'Cum',
-      'es': 'Vie',
-      'de': 'Fr',
-      'en': 'Fri',
-    },
-    'Sat': {
-      'tr': 'Cmt',
-      'es': 'Sáb',
-      'de': 'Sa',
-      'en': 'Sat',
-    },
-    'Sun': {
-      'tr': 'Paz',
-      'es': 'Dom',
-      'de': 'So',
-      'en': 'Sun',
-    },
-    'day': {
-      'tr': 'gün',
-      'es': 'día',
-      'de': 'Tag',
-      'en': 'day',
-    },
-    'days': {
-      'tr': 'gün',
-      'es': 'días',
-      'de': 'Tage',
-      'en': 'days',
-    },
-    'Low': {
-      'tr': 'Düşük',
-      'es': 'Bajo',
-      'de': 'Niedrig',
-      'en': 'Low',
-    },
-    'High': {
-      'tr': 'Yüksek',
-      'es': 'Alto',
-      'de': 'Hoch',
-      'en': 'High',
-    },
-    'Other': {
-      'tr': 'Diğer',
-      'es': 'Otro',
-      'de': 'Andere',
-      'en': 'Other',
-    },
+    'Mon': {'tr': 'Pzt', 'es': 'Lun', 'de': 'Mo', 'en': 'Mon'},
+    'Tue': {'tr': 'Sal', 'es': 'Mar', 'de': 'Di', 'en': 'Tue'},
+    'Wed': {'tr': 'Çar', 'es': 'Mié', 'de': 'Mi', 'en': 'Wed'},
+    'Thu': {'tr': 'Per', 'es': 'Jue', 'de': 'Do', 'en': 'Thu'},
+    'Fri': {'tr': 'Cum', 'es': 'Vie', 'de': 'Fr', 'en': 'Fri'},
+    'Sat': {'tr': 'Cmt', 'es': 'Sáb', 'de': 'Sa', 'en': 'Sat'},
+    'Sun': {'tr': 'Paz', 'es': 'Dom', 'de': 'So', 'en': 'Sun'},
+    'day': {'tr': 'gün', 'es': 'día', 'de': 'Tag', 'en': 'day'},
+    'days': {'tr': 'gün', 'es': 'días', 'de': 'Tage', 'en': 'days'},
+    'Low': {'tr': 'Düşük', 'es': 'Bajo', 'de': 'Niedrig', 'en': 'Low'},
+    'High': {'tr': 'Yüksek', 'es': 'Alto', 'de': 'Hoch', 'en': 'High'},
+    'Other': {'tr': 'Diğer', 'es': 'Otro', 'de': 'Andere', 'en': 'Other'},
     'Move a little, feel better.': {
       'tr': 'Biraz hareket et, daha iyi hisset.',
       'es': 'Muévete un poco, siéntete mejor.',
@@ -2798,18 +2606,8 @@ class AppLocalizations {
       'de': 'Unterstütze deine Energie und dein Wohlbefinden.',
       'en': 'Support your energy and wellbeing.',
     },
-    'slot': {
-      'tr': 'slot',
-      'es': 'slot',
-      'de': 'Slot',
-      'en': 'slot',
-    },
-    'slots': {
-      'tr': 'slot',
-      'es': 'slots',
-      'de': 'Slots',
-      'en': 'slots',
-    },
+    'slot': {'tr': 'slot', 'es': 'slot', 'de': 'Slot', 'en': 'slot'},
+    'slots': {'tr': 'slot', 'es': 'slots', 'de': 'Slots', 'en': 'slots'},
     '{title} ready now': {
       'tr': '{title} şimdi hazır',
       'es': '{title} listo ahora',
@@ -2864,12 +2662,7 @@ class AppLocalizations {
       'de': '{duration} erledigt',
       'en': '{duration} done',
     },
-    'minute': {
-      'tr': 'dakika',
-      'es': 'minuto',
-      'de': 'Minute',
-      'en': 'minute',
-    },
+    'minute': {'tr': 'dakika', 'es': 'minuto', 'de': 'Minute', 'en': 'minute'},
     'Good morning': {
       'tr': 'Günaydın',
       'es': 'Buenos días',
@@ -2948,18 +2741,8 @@ class AppLocalizations {
       'de': 'Die Zeit ist um!',
       'en': 'Time is up!',
     },
-    'DONE': {
-      'tr': 'BİTTİ',
-      'es': 'HECHO',
-      'de': 'FERTIG',
-      'en': 'DONE',
-    },
-    'LIVE': {
-      'tr': 'CANLI',
-      'es': 'ACTIVO',
-      'de': 'LIVE',
-      'en': 'LIVE',
-    },
+    'DONE': {'tr': 'BİTTİ', 'es': 'HECHO', 'de': 'FERTIG', 'en': 'DONE'},
+    'LIVE': {'tr': 'CANLI', 'es': 'ACTIVO', 'de': 'LIVE', 'en': 'LIVE'},
     'Ready to mark as completed.': {
       'tr': 'Tamamlandı olarak işaretlemeye hazır.',
       'es': 'Listo para marcar como completado.',
@@ -3122,12 +2905,7 @@ class AppLocalizations {
       'de': 'Jetzt starten',
       'en': 'Start now',
     },
-    'Today': {
-      'tr': 'Bugün',
-      'es': 'Hoy',
-      'de': 'Heute',
-      'en': 'Today',
-    },
+    'Today': {'tr': 'Bugün', 'es': 'Hoy', 'de': 'Heute', 'en': 'Today'},
     'Weekly plan needs {count} more': {
       'tr': 'Haftalık plan için {count} tane daha gerekiyor',
       'es': 'El plan semanal necesita {count} más',
@@ -3206,12 +2984,7 @@ class AppLocalizations {
       'de': 'Ziel {count}/Tag',
       'en': 'Goal {count}/day',
     },
-    'Active': {
-      'tr': 'Aktif',
-      'es': 'Activo',
-      'de': 'Aktiv',
-      'en': 'Active',
-    },
+    'Active': {'tr': 'Aktif', 'es': 'Activo', 'de': 'Aktiv', 'en': 'Active'},
     'No active challenge': {
       'tr': 'Aktif challenge yok',
       'es': 'No hay reto activo',
@@ -3278,12 +3051,7 @@ class AppLocalizations {
       'de': 'Starke Konstanz. Du hast {done}/{total} Tage abgeschlossen.',
       'en': 'Great consistency. You completed {done}/{total} days.',
     },
-    'Nice': {
-      'tr': 'Harika',
-      'es': 'Bien',
-      'de': 'Stark',
-      'en': 'Nice',
-    },
+    'Nice': {'tr': 'Harika', 'es': 'Bien', 'de': 'Stark', 'en': 'Nice'},
     '{title}: {done}/{total} days logged.': {
       'tr': '{title}: {done}/{total} gün kaydedildi.',
       'es': '{title}: {done}/{total} días registrados.',
@@ -3297,9 +3065,12 @@ class AppLocalizations {
       'en': 'Focus Reset',
     },
     'Run one distraction-free spark each day to regain focus.': {
-      'tr': 'Odağını geri kazanmak için her gün dikkat dağıtmayan bir spark yap.',
-      'es': 'Haz un spark sin distracciones cada día para recuperar el enfoque.',
-      'de': 'Führe jeden Tag einen ablenkungsfreien Spark aus, um den Fokus zurückzugewinnen.',
+      'tr':
+          'Odağını geri kazanmak için her gün dikkat dağıtmayan bir spark yap.',
+      'es':
+          'Haz un spark sin distracciones cada día para recuperar el enfoque.',
+      'de':
+          'Führe jeden Tag einen ablenkungsfreien Spark aus, um den Fokus zurückzugewinnen.',
       'en': 'Run one distraction-free spark each day to regain focus.',
     },
     'Sleep Week': {
@@ -3321,9 +3092,11 @@ class AppLocalizations {
       'en': 'Stress Offload',
     },
     'Use one daily spark to downshift stress and reset calmly.': {
-      'tr': 'Stresi azaltmak ve sakin şekilde resetlemek için günde bir spark kullan.',
+      'tr':
+          'Stresi azaltmak ve sakin şekilde resetlemek için günde bir spark kullan.',
       'es': 'Usa un spark diario para bajar el estrés y reiniciarte con calma.',
-      'de': 'Nutze täglich einen Spark, um Stress herunterzufahren und ruhig neu zu starten.',
+      'de':
+          'Nutze täglich einen Spark, um Stress herunterzufahren und ruhig neu zu starten.',
       'en': 'Use one daily spark to downshift stress and reset calmly.',
     },
     '7-Day Reset': {
@@ -3368,6 +3141,24 @@ class AppLocalizations {
       'de': 'Lege ein klares Fokusziel fest',
       'en': 'Set one clear focus outcome',
     },
+    'Write your top focus target': {
+      'tr': 'En önemli odak hedefini yaz',
+      'es': 'Escribe tu objetivo principal de enfoque',
+      'de': 'Schreibe dein wichtigstes Fokusziel auf',
+      'en': 'Write your top focus target',
+    },
+    'Run a 5-minute deep focus sprint': {
+      'tr': '5 dakikalık derin odak sprinti yap',
+      'es': 'Haz un sprint de enfoque profundo de 5 minutos',
+      'de': 'Mache einen 5-minütigen Tiefenfokus-Sprint',
+      'en': 'Run a 5-minute deep focus sprint',
+    },
+    'Clear distractions for 2 minutes': {
+      'tr': '2 dakika dikkat dağıtıcıları temizle',
+      'es': 'Elimina distracciones durante 2 minutos',
+      'de': 'Beseitige 2 Minuten lang Ablenkungen',
+      'en': 'Clear distractions for 2 minutes',
+    },
     'Do a 12-minute deep work sprint': {
       'tr': '12 dakikalık derin çalışma sprinti yap',
       'es': 'Haz un sprint de trabajo profundo de 12 minutos',
@@ -3410,6 +3201,42 @@ class AppLocalizations {
       'de': 'Kein Handy und 4 Minuten atmen',
       'en': 'No phone and breathe for 4 minutes',
     },
+    'No screens for the next 10 minutes': {
+      'tr': 'Önümüzdeki 10 dakika ekran yok',
+      'es': 'Sin pantallas durante los próximos 10 minutos',
+      'de': 'Für die nächsten 10 Minuten keine Bildschirme',
+      'en': 'No screens for the next 10 minutes',
+    },
+    'Do 4-7-8 breathing for 3 minutes': {
+      'tr': '3 dakika 4-7-8 nefesi yap',
+      'es': 'Haz respiración 4-7-8 durante 3 minutos',
+      'de': 'Mache 3 Minuten lang 4-7-8-Atmung',
+      'en': 'Do 4-7-8 breathing for 3 minutes',
+    },
+    'Prepare tomorrow with 2 bullet points': {
+      'tr': 'Yarını 2 maddeyle hazırla',
+      'es': 'Prepara mañana con 2 puntos',
+      'de': 'Bereite morgen mit 2 Stichpunkten vor',
+      'en': 'Prepare tomorrow with 2 bullet points',
+    },
+    'Box breathe for 2 minutes': {
+      'tr': '2 dakika kutu nefesi yap',
+      'es': 'Haz respiración en caja durante 2 minutos',
+      'de': 'Mache 2 Minuten Box-Atmung',
+      'en': 'Box breathe for 2 minutes',
+    },
+    'Release shoulder tension for 90 seconds': {
+      'tr': '90 saniye omuz gerginliğini bırak',
+      'es': 'Libera la tensión de los hombros durante 90 segundos',
+      'de': 'Löse 90 Sekunden lang Schulterspannung',
+      'en': 'Release shoulder tension for 90 seconds',
+    },
+    'Write one thing you can control': {
+      'tr': 'Kontrol edebileceğin bir şeyi yaz',
+      'es': 'Escribe una cosa que puedas controlar',
+      'de': 'Schreibe eine Sache auf, die du kontrollieren kannst',
+      'en': 'Write one thing you can control',
+    },
     'Quick body + breath routine to downshift stress.': {
       'tr': 'Stresi düşürmek için hızlı beden + nefes rutini.',
       'es': 'Rutina rápida de cuerpo y respiración para bajar el estrés.',
@@ -3441,9 +3268,12 @@ class AppLocalizations {
       'en': 'Morning Reset',
     },
     'A low-friction start to regain momentum in under 10 minutes.': {
-      'tr': '10 dakikadan kısa sürede momentumu geri kazanmak için sürtünmesiz başlangıç.',
-      'es': 'Un comienzo de baja fricción para recuperar el impulso en menos de 10 minutos.',
-      'de': 'Ein reibungsarmer Start, um in unter 10 Minuten wieder Momentum zu gewinnen.',
+      'tr':
+          '10 dakikadan kısa sürede momentumu geri kazanmak için sürtünmesiz başlangıç.',
+      'es':
+          'Un comienzo de baja fricción para recuperar el impulso en menos de 10 minutos.',
+      'de':
+          'Ein reibungsarmer Start, um in unter 10 Minuten wieder Momentum zu gewinnen.',
       'en': 'A low-friction start to regain momentum in under 10 minutes.',
     },
     'Open curtains and take 5 deep breaths': {
@@ -3461,7 +3291,8 @@ class AppLocalizations {
     'Do a 4-minute start sprint on your top task': {
       'tr': 'En önemli görevinde 4 dakikalık başlangıç sprinti yap',
       'es': 'Haz un sprint inicial de 4 minutos en tu tarea principal',
-      'de': 'Mache einen 4-minütigen Start-Sprint bei deiner wichtigsten Aufgabe',
+      'de':
+          'Mache einen 4-minütigen Start-Sprint bei deiner wichtigsten Aufgabe',
       'en': 'Do a 4-minute start sprint on your top task',
     },
     'Walk Boost': {
@@ -3472,8 +3303,10 @@ class AppLocalizations {
     },
     'Body-first micro routine to break mental fog quickly.': {
       'tr': 'Zihinsel sisi hızlıca dağıtmak için beden odaklı mikro rutin.',
-      'es': 'Micro rutina centrada en el cuerpo para romper rápidamente la niebla mental.',
-      'de': 'Körperfokussierte Mikroroutine, um mentalen Nebel schnell zu lösen.',
+      'es':
+          'Micro rutina centrada en el cuerpo para romper rápidamente la niebla mental.',
+      'de':
+          'Körperfokussierte Mikroroutine, um mentalen Nebel schnell zu lösen.',
       'en': 'Body-first micro routine to break mental fog quickly.',
     },
     'Walk for 4 minutes without your phone': {
@@ -3502,7 +3335,8 @@ class AppLocalizations {
     },
     'Close the day with light planning and calm transition.': {
       'tr': 'Günü hafif planlama ve sakin geçişle kapat.',
-      'es': 'Cierra el día con planificación ligera y una transición tranquila.',
+      'es':
+          'Cierra el día con planificación ligera y una transición tranquila.',
       'de': 'Beende den Tag mit leichter Planung und ruhigem Übergang.',
       'en': 'Close the day with light planning and calm transition.',
     },
@@ -3609,5 +3443,3 @@ class _AppLocalizationsDelegate
 extension AppLocalizationsX on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this);
 }
-
-

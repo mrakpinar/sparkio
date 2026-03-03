@@ -5,21 +5,36 @@ import 'package:flutter/services.dart';
 import '../app_strings.dart';
 import '../services/task_repository.dart';
 
-const Color _kDrawerBackgroundTop = Color(0xFF0B0F1A);
-const Color _kDrawerPrimarySurface = Color(0xFF131A2A);
-const Color _kDrawerSecondarySurface = Color(0xFF101726);
-const Color _kDrawerTertiarySurface = Color(0xFF0D1422);
+const Color _kDrawerDarkBackgroundTop = Color(0xFF0B0F1A);
+const Color _kDrawerDarkPrimarySurface = Color(0xFF131A2A);
+const Color _kDrawerDarkSecondarySurface = Color(0xFF101726);
+const Color _kDrawerDarkTertiarySurface = Color(0xFF0D1422);
+const Color _kDrawerLightBackgroundTop = Color(0xFFF6F3FB);
+const Color _kDrawerLightPrimarySurface = Color(0xFFFFFFFF);
+const Color _kDrawerLightSecondarySurface = Color(0xFFF6F1FB);
+const Color _kDrawerLightTertiarySurface = Color(0xFFEEE8F7);
 
 enum _DrawerSurfaceLevel { primary, secondary, tertiary }
 
-Color _drawerSurfaceColorFor(_DrawerSurfaceLevel level) {
+Color _drawerBackgroundColor(bool isDark) {
+  return isDark ? _kDrawerDarkBackgroundTop : _kDrawerLightBackgroundTop;
+}
+
+Color _drawerSurfaceColorFor(
+  _DrawerSurfaceLevel level, {
+  required bool isDark,
+}) {
   switch (level) {
     case _DrawerSurfaceLevel.primary:
-      return _kDrawerPrimarySurface;
+      return isDark ? _kDrawerDarkPrimarySurface : _kDrawerLightPrimarySurface;
     case _DrawerSurfaceLevel.secondary:
-      return _kDrawerSecondarySurface;
+      return isDark
+          ? _kDrawerDarkSecondarySurface
+          : _kDrawerLightSecondarySurface;
     case _DrawerSurfaceLevel.tertiary:
-      return _kDrawerTertiarySurface;
+      return isDark
+          ? _kDrawerDarkTertiarySurface
+          : _kDrawerLightTertiarySurface;
   }
 }
 
@@ -50,31 +65,32 @@ BoxDecoration _drawerNeoGlassDecoration({
   bool pressed = false,
   bool withDepth = true,
   _DrawerSurfaceLevel level = _DrawerSurfaceLevel.secondary,
+  required bool isDark,
 }) {
-  final baseSurface = _drawerSurfaceColorFor(level);
+  final baseSurface = _drawerSurfaceColorFor(level, isDark: isDark);
   final surface = pressed
-      ? Color.alphaBlend(
-          const Color(0xFF8B7CFF).withOpacity(0.08),
-          baseSurface,
-        )
+      ? Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.08), baseSurface)
       : baseSurface;
+  final overlay = isDark
+      ? Colors.white.withOpacity(0.03)
+      : Colors.white.withOpacity(0.7);
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
-    color: Color.alphaBlend(
-      Colors.white.withOpacity(0.03),
-      surface,
-    ),
+    color: Color.alphaBlend(overlay, surface),
     boxShadow: withDepth
         ? [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: (isDark ? Colors.black : const Color(0xFF8B92A8))
+                  .withOpacity(isDark ? 0.18 : 0.14),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
           ]
         : const [],
     border: Border.all(
-      color: Colors.white.withOpacity(showBorder ? 0.08 : 0.05),
+      color: isDark
+          ? Colors.white.withOpacity(showBorder ? 0.08 : 0.05)
+          : Colors.black.withOpacity(showBorder ? 0.08 : 0.04),
       width: 1,
     ),
   );
@@ -83,6 +99,7 @@ BoxDecoration _drawerNeoGlassDecoration({
 BoxDecoration _drawerIconPodDecoration({
   required Color backgroundColor,
   double radius = 10,
+  required bool isDark,
 }) {
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
@@ -94,7 +111,12 @@ BoxDecoration _drawerIconPodDecoration({
         backgroundColor,
       ],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+    border: Border.all(
+      color: isDark
+          ? Colors.white.withOpacity(0.05)
+          : Colors.black.withOpacity(0.05),
+      width: 1,
+    ),
   );
 }
 
@@ -337,7 +359,7 @@ class _ModernDrawerState extends State<ModernDrawer>
             iconColor: _kPremiumIconColor,
             iconBackgroundColor: _kPremiumIconBg,
             title: l10n.premium,
-            subtitle: l10n.premiumSubtitle,
+            subtitle: l10n.tr('Boosts & no-ads'),
             surfaceLevel: _DrawerSurfaceLevel.secondary,
             onTap: () => runAsyncMenuAction(widget.onOpenPremium),
           ),
@@ -436,7 +458,7 @@ class _ModernDrawerState extends State<ModernDrawer>
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: _kDrawerBackgroundTop,
+          color: _drawerBackgroundColor(effectiveDark),
           borderRadius: const BorderRadius.horizontal(
             left: Radius.circular(30),
           ),
@@ -612,12 +634,15 @@ class _DrawerHero extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           color: Color.alphaBlend(
-            Colors.white.withOpacity(0.045),
-            const Color(0xFF131A2A),
+            isDark
+                ? Colors.white.withOpacity(0.045)
+                : Colors.white.withOpacity(0.72),
+            _drawerSurfaceColorFor(_DrawerSurfaceLevel.primary, isDark: isDark),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: (isDark ? Colors.black : const Color(0xFF8B92A8))
+                  .withOpacity(isDark ? 0.18 : 0.14),
               blurRadius: 18,
               spreadRadius: -8,
               offset: const Offset(0, 10),
@@ -637,7 +662,12 @@ class _DrawerHero extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.05),
+                  width: 1,
+                ),
               ),
               child: Center(
                 child: (avatar == null || avatar.isEmpty)
@@ -821,6 +851,7 @@ class _SectionCard extends StatelessWidget {
           radius: 16,
           withDepth: false,
           level: surfaceLevel,
+          isDark: Theme.of(context).brightness == Brightness.dark,
         ),
         child: Column(children: mergedChildren),
       ),
@@ -937,6 +968,7 @@ class _ThemeQuickAccessCard extends StatelessWidget {
           radius: 16,
           pressed: pressed,
           level: _DrawerSurfaceLevel.tertiary,
+          isDark: isDark,
         ),
         child: Row(
           children: [
@@ -946,6 +978,7 @@ class _ThemeQuickAccessCard extends StatelessWidget {
               decoration: _drawerIconPodDecoration(
                 backgroundColor: moonSunBg,
                 radius: 10,
+                isDark: isDark,
               ),
               child: Center(
                 child: Image.asset(
@@ -1053,6 +1086,7 @@ class _CardMetaPreview extends StatelessWidget {
         radius: 999,
         withDepth: false,
         level: _DrawerSurfaceLevel.tertiary,
+        isDark: Theme.of(context).brightness == Brightness.dark,
       ),
       child: Text(
         text,
@@ -1083,6 +1117,7 @@ class _DrawerReferralAccordion extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
+    final isDark = theme.brightness == Brightness.dark;
     final referralNeon = _kReferralIconColor;
     return _DrawerPressableCard(
       onTap: onToggle,
@@ -1092,6 +1127,7 @@ class _DrawerReferralAccordion extends StatelessWidget {
         radius: 16,
         pressed: pressed,
         level: surfaceLevel,
+        isDark: isDark,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1104,6 +1140,7 @@ class _DrawerReferralAccordion extends StatelessWidget {
                 decoration: _drawerIconPodDecoration(
                   backgroundColor: _kReferralIconBg,
                   radius: 10,
+                  isDark: isDark,
                 ),
                 child: Icon(
                   Icons.group_add_rounded,
@@ -1232,6 +1269,11 @@ class _ModernMenuCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final resolvedIconBackgroundColor =
+        iconBackgroundColor == const Color(0xFF1A243A) && !isDark
+        ? const Color(0xFFE7EEF8)
+        : iconBackgroundColor;
     final effectiveIconColor = iconColor.withOpacity(isMuted ? 0.9 : 1);
     final neonIconColor = effectiveIconColor;
     final subtitleOpacity = isSubtle ? 0.8 : 1.0;
@@ -1253,6 +1295,7 @@ class _ModernMenuCard extends StatelessWidget {
         radius: 16,
         pressed: pressed,
         level: surfaceLevel,
+        isDark: isDark,
       ),
       child: Row(
         children: [
@@ -1260,8 +1303,9 @@ class _ModernMenuCard extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: _drawerIconPodDecoration(
-              backgroundColor: iconBackgroundColor,
+              backgroundColor: resolvedIconBackgroundColor,
               radius: 10,
+              isDark: isDark,
             ),
             child: iconAsset != null
                 ? Center(
@@ -1292,7 +1336,9 @@ class _ModernMenuCard extends StatelessWidget {
                                 ? FontWeight.w600
                                 : FontWeight.w600,
                             color: scheme.onSurface.withOpacity(
-                              isSubtle ? titleOpacity * 0.92 : titleOpacity * 0.9,
+                              isSubtle
+                                  ? titleOpacity * 0.92
+                                  : titleOpacity * 0.9,
                             ),
                           ),
                 ),
@@ -1327,7 +1373,3 @@ class _ModernMenuCard extends StatelessWidget {
     );
   }
 }
-
-
-
-

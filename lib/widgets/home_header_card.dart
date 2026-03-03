@@ -43,7 +43,8 @@ class HomeHeaderCard extends StatelessWidget {
     final weeklyProgress = (safeWeeklyDone / safeWeeklyTotal)
         .clamp(0.0, 1.0)
         .toDouble();
-    final progress = syncedProgress?.clamp(0.0, 1.0) ??
+    final progress =
+        syncedProgress?.clamp(0.0, 1.0) ??
         (boundedDone / dailyGoal).clamp(0.0, 1.0).toDouble();
 
     final gradientStart = isDark
@@ -180,7 +181,9 @@ class HomeHeaderCard extends StatelessWidget {
                               Icon(
                                 Icons.local_fire_department_rounded,
                                 size: 11,
-                                color: const Color(0xFFFFC06A).withOpacity(0.98),
+                                color: const Color(
+                                  0xFFFFC06A,
+                                ).withOpacity(0.98),
                                 shadows: const [
                                   Shadow(
                                     color: Color.fromRGBO(255, 169, 90, 0.82),
@@ -234,29 +237,45 @@ class HomeHeaderCard extends StatelessWidget {
                               end: Alignment.centerRight,
                               colors: [
                                 Color.alphaBlend(
-                                  const Color(0xFF8B7CFF).withOpacity(
-                                    isDark ? 0.07 : 0.04,
-                                  ),
-                                  const Color(0xFF101726).withOpacity(
-                                    isDark ? 0.92 : 0.72,
-                                  ),
+                                  const Color(
+                                    0xFF8B7CFF,
+                                  ).withOpacity(isDark ? 0.07 : 0.06),
+                                  isDark
+                                      ? const Color(
+                                          0xFF101726,
+                                        ).withOpacity(0.92)
+                                      : Color.alphaBlend(
+                                          Colors.white.withOpacity(0.72),
+                                          scheme.surface,
+                                        ),
                                 ),
                                 Color.alphaBlend(
-                                  const Color(0xFF5DE1FF).withOpacity(
-                                    isDark ? 0.05 : 0.03,
-                                  ),
-                                  const Color(0xFF101726).withOpacity(
-                                    isDark ? 0.86 : 0.68,
-                                  ),
+                                  const Color(
+                                    0xFF5DE1FF,
+                                  ).withOpacity(isDark ? 0.05 : 0.04),
+                                  isDark
+                                      ? const Color(
+                                          0xFF101726,
+                                        ).withOpacity(0.86)
+                                      : Color.alphaBlend(
+                                          Colors.white.withOpacity(0.54),
+                                          scheme.surfaceVariant,
+                                        ),
                                 ),
                               ],
                             ),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.07),
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.07)
+                                  : scheme.outline.withOpacity(0.22),
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
+                                color:
+                                    (isDark
+                                            ? Colors.black
+                                            : const Color(0xFF8B92A8))
+                                        .withOpacity(isDark ? 0.12 : 0.08),
                                 blurRadius: 16,
                                 offset: const Offset(0, 8),
                                 spreadRadius: -8,
@@ -268,13 +287,17 @@ class HomeHeaderCard extends StatelessWidget {
                               Icon(
                                 Icons.calendar_view_week_rounded,
                                 size: 14,
-                                color: const Color(0xFF8B7CFF).withOpacity(0.92),
+                                color: const Color(
+                                  0xFF8B7CFF,
+                                ).withOpacity(0.92),
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 l10n.weekly,
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  color: Colors.white.withOpacity(0.88),
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.88)
+                                      : scheme.onSurface.withOpacity(0.88),
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -286,9 +309,9 @@ class HomeHeaderCard extends StatelessWidget {
                                     minHeight: 4,
                                     value: weeklyProgress,
                                     color: const Color(0xFF8B7CFF),
-                                    backgroundColor: Colors.white.withOpacity(
-                                      0.14,
-                                    ),
+                                    backgroundColor: isDark
+                                        ? Colors.white.withOpacity(0.14)
+                                        : scheme.onSurface.withOpacity(0.08),
                                   ),
                                 ),
                               ),
@@ -296,7 +319,9 @@ class HomeHeaderCard extends StatelessWidget {
                               Text(
                                 '$safeWeeklyDone/$safeWeeklyTotal',
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  color: Colors.white.withOpacity(0.86),
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.86)
+                                      : scheme.onSurface.withOpacity(0.86),
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -304,7 +329,9 @@ class HomeHeaderCard extends StatelessWidget {
                               Icon(
                                 Icons.chevron_right_rounded,
                                 size: 15,
-                                color: Colors.white.withOpacity(0.64),
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.64)
+                                    : scheme.onSurfaceVariant.withOpacity(0.78),
                               ),
                             ],
                           ),
@@ -363,7 +390,3 @@ class _HeroMomentumBar extends StatelessWidget {
     );
   }
 }
-
-
-
-

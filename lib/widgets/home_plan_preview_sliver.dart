@@ -21,6 +21,9 @@ class HomePlanPreviewSliver extends StatelessWidget {
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
     final safeDone = doneCount.clamp(0, 99);
+    const timelineSlotWidth = 14.0;
+    const statusWidth = 42.0;
+    const rowSpacing = 10.0;
 
     Widget flowRow({
       required String status,
@@ -33,56 +36,65 @@ class HomePlanPreviewSliver extends StatelessWidget {
       double scale = 1.0,
       FontWeight textWeight = FontWeight.w600,
       bool glowIcon = false,
-      double bottomSpacing = 6,
+      double bottomSpacing = rowSpacing,
     }) {
       return Padding(
         padding: EdgeInsets.only(bottom: bottomSpacing),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Transform.scale(
-              scale: scale,
-              alignment: Alignment.center,
-              child: Icon(
-                icon,
-                size: 13,
-                color: color.withOpacity(iconOpacity),
-                shadows: glowIcon
-                    ? [
-                        Shadow(
-                          color: color.withOpacity(0.46),
-                          blurRadius: 10,
-                        ),
-                      ]
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 40,
-              child: Text(
-                status,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: color.withOpacity(statusOpacity),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.16,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 24),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: timelineSlotWidth,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Transform.scale(
+                    scale: scale,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      icon,
+                      size: 13,
+                      color: color.withOpacity(iconOpacity),
+                      shadows: glowIcon
+                          ? [
+                              Shadow(
+                                color: color.withOpacity(0.46),
+                                blurRadius: 10,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurface.withOpacity(textOpacity),
-                  fontWeight: textWeight,
-                  height: 1.15,
+              const SizedBox(width: 8),
+              SizedBox(
+                width: statusWidth,
+                child: Text(
+                  status,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: color.withOpacity(statusOpacity),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.16,
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withOpacity(textOpacity),
+                    fontWeight: textWeight,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -131,9 +143,9 @@ class HomePlanPreviewSliver extends StatelessWidget {
                   Stack(
                     children: [
                       Positioned(
-                        left: 5,
-                        top: 34,
-                        bottom: 10,
+                        left: 6,
+                        top: 16,
+                        bottom: 12,
                         child: IgnorePointer(
                           child: Container(
                             width: 2,
@@ -163,7 +175,6 @@ class HomePlanPreviewSliver extends StatelessWidget {
                             statusOpacity: 0.6,
                             textOpacity: 0.6,
                             icon: Icons.check_circle_rounded,
-                            bottomSpacing: 8,
                           ),
                           flowRow(
                             status: l10n.now,
@@ -176,7 +187,6 @@ class HomePlanPreviewSliver extends StatelessWidget {
                             scale: 1.05,
                             textWeight: FontWeight.w500,
                             glowIcon: true,
-                            bottomSpacing: 12,
                           ),
                           flowRow(
                             status: l10n.later,
@@ -201,7 +211,3 @@ class HomePlanPreviewSliver extends StatelessWidget {
     );
   }
 }
-
-
-
-

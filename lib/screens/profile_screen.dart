@@ -198,6 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       'unit': unit,
     });
   }
+
   String _nextUnlockLabel({
     required Set<String> earnedBadges,
     required int totalCompleted,
@@ -507,7 +508,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (input == (_referralStatus?.code ?? '')) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n.tr('You cannot use your own invite code.')),
+          content: Text(
+            context.l10n.tr('You cannot use your own invite code.'),
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -523,7 +526,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result.errorMessage ?? context.l10n.tr('Unable to claim invite code.'),
+            result.errorMessage ??
+                context.l10n.tr('Unable to claim invite code.'),
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -654,7 +658,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            context.l10n.tr('Referral is unavailable right now.'),
+                            context.l10n.tr(
+                              'Referral is unavailable right now.',
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: scheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
@@ -713,7 +719,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         const SizedBox(height: 10),
                         if (hasRedeemed)
                           Text(
-                            context.l10n.trf('Invite used: {code}', {'code': status.redeemedCode ?? ''}),
+                            context.l10n.trf('Invite used: {code}', {
+                              'code': status.redeemedCode ?? '',
+                            }),
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: scheme.primary,
                               fontWeight: FontWeight.w700,
@@ -735,7 +743,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   ],
                                   decoration: InputDecoration(
                                     isDense: true,
-                                    hintText: context.l10n.tr('Enter invite code'),
+                                    hintText: context.l10n.tr(
+                                      'Enter invite code',
+                                    ),
                                     border: InputBorder.none,
                                     enabledBorder: InputBorder.none,
                                     focusedBorder: InputBorder.none,
@@ -1355,11 +1365,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                               builder: (context, snapshot) {
                                 final label =
                                     snapshot.data?.safeNextUnlockLabel ??
-                                    context.l10n.trf('{title} in {count} {unit}', {
-                                      'title': context.l10n.tr('Focus Badge'),
-                                      'count': 3,
-                                      'unit': context.l10n.tr('sparks'),
-                                    });
+                                    context.l10n.trf(
+                                      '{title} in {count} {unit}',
+                                      {
+                                        'title': context.l10n.tr('Focus Badge'),
+                                        'count': 3,
+                                        'unit': context.l10n.tr('sparks'),
+                                      },
+                                    );
                                 return Align(
                                   alignment: Alignment.centerLeft,
                                   child: Container(
@@ -1412,10 +1425,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                               data.safeWeeklyTarget - data.safeWeeklyDone;
                           final nextStepMessage =
                               data.safeWeeklyTarget > 0 && weeklyRemaining > 0
-                              ? l10n.tr('Complete 1 spark to move your weekly plan forward.')
+                              ? l10n.tr(
+                                  'Complete 1 spark to move your weekly plan forward.',
+                                )
                               : todayCount <= 0
                               ? l10n.tr('Light your first spark today.')
-                              : l10n.tr('Do one more spark today to keep momentum.');
+                              : l10n.tr(
+                                  'Do one more spark today to keep momentum.',
+                                );
                           final showedUpToday =
                               data.safeRecentDailyCounts.isNotEmpty &&
                               data.safeRecentDailyCounts.last > 0;
@@ -1512,7 +1529,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                           Icons.emoji_events_rounded,
                                           size: 16,
                                         ),
-                                        label: Text(l10n.tr('Unlock first badge')),
+                                        label: Text(
+                                          l10n.tr('Unlock first badge'),
+                                        ),
                                         style: TextButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 0,
@@ -1765,11 +1784,7 @@ class _ProfileTopIconButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(
-            icon,
-            size: 18,
-            color: scheme.onSurface.withOpacity(0.9),
-          ),
+          child: Icon(icon, size: 18, color: scheme.onSurface.withOpacity(0.9)),
         ),
       ),
     );
@@ -2034,7 +2049,9 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
                 ),
               ),
               Text(
-                context.l10n.trf('Best streak: {count}', {'count': widget.bestStreak}),
+                context.l10n.trf('Best streak: {count}', {
+                  'count': widget.bestStreak,
+                }),
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
@@ -2100,52 +2117,59 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
                   return Expanded(
                     child: Column(
                       children: [
-                        Transform.scale(
-                          scale: scale,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (isToday)
-                                Container(
-                                  width: 34 + (4 * pulseT),
-                                  height: 34 + (4 * pulseT),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: scheme.primary.withValues(
-                                      alpha: completed
-                                          ? 0.1 + (0.08 * pulseT)
-                                          : 0.06 + (0.05 * pulseT),
+                        SizedBox(
+                          width: 38,
+                          height: 38,
+                          child: Center(
+                            child: Transform.scale(
+                              scale: scale,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                alignment: Alignment.center,
+                                children: [
+                                  if (isToday)
+                                    Container(
+                                      width: 34 + (4 * pulseT),
+                                      height: 34 + (4 * pulseT),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: scheme.primary.withValues(
+                                          alpha: completed
+                                              ? 0.1 + (0.08 * pulseT)
+                                              : 0.06 + (0.05 * pulseT),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              Container(
-                                width: 26,
-                                height: 26,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: dotColor,
-                                  boxShadow: shadows,
-                                ),
-                                child: completed
-                                    ? Align(
-                                        alignment: const Alignment(
-                                          -0.25,
-                                          -0.25,
-                                        ),
-                                        child: Container(
-                                          width: 7,
-                                          height: 7,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: Colors.white.withValues(
-                                              alpha: 0.34,
+                                  Container(
+                                    width: 26,
+                                    height: 26,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: dotColor,
+                                      boxShadow: shadows,
+                                    ),
+                                    child: completed
+                                        ? Align(
+                                            alignment: const Alignment(
+                                              -0.25,
+                                              -0.25,
                                             ),
-                                          ),
-                                        ),
-                                      )
-                                    : null,
+                                            child: Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.34,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 7),
@@ -2186,7 +2210,9 @@ class _PersonalBestStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final dayLabel = bestStreak == 1 ? context.l10n.tr('day') : context.l10n.tr('days');
+    final dayLabel = bestStreak == 1
+        ? context.l10n.tr('day')
+        : context.l10n.tr('days');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2210,10 +2236,10 @@ class _PersonalBestStrip extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        context.l10n.trf(
-                          'Best streak: {count} {dayLabel}',
-                          {'count': bestStreak, 'dayLabel': dayLabel},
-                        ),
+                        context.l10n.trf('Best streak: {count} {dayLabel}', {
+                          'count': bestStreak,
+                          'dayLabel': dayLabel,
+                        }),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -2233,7 +2259,9 @@ class _PersonalBestStrip extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        context.l10n.trf('Total sparks: {count}', {'count': totalSparks}),
+                        context.l10n.trf('Total sparks: {count}', {
+                          'count': totalSparks,
+                        }),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
@@ -2263,7 +2291,9 @@ class _PersonalBestStrip extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                context.l10n.trf('Consistency: {count}%', {'count': consistencyPercent}),
+                context.l10n.trf('Consistency: {count}%', {
+                  'count': consistencyPercent,
+                }),
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: scheme.primary,
                   fontWeight: FontWeight.w700,
@@ -2451,10 +2481,3 @@ const _avatarAssetOptions = <String>[
 
 const _avatarActionCamera = '__camera__';
 const _avatarActionGallery = '__gallery__';
-
-
-
-
-
-
-

@@ -11,9 +11,16 @@ BoxDecoration _premiumNeoGlassDecoration(
   double tintOpacity = 0.14,
   double surfaceOpacity = 0.94,
 }) {
+  final isDark = scheme.brightness == Brightness.dark;
+  final baseSurface = isDark
+      ? const Color(0xFF101827).withOpacity(surfaceOpacity)
+      : Color.alphaBlend(
+          Colors.white.withOpacity(0.78),
+          scheme.surface.withOpacity(surfaceOpacity),
+        );
   final base = Color.alphaBlend(
-    Colors.black.withOpacity(0.34),
-    const Color(0xFF101827).withOpacity(surfaceOpacity),
+    (isDark ? Colors.black : Colors.white).withOpacity(isDark ? 0.34 : 0.28),
+    baseSurface,
   );
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
@@ -25,10 +32,16 @@ BoxDecoration _premiumNeoGlassDecoration(
         Color.alphaBlend(const Color(0xFF8B5CF6).withOpacity(0.08), base),
       ],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.08)),
+    border: Border.all(
+      color: (isDark ? Colors.white : scheme.outline).withOpacity(
+        isDark ? 0.08 : 0.28,
+      ),
+    ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.18),
+        color: (isDark ? Colors.black : const Color(0xFF8B92A8)).withOpacity(
+          isDark ? 0.18 : 0.12,
+        ),
         blurRadius: 22,
         spreadRadius: -8,
         offset: const Offset(0, 10),
@@ -69,178 +82,202 @@ class PremiumPurchaseSheet extends StatelessWidget {
         child: SafeArea(
           top: false,
           child: ValueListenableBuilder<IapState>(
-          valueListenable: IapService.instance.state,
-          builder: (context, state, _) {
-            if (state.loading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            valueListenable: IapService.instance.state,
+            builder: (context, state, _) {
+              if (state.loading) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-            if (!state.available) {
-              return _MessageBlock(
-                title: l10n.tr('Store not available'),
-                message: l10n.tr('Please try again later.'),
-              );
-            }
+              if (!state.available) {
+                return _MessageBlock(
+                  title: l10n.tr('Store not available'),
+                  message: l10n.tr('Please try again later.'),
+                );
+              }
 
-            if (state.products.isEmpty) {
-              return _MessageBlock(
-                title: l10n.tr('No subscriptions found'),
-                message:
-                    state.message ?? l10n.tr('Create subscriptions in Play Console.'),
-              );
-            }
+              if (state.products.isEmpty) {
+                return _MessageBlock(
+                  title: l10n.tr('No subscriptions found'),
+                  message:
+                      state.message ??
+                      l10n.tr('Create subscriptions in Play Console.'),
+                );
+              }
 
-            return Column(
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                      color: scheme.onSurface.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(999),
+              return Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: scheme.onSurface.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: _premiumNeoGlassDecoration(
-                            scheme,
-                            tint: const Color(0xFF8B7CFF),
-                            radius: 18,
-                            tintOpacity: 0.1,
-                            surfaceOpacity: isDark ? 0.96 : 0.97,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: _premiumNeoGlassDecoration(
-                                  scheme,
-                                  tint: const Color(0xFF8B7CFF),
-                                  radius: 14,
-                                  tintOpacity: 0.16,
-                                  surfaceOpacity: 0.94,
-                                ),
-                                child: Center(
-                                  child: Image.asset(
-                                    'assets/in_app_icons/premium.png',
-                                    width: 22,
-                                    height: 22,
-                                    fit: BoxFit.contain,
-                                    color: scheme.primary,
-                                    colorBlendMode: BlendMode.srcIn,
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: _premiumNeoGlassDecoration(
+                              scheme,
+                              tint: const Color(0xFF8B7CFF),
+                              radius: 18,
+                              tintOpacity: 0.1,
+                              surfaceOpacity: isDark ? 0.96 : 0.97,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: _premiumNeoGlassDecoration(
+                                    scheme,
+                                    tint: const Color(0xFF8B7CFF),
+                                    radius: 14,
+                                    tintOpacity: 0.16,
+                                    surfaceOpacity: 0.94,
+                                  ),
+                                  child: Center(
+                                    child: Image.asset(
+                                      'assets/in_app_icons/premium.png',
+                                      width: 22,
+                                      height: 22,
+                                      fit: BoxFit.contain,
+                                      color: scheme.primary,
+                                      colorBlendMode: BlendMode.srcIn,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      l10n.tr('Go Premium'),
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white.withOpacity(0.95),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l10n.tr('Go Premium'),
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: scheme.onSurface
+                                                  .withOpacity(0.95),
+                                            ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      l10n.tr('Monthly or yearly auto-renewing subscription.'),
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: scheme.onSurfaceVariant.withOpacity(
-                                          0.74,
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        l10n.tr(
+                                          'Monthly or yearly auto-renewing subscription.',
                                         ),
-                                        fontWeight: FontWeight.w500,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: scheme.onSurfaceVariant
+                                                  .withOpacity(0.74),
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _FeatureChip(label: l10n.tr('Unlimited tasks')),
-                                        _FeatureChip(label: l10n.tr('No ads')),
-                                        _FeatureChip(label: l10n.tr('AI tasks')),
-                                      ],
-                                    ),
-                                  ],
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          _FeatureChip(
+                                            label: l10n.tr('Unlimited tasks'),
+                                          ),
+                                          _FeatureChip(
+                                            label: l10n.tr('No ads'),
+                                          ),
+                                          _FeatureChip(
+                                            label: l10n.tr('AI tasks'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          ...state.products.map(
+                            (product) => _ProductTile(
+                              product: product,
+                              highlight: product.id.contains('year'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () => IapService.instance.restore(),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: isDark
+                                    ? const Color(0xFF101726)
+                                    : scheme.surfaceVariant.withOpacity(0.72),
+                                side: BorderSide(
+                                  color:
+                                      (isDark ? Colors.white : scheme.outline)
+                                          .withOpacity(isDark ? 0.08 : 0.26),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        ...state.products.map(
-                          (product) => _ProductTile(
-                            product: product,
-                            highlight: product.id.contains('year'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () => IapService.instance.restore(),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: const Color(0xFF101726),
-                              side: BorderSide(
-                                color: Colors.white.withOpacity(0.08),
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                            ),
-                            child: Text(
-                              l10n.tr('Restore purchases'),
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: scheme.onSurface.withOpacity(0.88),
-                                fontWeight: FontWeight.w700,
+                              child: Text(
+                                l10n.tr('Restore purchases'),
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: scheme.onSurface.withOpacity(0.88),
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          l10n.tr('Cancel anytime in Google Play > Payments & subscriptions.'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant.withOpacity(0.7),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.tr('By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant.withOpacity(0.66),
-                          ),
-                        ),
-                        if (state.message != null) ...[
                           const SizedBox(height: 10),
                           Text(
-                            state.message!,
+                            l10n.tr(
+                              'Cancel anytime in Google Play > Payments & subscriptions.',
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant.withOpacity(0.72),
+                              color: scheme.onSurfaceVariant.withOpacity(0.7),
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.tr(
+                              'By subscribing, you authorize recurring charges based on the plan you choose. Any trial or intro offer is shown before purchase confirmation.',
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant.withOpacity(0.66),
+                            ),
+                          ),
+                          if (state.message != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              state.message!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant.withOpacity(
+                                  0.72,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -292,7 +329,7 @@ class _ProductTile extends StatelessWidget {
                   product.title,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.94),
+                    color: scheme.onSurface.withOpacity(0.94),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -328,7 +365,7 @@ class _ProductTile extends StatelessWidget {
                     child: Text(
                       context.l10n.tr('Best value'),
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: scheme.onSurface.withOpacity(0.9),
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -424,17 +461,11 @@ class _FeatureChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
           fontWeight: FontWeight.w600,
-          color: Colors.white.withOpacity(0.86),
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.86),
         ),
       ),
     );
   }
 }
-
-
-
-
