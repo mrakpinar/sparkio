@@ -521,6 +521,202 @@ class TaskLocalizer {
       'es': 'Ponte de pie y mu\u00e9vete durante 2 minutos',
       'de': 'Steh auf und bewege dich 2 Minuten lang',
     },
+    'Read a short inspirational quote': {
+      'tr': 'K\u0131sa bir ilham verici s\u00f6z oku',
+      'es': 'Lee una cita inspiradora corta',
+      'de': 'Lies ein kurzes inspirierendes Zitat',
+    },
+    'Special Spark: try something new today': {
+      'tr': '\u00d6zel Spark: bug\u00fcn yeni bir \u015fey dene',
+      'es': 'Spark especial: prueba algo nuevo hoy',
+      'de': 'Spezial-Spark: Probiere heute etwas Neues aus',
+    },
+    'AI pick: organize one tiny space': {
+      'tr': 'AI \u00f6nerisi: k\u00fc\u00e7\u00fck bir alan\u0131 d\u00fczenle',
+    },
+    'AI pick: short posture reset': {
+      'tr': 'AI \u00f6nerisi: h\u0131zl\u0131 duru\u015f reseti',
+    },
+    'Blink slowly 10 times': {
+      'tr': '10 kez yava\u015f\u00e7a g\u00f6z k\u0131rp',
+    },
+    'Breathe deeply for 2 minutes': {
+      'tr': '2 dakika derin nefes al',
+    },
+    'Breathe in for 4, out for 6': {
+      'tr': '4 say\u0131da al, 6 say\u0131da ver',
+    },
+    'Clean one small surface': {
+      'tr': 'K\u00fc\u00e7\u00fck bir y\u00fczeyi temizle',
+    },
+    'Declutter one digital file or photo': {
+      'tr': 'Bir dijital dosya veya foto\u011fraf\u0131 d\u00fczenle',
+    },
+    'Do 10 squats': {
+      'tr': '10 squat yap',
+    },
+    'Do 10 wall push-ups': {
+      'tr': 'Duvara kar\u015f\u0131 10 \u015f\u0131nav yap',
+    },
+    'Do 15 jumping jacks': {
+      'tr': '15 jumping jack yap',
+    },
+    'Do 5 push-ups (or try)': {
+      'tr': '5 \u015f\u0131nav yap (veya dene)',
+    },
+    'Do a quick posture check': {
+      'tr': 'Duru\u015funu h\u0131zl\u0131ca kontrol et',
+    },
+    'Drink a full glass of water slowly': {
+      'tr': 'Bir tam bardak suyu yava\u015f\u00e7a i\u00e7',
+    },
+    'Drink a warm or cold beverage mindfully': {
+      'tr': 'S\u0131cak veya so\u011fuk bir i\u00e7ece\u011fi fark\u0131ndal\u0131kla i\u00e7',
+    },
+    'Drink water after sitting for long': {
+      'tr': 'Uzun s\u00fcre oturduktan sonra su i\u00e7',
+    },
+    'Drink water before coffee or tea': {
+      'tr': 'Kahve veya \u00e7aydan \u00f6nce su i\u00e7',
+    },
+    'Drink water slowly and mindfully': {
+      'tr': 'Suyu yava\u015f ve fark\u0131ndal\u0131kla i\u00e7',
+    },
+    'Eat a piece of fruit': {
+      'tr': 'Bir par\u00e7a meyve ye',
+    },
+    'Focus on your breathing for 60 seconds': {
+      'tr': '60 saniye nefesine odaklan',
+    },
+    'Forgive yourself for one small thing': {
+      'tr': 'K\u00fc\u00e7\u00fck bir \u015fey i\u00e7in kendini affet',
+    },
+    'Learn 3 new words': {
+      'tr': '3 yeni kelime \u00f6\u011fren',
+    },
+    'Learn one keyboard shortcut': {
+      'tr': 'Bir klavye k\u0131sayolu \u00f6\u011fren',
+    },
+    'Learn one new word meaning': {
+      'tr': 'Yeni bir kelimenin anlam\u0131n\u0131 \u00f6\u011fren',
+    },
+    'Learn one small improvement idea': {
+      'tr': 'K\u00fc\u00e7\u00fck bir geli\u015fim fikri \u00f6\u011fren',
+    },
+    'Learn one small thing (quick read)': {
+      'tr': 'K\u00fc\u00e7\u00fck bir \u015fey \u00f6\u011fren (h\u0131zl\u0131 okuma)',
+    },
+    'Learn one tiny habit idea': {
+      'tr': 'K\u00fc\u00e7\u00fck bir al\u0131\u015fkanl\u0131k fikri \u00f6\u011fren',
+    },
+    'Look away from the screen for 1 minute': {
+      'tr': '1 dakika ekrandan uza\u011fa bak',
+    },
+    'Meditate for 2 minutes': {
+      'tr': '2 dakika meditasyon yap',
+    },
+    'Notice 3 things you can hear right now': {
+      'tr': '\u015eu an duyabildi\u011fin 3 \u015feyi fark et',
+    },
+    'Pause and take a deep breath': {
+      'tr': 'Dur ve derin bir nefes al',
+    },
+    'Plan one thing for tomorrow': {
+      'tr': 'Yar\u0131n i\u00e7in bir \u015fey planla',
+    },
+    'Premium body boost: 3 rounds of 12 squats': {
+      'tr': 'Premium v\u00fccut deste\u011fi: 12 squat x 3 tur',
+    },
+    'Premium calm reset: 5-minute box breathing': {
+      'tr': 'Premium sakinlik reseti: 5 dakikal\u0131k kutu nefesi',
+    },
+    'Premium focus sprint: 15 minutes deep work': {
+      'tr': 'Premium odak sprinti: 15 dakika derin \u00e7al\u0131\u015fma',
+    },
+    'Put your phone away for 5 minutes': {
+      'tr': 'Telefonunu 5 dakika uza\u011fa koy',
+    },
+    'Read 1 page of a book': {
+      'tr': 'Bir kitab\u0131n 1 sayfas\u0131n\u0131 oku',
+    },
+    'Read one interesting fact': {
+      'tr': '\u0130lgin\u00e7 bir bilgi oku',
+    },
+    'Read one paragraph you enjoy': {
+      'tr': 'Sevdi\u011fin bir paragraf oku',
+    },
+    'Read one productivity tip': {
+      'tr': 'Bir verimlilik ipucu oku',
+    },
+    'Relax your shoulders and drop tension': {
+      'tr': 'Omuzlar\u0131n\u0131 gev\u015fet ve gerginli\u011fi b\u0131rak',
+    },
+    'Rest your eyes for 20 seconds': {
+      'tr': 'G\u00f6zlerini 20 saniye dinlendir',
+    },
+    'Roll your shoulders 10 times': {
+      'tr': 'Omuzlar\u0131n\u0131 10 kez \u00e7evir',
+    },
+    'Say no to one distraction today': {
+      'tr': 'Bug\u00fcn bir dikkat da\u011f\u0131t\u0131c\u0131ya hay\u0131r de',
+    },
+    'Send a quick thank-you message': {
+      'tr': 'H\u0131zl\u0131 bir te\u015fekk\u00fcr mesaj\u0131 g\u00f6nder',
+    },
+    'Sit quietly and do nothing for 1 minute': {
+      'tr': '1 dakika sessizce otur ve hi\u00e7bir \u015fey yapma',
+    },
+    'Smile for 10 seconds': {
+      'tr': '10 saniye g\u00fcl\u00fcmse',
+    },
+    'Stand on one foot for 30 seconds': {
+      'tr': '30 saniye tek ayak \u00fcst\u00fcnde dur',
+    },
+    'Stand up and straighten your posture': {
+      'tr': 'Aya\u011fa kalk ve duru\u015funu d\u00fczelt',
+    },
+    'Stretch your arms overhead': {
+      'tr': 'Kollar\u0131n\u0131 ba\u015f\u0131n\u0131n \u00fcst\u00fcnde esnet',
+    },
+    'Stretch your neck gently': {
+      'tr': 'Boynunu nazik\u00e7e esnet',
+    },
+    'Take 5 deep belly breaths': {
+      'tr': '5 derin kar\u0131n nefesi al',
+    },
+    'Think of one thing you\u2019re thankful for': {
+      'tr': 'Minnettar oldu\u011fun bir \u015feyi d\u00fc\u015f\u00fcn',
+    },
+    'Tidy up for 2 minutes': {
+      'tr': '2 dakika toparlan',
+    },
+    'Unclench your teeth and relax your face': {
+      'tr': 'Di\u015flerini s\u0131kmay\u0131 b\u0131rak ve y\u00fcz\u00fcn\u00fc gev\u015fet',
+    },
+    'Walk around the room once': {
+      'tr': 'Odan\u0131n i\u00e7inde bir tur y\u00fcr\u00fc',
+    },
+    'Walk for 5 minutes': {
+      'tr': '5 dakika y\u00fcr\u00fc',
+    },
+    'Write one positive thought': {
+      'tr': 'Olumlu bir d\u00fc\u015f\u00fcnce yaz',
+    },
+    'Write one sentence about your mood': {
+      'tr': 'Ruh halin hakk\u0131nda bir c\u00fcmle yaz',
+    },
+    'Write one small goal for today': {
+      'tr': 'Bug\u00fcn i\u00e7in k\u00fc\u00e7\u00fck bir hedef yaz',
+    },
+    'Write one thing you did well today': {
+      'tr': 'Bug\u00fcn iyi yapt\u0131\u011f\u0131n bir \u015feyi yaz',
+    },
+    'Write one thing you want less of': {
+      'tr': 'Hayat\u0131nda daha az istedi\u011fin bir \u015feyi yaz',
+    },
+    'Write one thing you\u2019re grateful for': {
+      'tr': 'Minnettar oldu\u011fun bir \u015feyi yaz',
+    },
   };
 
   static final Map<String, String> _aliasToCanonical = () {
@@ -560,6 +756,11 @@ class TaskLocalizer {
       if (staticValue != null) return staticValue;
 
       return _titleMap[canonical]?[targetCode] ?? canonical;
+    }
+
+    if (targetCode != 'en') {
+      final appStringValue = AppLocalizations.lookup(targetCode, title);
+      if (appStringValue != title) return appStringValue;
     }
 
     final generated = _localizeGeneratedTitle(title, targetCode: targetCode);
@@ -624,6 +825,8 @@ class TaskLocalizer {
     if (appStringCanonical != null) return appStringCanonical;
     final staticCanonical = _resolveStaticCanonicalTitle(normalized);
     if (staticCanonical != null) return staticCanonical;
+    final legacyCanonical = _resolveLegacyCanonicalTitle(normalized);
+    if (legacyCanonical != null) return legacyCanonical;
     if (normalized.contains('close your eyes') &&
         normalized.contains('relax your jaw')) {
       return 'Close your eyes and relax your jaw';
@@ -654,6 +857,37 @@ class TaskLocalizer {
         if (_normalize(translated) == normalizedTitle) return entry.key;
       }
     }
+    return null;
+  }
+
+  static String? _resolveLegacyCanonicalTitle(String normalizedTitle) {
+    final normalizedNoDiacritics = _removeBasicDiacritics(normalizedTitle);
+
+    if ((normalizedTitle.contains('healthy snack') ||
+            normalizedNoDiacritics.contains('saglikli bir atistirmalik') ||
+            normalizedNoDiacritics.contains('saglikli bir alistirmalik')) &&
+        (normalizedTitle.contains('eat') ||
+            normalizedNoDiacritics.contains('ye'))) {
+      return 'Eat one healthy snack';
+    }
+
+    final hasInspirational =
+        normalizedTitle.contains('inspirational') ||
+        normalizedTitle.contains('inspiring') ||
+        normalizedTitle.contains('motivation') ||
+        normalizedNoDiacritics.contains('ilham verici');
+    final hasQuote =
+        normalizedTitle.contains('quote') ||
+        normalizedNoDiacritics.contains('soz');
+    if (hasInspirational && hasQuote) {
+      return 'Read a short inspirational quote';
+    }
+
+    if (normalizedTitle.startsWith('special spark:') &&
+        normalizedNoDiacritics.contains('try something new today')) {
+      return 'Special Spark: try something new today';
+    }
+
     return null;
   }
 
@@ -870,7 +1104,22 @@ class TaskLocalizer {
   }
 
   static String _normalize(String value) {
-    return value.trim().toLowerCase();
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\u2019', "'")
+        .replaceAll('\u2018', "'")
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  static String _removeBasicDiacritics(String value) {
+    return value
+        .replaceAll('\u0131', 'i')
+        .replaceAll('\u00e7', 'c')
+        .replaceAll('\u011f', 'g')
+        .replaceAll('\u00f6', 'o')
+        .replaceAll('\u015f', 's')
+        .replaceAll('\u00fc', 'u');
   }
 }
 

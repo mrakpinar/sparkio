@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_strings.dart';
 import '../models/task.dart';
+import '../services/task_localizer.dart';
 import '../theme/task_category_style.dart';
 
 class HomeActiveTimerCard extends StatelessWidget {
@@ -70,6 +71,11 @@ class HomeActiveTimerCard extends StatelessWidget {
     final subtitleColor = scheme.onSurface.withOpacity(isDark ? 0.72 : 0.62);
     final leftSeconds = remaining.inSeconds.clamp(0, 360000);
     final statusGlow = Color.lerp(primary, secondary, 0.35) ?? primary;
+    final localizedTitle = TaskLocalizer.localizeTitle(
+      task.title,
+      category: task.category,
+      taskId: task.id,
+    );
     final surfaceGradient = isDark
         ? [
             const Color(0xFF071534),
@@ -170,7 +176,7 @@ class HomeActiveTimerCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          task.title,
+                          localizedTitle,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                             color: scheme.onSurface,
@@ -428,7 +434,3 @@ class _MetaChip extends StatelessWidget {
     );
   }
 }
-
-
-
-

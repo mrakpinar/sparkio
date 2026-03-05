@@ -114,7 +114,7 @@ int? _extractDurationSecondsFromTitle(String rawTitle) {
   if (rawTitle.trim().isEmpty) return null;
 
   final matches = RegExp(
-    r'(\d+)\s*(seconds?|secs?|sec|saniye|dakika|minutes?|mins?|min)',
+    r'(\d+)\s*(?:-\s*)?(seconds?|secs?|sec|saniye|dakika(?:lık)?|minutes?|mins?|min|segundos?|minutos?|sekunden|minute?n?)',
     caseSensitive: false,
   ).allMatches(rawTitle);
 
@@ -125,7 +125,9 @@ int? _extractDurationSecondsFromTitle(String rawTitle) {
   final unit = (match.group(2) ?? '').toLowerCase();
   if (value == null || value <= 0) return null;
 
-  if (unit.startsWith('min') || unit == 'dakika') {
+  if (unit.startsWith('min') ||
+      unit.startsWith('dakika') ||
+      unit.startsWith('minute')) {
     return (value * 60).clamp(1, 360000);
   }
   return value.clamp(1, 360000);

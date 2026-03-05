@@ -2959,7 +2959,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     final special = Task(
       id: 'special_${DateTime.now().millisecondsSinceEpoch}',
-      title: 'Special Spark: try something new today',
+      title: _repo.localizeTaskTitleForCurrentLocale(
+        'Special Spark: try something new today',
+        category: 'growth',
+      ),
       category: 'growth',
       isSpecial: true,
       aiSuggested: true,
@@ -5573,7 +5576,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     final special = Task(
       id: 'special_${DateTime.now().millisecondsSinceEpoch}',
-      title: 'Special Spark: try something new today',
+      title: _repo.localizeTaskTitleForCurrentLocale(
+        'Special Spark: try something new today',
+        category: 'growth',
+      ),
       category: 'growth',
       isSpecial: true,
       aiSuggested: true,

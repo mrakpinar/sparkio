@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../app_strings.dart';
 import '../models/task.dart';
 import '../services/locale_service.dart';
+import '../services/task_localizer.dart';
 import '../theme/task_category_style.dart';
 
 class TaskCard extends StatelessWidget {
@@ -80,7 +81,11 @@ class TaskCard extends StatelessWidget {
 
   String _invitationHeadline(BuildContext context, Task t) {
     final l10n = context.l10n;
-    var text = t.title.trim();
+    var text = TaskLocalizer.localizeTitle(
+      t.title,
+      category: t.category,
+      taskId: t.id,
+    ).trim();
     const durationUnits =
         r'(?:seconds?|secs?|sec|minutes?|mins?|min|saniye|dakika|segundos?|minutos?|sekunden|minute?n?)';
     text = text.replaceFirst(
@@ -100,7 +105,11 @@ class TaskCard extends StatelessWidget {
     text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
     text = text.replaceAll(RegExp(r'[.!]+$'), '').trim();
     if (text.isEmpty) {
-      text = t.title.trim();
+      text = TaskLocalizer.localizeTitle(
+        t.title,
+        category: t.category,
+        taskId: t.id,
+      ).trim();
     }
     if (text.isEmpty) return l10n.tr('Start your spark');
     return '${text[0].toUpperCase()}${text.substring(1)}';

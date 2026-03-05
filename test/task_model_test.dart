@@ -34,6 +34,20 @@ void main() {
       expect(task.durationMinutes, 2);
     });
 
+    test('uses hyphenated minute duration from the title', () {
+      final task = Task.fromMap({
+        'id': 'calm_reset_1',
+        'title': '2-minute reset: breathe slowly and relax your shoulders',
+        'category': 'calm',
+        'difficulty': 'easy',
+        'durationMinutes': 3,
+      });
+
+      expect(task.totalDurationSeconds, 120);
+      expect(task.durationSeconds, 120);
+      expect(task.durationMinutes, 2);
+    });
+
     test('keeps backend duration when title has no explicit time', () {
       final task = Task.fromMap({
         'id': 'mind_focus_1',

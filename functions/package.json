@@ -6,6 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
+    "tasks:audit:tr": "node scripts/audit_task_localizations.js --lang tr",
     "tasks:normalize": "node scripts/normalize_tasks_in_firestore.js",
     "tasks:normalize:apply": "node scripts/normalize_tasks_in_firestore.js --apply"
   },
