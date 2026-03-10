@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../app_strings.dart';
+import '../services/analytics_service.dart';
 import '../services/iap_service.dart';
 
 BoxDecoration _premiumNeoGlassDecoration(
@@ -377,7 +380,19 @@ class _ProductTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           FilledButton(
-            onPressed: () => IapService.instance.buy(product),
+            onPressed: () {
+              unawaited(
+                AnalyticsService.instance.logEvent(
+                  'premium_clicked',
+                  params: {
+                    'product_id': product.id,
+                    'price': product.rawPrice,
+                    'currency': product.currencyCode,
+                  },
+                ),
+              );
+              IapService.instance.buy(product);
+            },
             style: FilledButton.styleFrom(
               backgroundColor: highlight
                   ? const Color(0xFF8B7CFF)

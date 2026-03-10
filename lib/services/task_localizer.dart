@@ -1,4 +1,4 @@
-﻿import '../app_strings.dart';
+import '../app_strings.dart';
 import '../models/task.dart';
 import 'locale_service.dart';
 
@@ -491,6 +491,12 @@ class TaskLocalizer {
   ];
 
   static const Map<String, Map<String, String>> _fallbackTitleTranslations = {
+    '2-minute reset: breathe slowly and relax your shoulders': {
+      'tr':
+          '2 dakikal\u0131k reset: yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet',
+      'es': 'Reinicio de 2 minutos: respira despacio y relaja tus hombros',
+      'de': '2-Minuten-Reset: Atme langsam und entspanne deine Schultern',
+    },
     'Write one tiny intention for today': {
       'tr': 'Bug\u00fcn i\u00e7in k\u00fc\u00e7\u00fck bir niyet yaz',
       'es': 'Escribe una peque\u00f1a intenci\u00f3n para hoy',
@@ -540,9 +546,7 @@ class TaskLocalizer {
     'Blink slowly 10 times': {
       'tr': '10 kez yava\u015f\u00e7a g\u00f6z k\u0131rp',
     },
-    'Breathe deeply for 2 minutes': {
-      'tr': '2 dakika derin nefes al',
-    },
+    'Breathe deeply for 2 minutes': {'tr': '2 dakika derin nefes al'},
     'Breathe in for 4, out for 6': {
       'tr': '4 say\u0131da al, 6 say\u0131da ver',
     },
@@ -552,18 +556,12 @@ class TaskLocalizer {
     'Declutter one digital file or photo': {
       'tr': 'Bir dijital dosya veya foto\u011fraf\u0131 d\u00fczenle',
     },
-    'Do 10 squats': {
-      'tr': '10 squat yap',
-    },
+    'Do 10 squats': {'tr': '10 squat yap'},
     'Do 10 wall push-ups': {
       'tr': 'Duvara kar\u015f\u0131 10 \u015f\u0131nav yap',
     },
-    'Do 15 jumping jacks': {
-      'tr': '15 jumping jack yap',
-    },
-    'Do 5 push-ups (or try)': {
-      'tr': '5 \u015f\u0131nav yap (veya dene)',
-    },
+    'Do 15 jumping jacks': {'tr': '15 jumping jack yap'},
+    'Do 5 push-ups (or try)': {'tr': '5 \u015f\u0131nav yap (veya dene)'},
     'Do a quick posture check': {
       'tr': 'Duru\u015funu h\u0131zl\u0131ca kontrol et',
     },
@@ -571,7 +569,8 @@ class TaskLocalizer {
       'tr': 'Bir tam bardak suyu yava\u015f\u00e7a i\u00e7',
     },
     'Drink a warm or cold beverage mindfully': {
-      'tr': 'S\u0131cak veya so\u011fuk bir i\u00e7ece\u011fi fark\u0131ndal\u0131kla i\u00e7',
+      'tr':
+          'S\u0131cak veya so\u011fuk bir i\u00e7ece\u011fi fark\u0131ndal\u0131kla i\u00e7',
     },
     'Drink water after sitting for long': {
       'tr': 'Uzun s\u00fcre oturduktan sonra su i\u00e7',
@@ -582,18 +581,14 @@ class TaskLocalizer {
     'Drink water slowly and mindfully': {
       'tr': 'Suyu yava\u015f ve fark\u0131ndal\u0131kla i\u00e7',
     },
-    'Eat a piece of fruit': {
-      'tr': 'Bir par\u00e7a meyve ye',
-    },
+    'Eat a piece of fruit': {'tr': 'Bir par\u00e7a meyve ye'},
     'Focus on your breathing for 60 seconds': {
       'tr': '60 saniye nefesine odaklan',
     },
     'Forgive yourself for one small thing': {
       'tr': 'K\u00fc\u00e7\u00fck bir \u015fey i\u00e7in kendini affet',
     },
-    'Learn 3 new words': {
-      'tr': '3 yeni kelime \u00f6\u011fren',
-    },
+    'Learn 3 new words': {'tr': '3 yeni kelime \u00f6\u011fren'},
     'Learn one keyboard shortcut': {
       'tr': 'Bir klavye k\u0131sayolu \u00f6\u011fren',
     },
@@ -604,23 +599,21 @@ class TaskLocalizer {
       'tr': 'K\u00fc\u00e7\u00fck bir geli\u015fim fikri \u00f6\u011fren',
     },
     'Learn one small thing (quick read)': {
-      'tr': 'K\u00fc\u00e7\u00fck bir \u015fey \u00f6\u011fren (h\u0131zl\u0131 okuma)',
+      'tr':
+          'K\u00fc\u00e7\u00fck bir \u015fey \u00f6\u011fren (h\u0131zl\u0131 okuma)',
     },
     'Learn one tiny habit idea': {
-      'tr': 'K\u00fc\u00e7\u00fck bir al\u0131\u015fkanl\u0131k fikri \u00f6\u011fren',
+      'tr':
+          'K\u00fc\u00e7\u00fck bir al\u0131\u015fkanl\u0131k fikri \u00f6\u011fren',
     },
     'Look away from the screen for 1 minute': {
       'tr': '1 dakika ekrandan uza\u011fa bak',
     },
-    'Meditate for 2 minutes': {
-      'tr': '2 dakika meditasyon yap',
-    },
+    'Meditate for 2 minutes': {'tr': '2 dakika meditasyon yap'},
     'Notice 3 things you can hear right now': {
       'tr': '\u015eu an duyabildi\u011fin 3 \u015feyi fark et',
     },
-    'Pause and take a deep breath': {
-      'tr': 'Dur ve derin bir nefes al',
-    },
+    'Pause and take a deep breath': {'tr': 'Dur ve derin bir nefes al'},
     'Plan one thing for tomorrow': {
       'tr': 'Yar\u0131n i\u00e7in bir \u015fey planla',
     },
@@ -639,15 +632,9 @@ class TaskLocalizer {
     'Read 1 page of a book': {
       'tr': 'Bir kitab\u0131n 1 sayfas\u0131n\u0131 oku',
     },
-    'Read one interesting fact': {
-      'tr': '\u0130lgin\u00e7 bir bilgi oku',
-    },
-    'Read one paragraph you enjoy': {
-      'tr': 'Sevdi\u011fin bir paragraf oku',
-    },
-    'Read one productivity tip': {
-      'tr': 'Bir verimlilik ipucu oku',
-    },
+    'Read one interesting fact': {'tr': '\u0130lgin\u00e7 bir bilgi oku'},
+    'Read one paragraph you enjoy': {'tr': 'Sevdi\u011fin bir paragraf oku'},
+    'Read one productivity tip': {'tr': 'Bir verimlilik ipucu oku'},
     'Relax your shoulders and drop tension': {
       'tr': 'Omuzlar\u0131n\u0131 gev\u015fet ve gerginli\u011fi b\u0131rak',
     },
@@ -658,7 +645,8 @@ class TaskLocalizer {
       'tr': 'Omuzlar\u0131n\u0131 10 kez \u00e7evir',
     },
     'Say no to one distraction today': {
-      'tr': 'Bug\u00fcn bir dikkat da\u011f\u0131t\u0131c\u0131ya hay\u0131r de',
+      'tr':
+          'Bug\u00fcn bir dikkat da\u011f\u0131t\u0131c\u0131ya hay\u0131r de',
     },
     'Send a quick thank-you message': {
       'tr': 'H\u0131zl\u0131 bir te\u015fekk\u00fcr mesaj\u0131 g\u00f6nder',
@@ -666,9 +654,7 @@ class TaskLocalizer {
     'Sit quietly and do nothing for 1 minute': {
       'tr': '1 dakika sessizce otur ve hi\u00e7bir \u015fey yapma',
     },
-    'Smile for 10 seconds': {
-      'tr': '10 saniye g\u00fcl\u00fcmse',
-    },
+    'Smile for 10 seconds': {'tr': '10 saniye g\u00fcl\u00fcmse'},
     'Stand on one foot for 30 seconds': {
       'tr': '30 saniye tek ayak \u00fcst\u00fcnde dur',
     },
@@ -676,29 +662,23 @@ class TaskLocalizer {
       'tr': 'Aya\u011fa kalk ve duru\u015funu d\u00fczelt',
     },
     'Stretch your arms overhead': {
-      'tr': 'Kollar\u0131n\u0131 ba\u015f\u0131n\u0131n \u00fcst\u00fcnde esnet',
+      'tr':
+          'Kollar\u0131n\u0131 ba\u015f\u0131n\u0131n \u00fcst\u00fcnde esnet',
     },
-    'Stretch your neck gently': {
-      'tr': 'Boynunu nazik\u00e7e esnet',
-    },
-    'Take 5 deep belly breaths': {
-      'tr': '5 derin kar\u0131n nefesi al',
-    },
+    'Stretch your neck gently': {'tr': 'Boynunu nazik\u00e7e esnet'},
+    'Take 5 deep belly breaths': {'tr': '5 derin kar\u0131n nefesi al'},
     'Think of one thing you\u2019re thankful for': {
       'tr': 'Minnettar oldu\u011fun bir \u015feyi d\u00fc\u015f\u00fcn',
     },
-    'Tidy up for 2 minutes': {
-      'tr': '2 dakika toparlan',
-    },
+    'Tidy up for 2 minutes': {'tr': '2 dakika toparlan'},
     'Unclench your teeth and relax your face': {
-      'tr': 'Di\u015flerini s\u0131kmay\u0131 b\u0131rak ve y\u00fcz\u00fcn\u00fc gev\u015fet',
+      'tr':
+          'Di\u015flerini s\u0131kmay\u0131 b\u0131rak ve y\u00fcz\u00fcn\u00fc gev\u015fet',
     },
     'Walk around the room once': {
       'tr': 'Odan\u0131n i\u00e7inde bir tur y\u00fcr\u00fc',
     },
-    'Walk for 5 minutes': {
-      'tr': '5 dakika y\u00fcr\u00fc',
-    },
+    'Walk for 5 minutes': {'tr': '5 dakika y\u00fcr\u00fc'},
     'Write one positive thought': {
       'tr': 'Olumlu bir d\u00fc\u015f\u00fcnce yaz',
     },
@@ -909,24 +889,33 @@ class TaskLocalizer {
     final durationSeconds = _extractDurationSeconds(title);
     if (durationSeconds == null) return null;
 
-    if (normalized.startsWith('move your body for ') ||
+    final hasBodyPrompt =
+        normalized.contains('move your body') ||
+        normalized.startsWith('move your body for ') ||
         (normalized.startsWith('v\u00fccudunu ') &&
             normalized.endsWith(' hareket ettir')) ||
         normalized.startsWith('mueve tu cuerpo durante ') ||
-        normalized.startsWith('bewege deinen k\u00f6rper f\u00fcr ')) {
+        normalized.startsWith('bewege deinen k\u00f6rper f\u00fcr ');
+    if (hasBodyPrompt) {
       return _GeneratedTitleMatch('body', durationSeconds);
     }
 
-    if (normalized.startsWith('start one small improvement for ') ||
+    final hasGrowthPrompt =
+        normalized.contains('start one small improvement') ||
+        normalized.startsWith('start one small improvement for ') ||
         normalized.endsWith(
           ' boyunca k\u00fc\u00e7\u00fck bir geli\u015fim ba\u015flat',
         ) ||
         normalized.startsWith('empieza una peque\u00f1a mejora durante ') ||
-        normalized.startsWith('beginne f\u00fcr ')) {
+        normalized.startsWith('beginne f\u00fcr ');
+    if (hasGrowthPrompt) {
       return _GeneratedTitleMatch('growth', durationSeconds);
     }
 
-    if ((normalized.startsWith('breathe slowly for ') &&
+    final hasCalmPrompt =
+        (normalized.contains('breathe slowly') &&
+            normalized.contains('relax your shoulders')) ||
+        (normalized.startsWith('breathe slowly for ') &&
             normalized.endsWith(' and relax your shoulders')) ||
         normalized.endsWith(
           ' yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet',
@@ -934,27 +923,36 @@ class TaskLocalizer {
         (normalized.startsWith('respira despacio durante ') &&
             normalized.endsWith(' y relaja tus hombros')) ||
         (normalized.startsWith('atme f\u00fcr ') &&
-            normalized.endsWith(' langsam und entspanne deine schultern'))) {
+            normalized.endsWith(' langsam und entspanne deine schultern'));
+    if (hasCalmPrompt) {
       return _GeneratedTitleMatch('calm', durationSeconds);
     }
 
-    if (normalized.startsWith('drink water and reset posture for ') ||
+    final hasHealthPrompt =
+        (normalized.contains('drink water') &&
+            normalized.contains('reset posture')) ||
+        normalized.startsWith('drink water and reset posture for ') ||
         normalized.endsWith(' su i\u00e7 ve duru\u015funu d\u00fczelt') ||
         normalized.startsWith('bebe agua y corrige tu postura durante ') ||
         normalized.startsWith(
           'trink wasser und korrigiere deine haltung f\u00fcr ',
-        )) {
+        );
+    if (hasHealthPrompt) {
       return _GeneratedTitleMatch('health', durationSeconds);
     }
 
-    if (normalized.startsWith('write one clear priority and focus for ') ||
+    final hasMindPrompt =
+        (normalized.contains('write one clear priority') &&
+            normalized.contains('focus')) ||
+        normalized.startsWith('write one clear priority and focus for ') ||
         normalized.endsWith(' tek bir net \u00f6ncelik yaz ve odaklan') ||
         normalized.startsWith(
           'escribe una prioridad clara y conc\u00e9ntrate durante ',
         ) ||
         normalized.startsWith(
           'schreibe eine klare priorit\u00e4t und fokussiere dich f\u00fcr ',
-        )) {
+        );
+    if (hasMindPrompt) {
       return _GeneratedTitleMatch('mind', durationSeconds);
     }
 
@@ -1083,7 +1081,7 @@ class TaskLocalizer {
 
   static int? _extractDurationSeconds(String value) {
     final matches = RegExp(
-      r'(\\\\d+)(?:\\\\s*-\\\\s*|\\\\s+)(seconds?|secs?|sec|minutes?|mins?|min|saniye|dakika|segundos?|minutos?|sekunden|minute?n?)',
+      '(\\d+)(?:\\s*-\\s*|\\s+)(seconds?|secs?|sec|minutes?|mins?|min|saniye|dakika(?:l\u0131k)?|segundos?|minutos?|sekunden|minute?n?)',
       caseSensitive: false,
     ).allMatches(value);
 
@@ -1094,7 +1092,7 @@ class TaskLocalizer {
       final rawValue = int.tryParse(match.group(1) ?? '');
       final unit = (match.group(2) ?? '').toLowerCase();
       if (rawValue == null || rawValue <= 0) continue;
-      if (unit.startsWith('min') || unit == 'dakika') {
+      if (unit.startsWith('min') || unit.startsWith('dakika')) {
         total += rawValue * 60;
       } else {
         total += rawValue;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'services/iap_service.dart';
 import 'services/ad_service.dart';
+import 'services/analytics_service.dart';
 import 'services/locale_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -403,6 +406,8 @@ class _LaunchGateState extends State<_LaunchGate> {
   Future<void> _completeOnboarding() async {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool(_kOnboardingCompletedKey, true);
+    unawaited(AnalyticsService.instance.logEvent('onboarding_completed'));
+    unawaited(AnalyticsService.instance.logEvent('tutorial_complete'));
     if (!mounted) return;
     setState(() => _onboardingCompleted = true);
   }

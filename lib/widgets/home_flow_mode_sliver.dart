@@ -161,8 +161,6 @@ class HomeFlowModeSliver extends StatelessWidget {
         !showMomentumPrompt &&
         showPrimaryAction &&
         (timerFinished || !timerActive);
-    const contentColumnInset = 14.0;
-
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
@@ -173,8 +171,10 @@ class HomeFlowModeSliver extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           clipBehavior: Clip.antiAlias,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 236),
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            constraints: BoxConstraints(
+              minHeight: showMomentumPrompt ? 236 : (timerActive ? 198 : 172),
+            ),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               gradient: LinearGradient(
@@ -366,181 +366,164 @@ class HomeFlowModeSliver extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: contentColumnInset,
-                        ),
-                        child: Text(
-                          title,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: scheme.onSurface.withOpacity(0.78),
-                            fontWeight: FontWeight.w500,
-                            height: 1.2,
-                            fontSize: 19,
-                          ),
+                      Text(
+                        title,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: scheme.onSurfaceVariant.withOpacity(0.86),
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.15,
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: Color.alphaBlend(
+                            Colors.white.withOpacity(isDark ? 0.03 : 0.34),
+                            scheme.surface.withOpacity(isDark ? 0.24 : 0.72),
+                          ),
+                          border: Border.all(
+                            color: scheme.outline.withOpacity(0.14),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _AnimatedAccentLine(
-                              color: visual.tone,
-                              softColor: visual.toneSoft,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _CategoryChip(visual: visual),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      _CategoryChip(visual: visual),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              stepLine,
-                                              style: theme.textTheme.bodyLarge
-                                                  ?.copyWith(
-                                                    color: Colors.white
-                                                        .withOpacity(0.96),
-                                                    fontWeight: FontWeight.w700,
-                                                    height: 1.25,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: visual.tone
-                                                            .withOpacity(0.26),
-                                                        blurRadius: 12,
-                                                      ),
-                                                    ],
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              _localizedDurationLabel(
-                                                l10n,
-                                                activeTask,
-                                              ),
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: Colors.white
-                                                        .withOpacity(0.72),
-                                                    fontWeight: FontWeight.w600,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: visual.tone
-                                                            .withOpacity(0.18),
-                                                        blurRadius: 8,
-                                                      ),
-                                                    ],
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (showInlineCta) ...[
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: _GradientActionButton(
-                                        label: ctaLabel,
-                                        onTap: onPrimaryAction,
-                                        icon: Icons.bolt_rounded,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: Text(
-                                        l10n.noPressureJustMomentum,
-                                        textAlign: TextAlign.center,
-                                        style: theme.textTheme.labelSmall
+                                      Text(
+                                        stepLine,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleLarge
                                             ?.copyWith(
-                                              color: scheme.onSurfaceVariant
-                                                  .withOpacity(0.82),
-                                              fontWeight: FontWeight.w600,
-                                              height: 1.25,
+                                              color: Colors.white.withOpacity(
+                                                0.97,
+                                              ),
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.04,
+                                              fontSize: 18,
+                                              shadows: [
+                                                Shadow(
+                                                  color: visual.tone
+                                                      .withOpacity(0.18),
+                                                  blurRadius: 10,
+                                                ),
+                                              ],
                                             ),
                                       ),
-                                    ),
-                                  ],
-                                  if (!showInlineCta)
-                                    const SizedBox(height: 10),
-                                  if (!timerActive && !showInlineCta)
-                                    Text(
-                                      l10n.approxNoPressure(
+                                      const SizedBox(height: 6),
+                                      Text(
                                         _localizedDurationLabel(
                                           l10n,
                                           activeTask,
                                         ),
-                                      ),
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            color: scheme.onSurfaceVariant
-                                                .withOpacity(0.84),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                  if (timerRunning || timerPaused) ...[
-                                    _ActiveTimerControlBar(
-                                      timerLabel: timerLabel,
-                                      running: timerRunning,
-                                      paused: timerPaused,
-                                      onPauseTap: onPauseAction,
-                                      onEndTap: onEndAction,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    _SparkProgressBar(
-                                      value: timerProgress,
-                                      color: const Color(0xFF8776FF),
-                                      backgroundColor: scheme.onSurfaceVariant
-                                          .withOpacity(0.2),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Center(
-                                      child: Text(
-                                        timerPaused ? l10n.paused : subtitle,
-                                        style: theme.textTheme.bodyMedium
+                                        style: theme.textTheme.labelMedium
                                             ?.copyWith(
-                                              color: scheme.onSurface
-                                                  .withOpacity(0.66),
-                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white.withOpacity(
+                                                0.76,
+                                              ),
+                                              fontWeight: FontWeight.w700,
                                             ),
                                       ),
-                                    ),
-                                  ],
-                                  if (timerFinished) ...[
-                                    _SparkProgressBar(
-                                      value: 1,
-                                      color: const Color(0xFF8776FF),
-                                      backgroundColor: scheme.onSurfaceVariant
-                                          .withOpacity(0.2),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Center(
-                                      child: Text(
-                                        subtitle,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              color: scheme.onSurface
-                                                  .withOpacity(0.66),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
+                            if (showInlineCta) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: _GradientActionButton(
+                                  label: ctaLabel,
+                                  onTap: onPrimaryAction,
+                                  icon: Icons.bolt_rounded,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Center(
+                                child: Text(
+                                  l10n.noPressureJustMomentum,
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: scheme.onSurfaceVariant.withOpacity(
+                                      0.74,
+                                    ),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.08,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (!showInlineCta)
+                              const SizedBox(height: 10),
+                            if (!timerActive && !showInlineCta)
+                              Text(
+                                l10n.approxNoPressure(
+                                  _localizedDurationLabel(l10n, activeTask),
+                                ),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onSurfaceVariant.withOpacity(
+                                    0.84,
+                                  ),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            if (timerRunning || timerPaused) ...[
+                              _ActiveTimerControlBar(
+                                timerLabel: timerLabel,
+                                running: timerRunning,
+                                paused: timerPaused,
+                                onPauseTap: onPauseAction,
+                                onEndTap: onEndAction,
+                              ),
+                              const SizedBox(height: 10),
+                              _SparkProgressBar(
+                                value: timerProgress,
+                                color: const Color(0xFF8776FF),
+                                backgroundColor: scheme.onSurfaceVariant
+                                    .withOpacity(0.2),
+                              ),
+                              const SizedBox(height: 8),
+                              Center(
+                                child: Text(
+                                  timerPaused ? l10n.paused : subtitle,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurface.withOpacity(0.66),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (timerFinished) ...[
+                              _SparkProgressBar(
+                                value: 1,
+                                color: const Color(0xFF8776FF),
+                                backgroundColor: scheme.onSurfaceVariant
+                                    .withOpacity(0.2),
+                              ),
+                              const SizedBox(height: 8),
+                              Center(
+                                child: Text(
+                                  subtitle,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurface.withOpacity(0.66),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -577,37 +560,38 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      width: 66,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
             Color.alphaBlend(
-              visual.tone.withOpacity(0.32),
-              const Color(0xFF261D3E),
+              visual.tone.withOpacity(0.28),
+              const Color(0xFF24304A),
             ),
             Color.alphaBlend(
-              visual.toneSoft.withOpacity(0.28),
-              const Color(0xFF1E1A36),
+              visual.toneSoft.withOpacity(0.2),
+              const Color(0xFF182236),
             ),
           ],
         ),
+        border: Border.all(color: visual.tone.withOpacity(0.14)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             visual.icon,
-            size: 16,
+            size: 14,
             color: Color.alphaBlend(Colors.white.withOpacity(0.9), visual.tone),
             shadows: [
-              Shadow(color: visual.tone.withOpacity(1.0), blurRadius: 20),
+              Shadow(color: visual.tone.withOpacity(0.72), blurRadius: 14),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             visual.label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -616,9 +600,10 @@ class _CategoryChip extends StatelessWidget {
                 visual.tone,
               ),
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.48,
+              fontSize: 10,
+              letterSpacing: 0.42,
               shadows: [
-                Shadow(color: visual.tone.withOpacity(0.96), blurRadius: 18),
+                Shadow(color: visual.tone.withOpacity(0.72), blurRadius: 12),
               ],
             ),
           ),
@@ -655,80 +640,6 @@ class _MomentumMiniRing extends StatelessWidget {
   }
 }
 
-class _AnimatedAccentLine extends StatefulWidget {
-  const _AnimatedAccentLine({required this.color, required this.softColor});
-
-  final Color color;
-  final Color softColor;
-
-  @override
-  State<_AnimatedAccentLine> createState() => _AnimatedAccentLineState();
-}
-
-class _AnimatedAccentLineState extends State<_AnimatedAccentLine>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2200),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 2,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final t = _controller.value;
-          final begin = -1.0 + (2.0 * t);
-          final end = begin + 0.42;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      widget.color.withOpacity(0.92),
-                      widget.softColor.withOpacity(0.7),
-                    ],
-                  ),
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  gradient: LinearGradient(
-                    begin: Alignment(0, begin.clamp(-1.0, 1.0)),
-                    end: Alignment(0, end.clamp(-1.0, 1.0)),
-                    colors: [
-                      Colors.transparent,
-                      widget.color.withOpacity(0.0),
-                      Colors.white.withOpacity(0.55),
-                      widget.color.withOpacity(0.0),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.24, 0.5, 0.76, 1.0],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _GradientActionButton extends StatelessWidget {
   const _GradientActionButton({
     required this.label,
@@ -749,7 +660,7 @@ class _GradientActionButton extends StatelessWidget {
         color: Colors.transparent,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(13),
             gradient: const LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -767,16 +678,16 @@ class _GradientActionButton extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(13),
             child: Container(
-              height: 44,
+              height: 40,
               alignment: Alignment.center,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 16, color: Colors.white.withOpacity(0.96)),
+                    Icon(icon, size: 15, color: Colors.white.withOpacity(0.96)),
                     const SizedBox(width: 6),
                   ],
                   Text(

@@ -117,6 +117,7 @@ class HomeAppBar extends StatelessWidget {
                             fontSize: 17.5,
                             color: scheme.onSurface.withOpacity(0.98),
                             height: 1.1,
+
                             shadows: const [
                               Shadow(
                                 color: Color.fromRGBO(5, 8, 18, 0.28),
@@ -267,7 +268,3 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
     );
   }
 }
-
-
-
-

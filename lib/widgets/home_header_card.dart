@@ -180,9 +180,12 @@ class HomeHeaderCard extends StatelessWidget {
                             children: [
                               Icon(
                                 Icons.local_fire_department_rounded,
-                                size: 11,
-                                color: const Color(
-                                  0xFFFFC06A,
+                                size: 14,
+                                color: const Color.fromARGB(
+                                  255,
+                                  233,
+                                  154,
+                                  45,
                                 ).withOpacity(0.98),
                                 shadows: const [
                                   Shadow(
@@ -199,6 +202,7 @@ class HomeHeaderCard extends StatelessWidget {
                                     isDark ? 0.68 : 0.76,
                                   ),
                                   fontWeight: FontWeight.w700,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -210,15 +214,15 @@ class HomeHeaderCard extends StatelessWidget {
                     Text(
                       l10n.oneTinyStepIsEnough,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.74),
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
+                        color: Colors.white.withOpacity(0.54),
+                        fontWeight: FontWeight.w500,
+                        height: 1.1,
                       ),
                     ),
                     const SizedBox(height: 12),
                     _HeroMomentumBar(
                       progress: progress,
-                      trackColor: Colors.white.withOpacity(0.12),
+                      trackColor: Colors.white.withOpacity(0.26),
                     ),
                     if (weeklyTotalCount > 0) ...[
                       const SizedBox(height: 12),

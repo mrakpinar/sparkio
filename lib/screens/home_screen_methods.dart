@@ -2072,6 +2072,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       'target_total': total,
       'categories': cleaned.length,
     });
+    if (!hadPlan) {
+      _track('first_weekly_plan_created', {
+        'target_total': total,
+        'categories': cleaned.length,
+      });
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Weekly plan saved: ${_weeklyDoneTotal()}/$total'),
@@ -2183,6 +2189,33 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
   void _track(String event, [Map<String, Object?> params = const {}]) {
     unawaited(AnalyticsService.instance.logEvent(event, params: params));
+  }
+
+  void _trackMany(
+    List<String> events, [
+    Map<String, Object?> params = const {},
+  ]) {
+    for (final event in events) {
+      _track(event, params);
+    }
+  }
+
+  void _trackTaskCreated({
+    required Task task,
+    required String source,
+    String? packId,
+  }) {
+    _track('task_created', {
+      'task_id': task.id,
+      'category': task.category,
+      'difficulty': task.difficulty,
+      'duration_sec': task.totalDurationSeconds,
+      'source': source,
+      'is_custom': task.isCustom,
+      'ai_suggested': task.aiSuggested,
+      'premium_only': task.premiumOnly,
+      'pack_id': packId,
+    });
   }
 
   Future<void> _syncPremiumTopics([bool? premiumActive]) async {
@@ -2356,6 +2389,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     });
     await _repo.saveCompletedMap(_completed);
     unawaited(_syncHomeWidgetSnapshot());
+    _trackTaskCreated(task: task, source: 'next_best_spark');
     _track('next_best_spark_added', {
       'task_id': task.id,
       'category': task.category,
@@ -2379,6 +2413,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }) async {
     if (!mounted) return;
 
+    final l10n = context.l10n;
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return;
     final dailyGoal = max(max(_today.length, completedToday), 1);
@@ -2591,84 +2626,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                   ),
                                 ],
                               ),
-                              if (hasSecondStepSuggestion) ...[
-                                const SizedBox(height: 10),
-                                Material(
-                                  color: Colors.transparent,
-                                  child: Ink(
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      color: Colors.white.withOpacity(0.06),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.12),
-                                      ),
-                                    ),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      onTap: () {
-                                        _track(
-                                          'completion_reinforcement_next_card',
-                                          {
-                                            'chain_id': completionChainId,
-                                            'suggested_task_id':
-                                                secondStepSuggestion.id,
-                                          },
-                                        );
-                                        unawaited(() async {
-                                          await dismissOverlay();
-                                          await _startTaskTimer(
-                                            secondStepSuggestion,
-                                          );
-                                        }());
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          10,
-                                          9,
-                                          10,
-                                          9,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.auto_awesome_rounded,
-                                              size: 17,
-                                              color: accent,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                secondStepSuggestion.title,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: theme.textTheme.bodySmall
-                                                    ?.copyWith(
-                                                      color: Colors.white
-                                                          .withOpacity(0.88),
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              _shortDurationLabel(
-                                                secondStepSuggestion,
-                                              ),
-                                              style: theme.textTheme.labelMedium
-                                                  ?.copyWith(
-                                                    color: accent,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
                               const SizedBox(height: 12),
                               Opacity(
                                 opacity: ctaOpacity,
@@ -2681,34 +2638,30 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                       minimumSize: const Size.fromHeight(46),
                                     ),
                                     onPressed: () {
-                                      final action = hasSecondStepSuggestion
-                                          ? 'start_second_step'
-                                          : 'continue';
                                       _track('completion_reinforcement_cta', {
                                         'chain_id': completionChainId,
-                                        'action': action,
+                                        'action': 'done',
                                         'remaining_actions':
                                             remainingActionCount,
                                         if (hasSecondStepSuggestion)
                                           'suggested_task_id':
                                               secondStepSuggestion.id,
                                       });
-                                      if (hasSecondStepSuggestion) {
-                                        unawaited(() async {
-                                          await dismissOverlay();
-                                          await _startTaskTimer(
-                                            secondStepSuggestion,
+                                      unawaited(() async {
+                                        await dismissOverlay();
+                                        if (hasSecondStepSuggestion) {
+                                          await _showSecondSparkDecision(
+                                            completionChainId:
+                                                completionChainId,
+                                            remainingActionCount:
+                                                remainingActionCount,
+                                            secondStepSuggestion:
+                                                secondStepSuggestion,
                                           );
-                                        }());
-                                      } else {
-                                        unawaited(dismissOverlay());
-                                      }
+                                        }
+                                      }());
                                     },
-                                    child: Text(
-                                      hasSecondStepSuggestion
-                                          ? 'Start second spark'
-                                          : 'Continue',
-                                    ),
+                                    child: Text(l10n.done),
                                   ),
                                 ),
                               ),
@@ -2738,6 +2691,178 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       } catch (_) {}
     }());
     await closeCompleter.future;
+  }
+
+  Future<void> _showSecondSparkDecision({
+    required String completionChainId,
+    required int remainingActionCount,
+    required Task secondStepSuggestion,
+  }) async {
+    if (!mounted) return;
+
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    const accent = Color(0xFF8776FF);
+    final localizedTitle = _repo.localizeTaskTitleForCurrentLocale(
+      secondStepSuggestion.title,
+      category: secondStepSuggestion.category,
+      taskId: secondStepSuggestion.id,
+    );
+
+    final startSecond = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF201D3D), Color(0xFF121D33)],
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withOpacity(0.18),
+                  blurRadius: 22,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.tr('Start your second spark?'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n.tr('You can keep going now or leave it ready for later.'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white.withOpacity(0.72),
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.white.withOpacity(0.06),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accent.withOpacity(0.14),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 18,
+                          color: accent,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              localizedTitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white.withOpacity(0.92),
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _shortDurationLabel(secondStepSuggestion),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(l10n.tr('Start second spark')),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(
+                      l10n.iAmDoneForToday,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (startSecond == true) {
+      _track('completion_reinforcement_cta', {
+        'chain_id': completionChainId,
+        'action': 'start_second_step',
+        'remaining_actions': remainingActionCount,
+        'suggested_task_id': secondStepSuggestion.id,
+      });
+      await _startTaskTimer(secondStepSuggestion);
+      return;
+    }
+
+    _track('completion_reinforcement_cta', {
+      'chain_id': completionChainId,
+      'action': 'done_for_today',
+      'remaining_actions': remainingActionCount,
+      'suggested_task_id': secondStepSuggestion.id,
+    });
+    _finishFlowForToday();
   }
 
   Widget _buildEndDrawer() {
@@ -3083,7 +3208,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       return false;
     }
 
-    _applyAddTaskResult(result.data!);
+    final data = result.data!;
+    _applyAddTaskResult(data);
+    _trackTaskCreated(task: data.task, source: 'manual');
 
     ScaffoldMessenger.of(
       context,
@@ -3106,6 +3233,18 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
 
     _applyAiResponse(result);
+    final added = result.added ?? const <Task>[];
+    if (added.isNotEmpty) {
+      final task = added.first;
+      _trackTaskCreated(task: task, source: 'ai');
+      _track('ai_suggestion_used', {
+        'task_id': task.id,
+        'category': task.category,
+        'difficulty': task.difficulty,
+        'duration_sec': task.totalDurationSeconds,
+        'source': 'task_add_sheet',
+      });
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(
@@ -3158,6 +3297,13 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${added.length} $noun added from pack.')),
+      );
+    }
+    for (final task in added) {
+      _trackTaskCreated(
+        task: task,
+        source: 'task_pack',
+        packId: response.packId ?? packId,
       );
     }
     _track('task_pack_applied', {
@@ -3215,6 +3361,13 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         SnackBar(
           content: Text('${added.length} $noun added from creator pack.'),
         ),
+      );
+    }
+    for (final task in added) {
+      _trackTaskCreated(
+        task: task,
+        source: 'creator_pack',
+        packId: response.packId ?? creatorPackId,
       );
     }
     _track('creator_pack_applied', {
@@ -4346,8 +4499,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _noAdsUntil = status.noAdsUntil;
     });
     if (!wasPremium && _premiumActive) {
+      _track('premium_purchased', {'source': 'iap'});
       _track('premium_purchase_success');
-      _track('premium_started', {'source': 'iap'});
+      _trackMany(['premium_started', 'subscription_started'], {
+        'source': 'iap',
+      });
     }
     await _syncPremiumTopics(_premiumActive);
   }
@@ -4743,6 +4899,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _activeTimerRemaining = duration;
       _activeTimerFinished = false;
       _activeTimerPaused = false;
+      if (_flowModeEnabled) {
+        _flowTaskId = task.id;
+        _flowMomentumPrompt = false;
+      }
     });
     if (_awaitingSecondAction &&
         _pendingCompletionTaskId != null &&
@@ -4954,7 +5114,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _updateState(() => _totalSparksLit = total);
     }
     if (total == 1) {
-      _track('funnel_first_spark', {
+      _trackMany(['funnel_first_spark', 'first_task_completed'], {
         'task_id': task.id,
         'category': task.category,
         'duration_sec': task.totalDurationSeconds,
@@ -5018,6 +5178,16 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       'xp_total': xpProgress.totalXp,
       'level': xpProgress.level,
     });
+    if (task.isCustom && !task.isSpecial) {
+      _track('habit_completed', {
+        'task_id': task.id,
+        'category': task.category,
+        'difficulty': task.difficulty,
+        'duration_sec': task.totalDurationSeconds,
+        'ai_suggested': task.aiSuggested,
+        'from_timer': completedFromTimer,
+      });
+    }
     if (xpProgress.level > previousLevel) {
       _track('level_up', {
         'previous_level': previousLevel,
@@ -7032,86 +7202,193 @@ class _NextBestSparkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final durationSec = suggestion.task.totalDurationSeconds;
     final durationLabel = durationSec >= 60
-        ? '${(durationSec / 60).ceil()} min'
-        : '$durationSec sec';
+        ? l10n.minuteShortLabel((durationSec / 60).ceil())
+        : l10n.secondsLabel(durationSec);
+    final localizedTitle = TaskLocalizer.localizeTitle(
+      suggestion.task.title,
+      category: suggestion.task.category,
+      taskId: suggestion.task.id,
+    );
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: scheme.surface.withOpacity(0.88),
-        border: Border.all(color: scheme.outline.withOpacity(0.28)),
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              scheme.primary.withOpacity(0.08),
+              scheme.surface.withOpacity(0.96),
+            ),
+            Color.alphaBlend(
+              scheme.secondary.withOpacity(0.05),
+              scheme.surfaceContainerHighest.withOpacity(0.88),
+            ),
+          ],
+        ),
+        border: Border.all(color: scheme.outline.withOpacity(0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            l10n.yourNextTinyStep,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant.withOpacity(0.88),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 9),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 26,
-                height: 26,
+                constraints: const BoxConstraints(minWidth: 62),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: scheme.primary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    colors: [
+                      scheme.primary.withOpacity(0.22),
+                      scheme.primary.withOpacity(0.1),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(color: scheme.primary.withOpacity(0.14)),
                 ),
-                child: Icon(
-                  Icons.bolt_rounded,
-                  size: 16,
-                  color: scheme.primary,
+                child: Text(
+                  suggestion.task.category.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.7,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Next best spark',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                durationLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      localizedTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.08,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _NextBestSparkMetaChip(
+                          icon: Icons.schedule_rounded,
+                          label: durationLabel,
+                        ),
+                        _NextBestSparkMetaChip(
+                          icon: Icons.auto_awesome_rounded,
+                          label: suggestion.reason,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
-          Text(
-            suggestion.task.title,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: scheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            suggestion.reason,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
+            child: FilledButton(
               onPressed: busy ? null : onStart,
-              icon: busy
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: busy
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.play_arrow_rounded, size: 18),
-              label: Text(busy ? 'Starting...' : 'Add & Start'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 11),
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt_rounded, size: 18),
+                        const SizedBox(width: 8),
+                        Text(l10n.beginNow),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Center(
+            child: Text(
+              l10n.noPressureJustMomentum,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.86),
+                fontWeight: FontWeight.w600,
+                height: 1.15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextBestSparkMetaChip extends StatelessWidget {
+  const _NextBestSparkMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: scheme.surface.withOpacity(0.68),
+        border: Border.all(color: scheme.outline.withOpacity(0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: scheme.onSurface.withOpacity(0.86),
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

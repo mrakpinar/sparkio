@@ -12,7 +12,7 @@ void main() {
 
       expect(
         localized,
-        '2 dakikalık reset: yavaş nefes al ve omuzlarını gevşet',
+        '2 dakikal\u0131k reset: yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet',
       );
     });
 
@@ -23,7 +23,7 @@ void main() {
           localeCode: 'tr',
           category: 'growth',
         ),
-        'Küçük bir yüzeyi temizle',
+        'K\u00fc\u00e7\u00fck bir y\u00fczeyi temizle',
       );
       expect(
         TaskLocalizer.localizeTitle(
@@ -31,7 +31,7 @@ void main() {
           localeCode: 'tr',
           category: 'body',
         ),
-        'Duvara karşı 10 şınav yap',
+        'Duvara kar\u015f\u0131 10 \u015f\u0131nav yap',
       );
       expect(
         TaskLocalizer.localizeTitle(
@@ -39,7 +39,18 @@ void main() {
           localeCode: 'tr',
           category: 'growth',
         ),
-        'Küçük bir alışkanlık fikri öğren',
+        'K\u00fc\u00e7\u00fck bir al\u0131\u015fkanl\u0131k fikri \u00f6\u011fren',
+      );
+    });
+
+    test('localizes generated calm prompts with duration to Turkish', () {
+      expect(
+        TaskLocalizer.localizeTitle(
+          'Breathe slowly for 90 seconds and relax your shoulders',
+          localeCode: 'tr',
+          category: 'calm',
+        ),
+        '90 saniye yava\u015f nefes al ve omuzlar\u0131n\u0131 gev\u015fet',
       );
     });
   });

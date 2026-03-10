@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_strings.dart';
 import '../models/task.dart';
+import '../services/task_localizer.dart';
 
 class HomeMomentumReinforcementSliver extends StatelessWidget {
   const HomeMomentumReinforcementSliver({
@@ -65,11 +66,11 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
           child: Text(
             text,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: active
-                      ? scheme.onSurface.withOpacity(0.9)
-                      : scheme.onSurfaceVariant.withOpacity(0.8),
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                ),
+              color: active
+                  ? scheme.onSurface.withOpacity(0.9)
+                  : scheme.onSurfaceVariant.withOpacity(0.8),
+              fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -123,7 +124,10 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
                     context: context,
                     active: totalCompletedSeconds > 0,
                     text: l10n.trf('{duration} done', {
-                      'duration': _formatTotalDuration(context, totalCompletedSeconds),
+                      'duration': _formatTotalDuration(
+                        context,
+                        totalCompletedSeconds,
+                      ),
                     }),
                   ),
                   const SizedBox(height: 6),
@@ -156,7 +160,9 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (history.isEmpty)
                     Text(
-                      l10n.tr('No sparks yet. Your first one starts the story.'),
+                      l10n.tr(
+                        'No sparks yet. Your first one starts the story.',
+                      ),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: scheme.onSurfaceVariant.withOpacity(0.78),
                         fontWeight: FontWeight.w500,
@@ -176,7 +182,7 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '${task.title} - ${_formatTaskDuration(context, task)}',
+                                '${TaskLocalizer.localizeTitle(task.title, category: task.category, taskId: task.id)} - ${_formatTaskDuration(context, task)}',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: scheme.onSurface.withOpacity(0.9),
                                   fontWeight: FontWeight.w600,
@@ -223,7 +229,9 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
                             'done': weeklyDoneSafe,
                             'total': weeklyTargetSafe,
                           })
-                        : l10n.tr('Set a weekly spark target to start your arc.'),
+                        : l10n.tr(
+                            'Set a weekly spark target to start your arc.',
+                          ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant.withOpacity(0.84),
                       fontWeight: FontWeight.w600,
@@ -236,7 +244,9 @@ class HomeMomentumReinforcementSliver extends StatelessWidget {
                       minHeight: 4,
                       value: weeklyProgress,
                       color: const Color(0xFF8776FF),
-                      backgroundColor: scheme.onSurfaceVariant.withOpacity(0.22),
+                      backgroundColor: scheme.onSurfaceVariant.withOpacity(
+                        0.22,
+                      ),
                     ),
                   ),
                 ],

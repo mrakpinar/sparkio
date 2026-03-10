@@ -28,6 +28,7 @@ import '../services/streak_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/referral_service.dart';
 import '../services/locale_service.dart';
+import '../services/task_localizer.dart';
 import '../controllers/home_controller.dart';
 import '../app_strings.dart';
 import 'task_add_sheet.dart';
