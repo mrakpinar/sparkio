@@ -30,6 +30,12 @@ class AdService {
   static const _kLaunchGateCount = 'launch_interstitial_gate_count_v1';
   static const _kFirstInstallLaunchSkipped =
       'first_install_launch_interstitial_skipped_v1';
+  static const _kTaskInterstitialDate =
+      'task_completion_interstitial_date_v1';
+  static const _kTaskInterstitialCount =
+      'task_completion_interstitial_count_v1';
+  static const _kTaskInterstitialLastShownMs =
+      'task_completion_interstitial_last_shown_ms_v1';
 
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
@@ -170,6 +176,79 @@ class AdService {
     await sp.setString(_kLastInterstitialDate, dateKey);
   }
 
+  Future<bool> _canShowTaskCompletionInterstitial({
+    required String dateKey,
+    required int completedToday,
+  }) async {
+    if (completedToday < 2) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'first_task_protected',
+        'completed_today': completedToday,
+      });
+      return false;
+    }
+    if (completedToday.isOdd) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'cadence_skip',
+        'completed_today': completedToday,
+      });
+      return false;
+    }
+
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kTaskInterstitialDate);
+    final now = DateTime.now();
+    final countToday = savedDate == dateKey
+        ? (sp.getInt(_kTaskInterstitialCount) ?? 0)
+        : 0;
+    final lastShownMs = savedDate == dateKey
+        ? (sp.getInt(_kTaskInterstitialLastShownMs) ?? 0)
+        : 0;
+
+    if (countToday >= 2) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'daily_task_cap',
+        'completed_today': completedToday,
+        'shown_today': countToday,
+      });
+      return false;
+    }
+
+    if (lastShownMs > 0) {
+      final lastShownAt = DateTime.fromMillisecondsSinceEpoch(lastShownMs);
+      if (now.difference(lastShownAt) < const Duration(minutes: 10)) {
+        _track('interstitial_skipped', {
+          'trigger': 'task_completion',
+          'reason': 'cooldown_active',
+          'completed_today': completedToday,
+          'shown_today': countToday,
+        });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _markTaskCompletionInterstitialShown({
+    required String dateKey,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    final savedDate = sp.getString(_kTaskInterstitialDate);
+    final currentCount = savedDate == dateKey
+        ? (sp.getInt(_kTaskInterstitialCount) ?? 0)
+        : 0;
+    await sp.setString(_kTaskInterstitialDate, dateKey);
+    await sp.setInt(_kTaskInterstitialCount, currentCount + 1);
+    await sp.setInt(
+      _kTaskInterstitialLastShownMs,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
   String _todayDateKey() {
     final now = DateTime.now();
     final m = now.month.toString().padLeft(2, '0');
@@ -249,19 +328,97 @@ class AdService {
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
+        _interstitialShowing = false;
         ad.dispose();
         _loadInterstitial();
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
+        _interstitialShowing = false;
         ad.dispose();
         _loadInterstitial();
       },
     );
 
     await _markInterstitialShown(dateKey);
+    _interstitialShowing = true;
     // ignore: avoid_print
     print('AD: showing interstitial (daily gate)');
     _track('interstitial_shown', {'trigger': 'daily_gate'});
+    ad.show();
+    return true;
+  }
+
+  Future<bool> showInterstitialAfterTaskCompletion({
+    required String dateKey,
+    required int completedToday,
+  }) async {
+    if (hideAdsForScreenshots) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'hide_ads_define',
+      });
+      return false;
+    }
+    if (_interstitialShowing) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'already_showing',
+      });
+      return false;
+    }
+
+    final adFree = await _isAdFreeActive();
+    if (adFree) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'ad_free_active',
+      });
+      return false;
+    }
+
+    final canShow = await _canShowTaskCompletionInterstitial(
+      dateKey: dateKey,
+      completedToday: completedToday,
+    );
+    if (!canShow) return false;
+
+    final ad = await _takeReadyInterstitial(
+      waitUpTo: const Duration(seconds: 2),
+    );
+    if (ad == null) {
+      _track('interstitial_skipped', {
+        'trigger': 'task_completion',
+        'reason': 'not_ready',
+        'completed_today': completedToday,
+      });
+      _loadInterstitial();
+      return false;
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        _interstitialShowing = false;
+        ad.dispose();
+        _loadInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _interstitialShowing = false;
+        ad.dispose();
+        _loadInterstitial();
+        _track('interstitial_skipped', {
+          'trigger': 'task_completion',
+          'reason': 'failed_to_show',
+          'error_code': error.code,
+        });
+      },
+    );
+
+    _interstitialShowing = true;
+    await _markTaskCompletionInterstitialShown(dateKey: dateKey);
+    _track('interstitial_shown', {
+      'trigger': 'task_completion',
+      'completed_today': completedToday,
+    });
     ad.show();
     return true;
   }

@@ -1,20 +1,10 @@
-import 'dart:ui';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_strings.dart';
-
-// ─── Animation timing constants ───────────────────────────────────────────────
-const double _kBenefitIntervalBase = 0.12;
-const double _kBenefitIntervalStep = 0.16;
-const double _kBenefitIntervalLength = 0.34;
-
-// ─── Title animation constants ─────────────────────────────────────────────────
-const double _kTitleLeftDivisor = 0.94;
-const double _kTitleRightOffset = 0.06;
-const double _kTitleRightDivisor = 0.92;
-const double _kTitleSlideDistance = 14.0;
-const double _kTitleSubtleYOffset = 8.0;
+import '../services/task_repository.dart';
+import '../widgets/spark_particles_background.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onFinished});
@@ -26,89 +16,73 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const int _slideCount = 3;
-
   final PageController _pageController = PageController();
-  int _currentPage = 0;
+  final TextEditingController _nameController = TextEditingController();
+
   bool _finishing = false;
+  String _selectedGoal = '';
 
-  bool get _isLastPage => _currentPage == _slideCount - 1;
-
-  List<_OnboardingSlide> _slidesFor(BuildContext context) {
-    final l10n = context.l10n;
-    return [
-      _OnboardingSlide(
-        icon: Icons.flash_on_rounded,
-        eyebrow: l10n.tr('Daily Momentum'),
-        title: l10n.tr('Small actions. Real change.'),
-        description: l10n.tr('3 quick tasks a day to build momentum.'),
-        highlights: [
-          l10n.tr('3 focused tasks'),
-          l10n.tr('Streak + XP motivation'),
-          l10n.tr('Quick daily wins'),
-        ],
-        accentStart: const Color(0xFF3B82F6),
-        accentEnd: const Color(0xFF2EA7D6),
-        animateTitle: true,
-      ),
-      _OnboardingSlide(
-        icon: Icons.timer_rounded,
-        eyebrow: l10n.tr('Focus Engine'),
-        title: l10n.tr('Build your daily rhythm'),
-        description: l10n.tr(
-          'A few minutes a day is enough to keep moving forward.',
-        ),
-        highlights: [
-          l10n.tr('Stay focused for a few minutes'),
-          l10n.tr('See your progress grow daily'),
-          l10n.tr('Keep your routine on track'),
-        ],
-        accentStart: const Color(0xFF06B6D4),
-        accentEnd: const Color(0xFF3B82F6),
-        animateTitle: true,
-      ),
-      _OnboardingSlide(
-        icon: Icons.insights_rounded,
-        eyebrow: l10n.tr('Progress Clarity'),
-        title: l10n.tr('Watch your momentum grow'),
-        description: l10n.tr('Small actions add up faster than you think.'),
-        highlights: [
-          l10n.tr('Notice your consistency build'),
-          l10n.tr('Feel the progress over time'),
-          l10n.tr('Turn effort into momentum'),
-        ],
-        accentStart: const Color(0xFF22C55E),
-        accentEnd: const Color(0xFF14B8A6),
-        animateTitle: true,
-      ),
-    ];
-  }
+  int _loadingStep = 0;
 
   @override
   void dispose() {
     _pageController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
-  Future<void> _next() async {
-    if (_isLastPage) {
-      await _finish();
-      return;
-    }
+  Future<void> _nextPage() async {
+    HapticFeedback.lightImpact();
+    FocusScope.of(context).unfocus();
     await _pageController.nextPage(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.fastOutSlowIn,
     );
   }
 
-  Future<void> _skipToLast() async {
-    // Guard against calling after dispose
-    if (!mounted) return;
-    await _pageController.animateToPage(
-      _slideCount - 1,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
+  void _onGoalSelected(String goal) {
+    HapticFeedback.selectionClick();
+    setState(() => _selectedGoal = goal);
+  }
+
+  Future<void> _startMagicAssembly() async {
+    HapticFeedback.mediumImpact();
+    FocusScope.of(context).unfocus();
+
+    // Switch to the loading page immediately
+    await _pageController.nextPage(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
     );
+
+    // Save the user's name secretly in the background
+    final name = _nameController.text.trim();
+    if (name.isNotEmpty) {
+      final repo = TaskRepository();
+      await repo.setProfileName(name);
+    }
+
+    // Run the fake cinematic loading flow
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (mounted) {
+      setState(() => _loadingStep = 1);
+      HapticFeedback.selectionClick();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (mounted) {
+      setState(() => _loadingStep = 2);
+      HapticFeedback.selectionClick();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (mounted) {
+      setState(() => _loadingStep = 3);
+      HapticFeedback.heavyImpact();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 400));
+    _finish();
   }
 
   Future<void> _finish() async {
@@ -124,246 +98,82 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
-    final slides = _slidesFor(context);
-    final activeSlide = slides[_currentPage];
 
-    // withValues(alpha:) replaces deprecated withOpacity()
     final topColor = isDark
-        ? Color.alphaBlend(
-            activeSlide.accentStart.withValues(alpha: 0.26),
-            const Color(0xFF060F1E),
-          )
-        : Color.alphaBlend(
-            activeSlide.accentStart.withValues(alpha: 0.16),
-            const Color(0xFFF5F9FF),
-          );
+        ? const Color(0xFF0C1220)
+        : const Color(0xFFF3F5FA);
+    
     final bottomColor = isDark
-        ? Color.alphaBlend(
-            activeSlide.accentEnd.withValues(alpha: 0.24),
-            const Color(0xFF0B1629),
-          )
-        : Color.alphaBlend(
-            activeSlide.accentEnd.withValues(alpha: 0.12),
-            Colors.white,
-          );
+        ? scheme.background
+        : scheme.surface;
 
     return Scaffold(
       body: Stack(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [topColor, bottomColor],
+          // Gradient Base
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [topColor, bottomColor],
+                ),
               ),
             ),
           ),
-          Positioned(
-            top: -80,
-            right: -40,
-            child: _GlowOrb(
-              color: activeSlide.accentStart.withValues(
-                alpha: isDark ? 0.34 : 0.26,
+          // Premium Ambient Background
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.8,
+                child: SparkParticlesBackground(
+                  streak: 15, // Forces particles to look lush & heavy
+                ),
               ),
-              size: 220,
-            ),
-          ),
-          Positioned(
-            bottom: -100,
-            left: -30,
-            child: _GlowOrb(
-              color: activeSlide.accentEnd.withValues(
-                alpha: isDark ? 0.32 : 0.22,
-              ),
-              size: 260,
             ),
           ),
           SafeArea(
             child: Column(
               children: [
-                AnimatedPadding(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    _isLastPage ? 30 : 14,
-                    20,
-                    8,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          color: scheme.surface.withValues(
-                            alpha: isDark ? 0.12 : 0.58,
-                          ),
-                          border: Border.all(
-                            color: scheme.outline.withValues(alpha: 0.18),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.bolt_rounded,
-                              size: 14,
-                              color: activeSlide.accentStart.withValues(
-                                alpha: 0.9,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'SPARKIO',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.9,
-                                color: scheme.onSurfaceVariant.withValues(
-                                  alpha: 0.6,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                // Top App Style Pill
+                Padding(
+                  padding: const EdgeInsets.only(top: 14.0, bottom: 8.0),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: scheme.surface.withOpacity(isDark ? 0.2 : 0.6),
+                        border: Border.all(color: scheme.outline.withOpacity(0.2)),
                       ),
-                      const Spacer(),
-                      if (!_isLastPage)
-                        TextButton(
-                          onPressed: _finishing ? null : _skipToLast,
-                          style: TextButton.styleFrom(
-                            foregroundColor: scheme.onSurfaceVariant.withValues(
-                              alpha: 0.6,
-                            ),
-                            textStyle: theme.textTheme.labelLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              decoration: TextDecoration.none,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.bolt_rounded, size: 16, color: scheme.onSurface),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sparkio',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: scheme.onSurfaceVariant.withOpacity(0.9),
                             ),
                           ),
-                          child: Text(context.l10n.tr('Skip')),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: PageView.builder(
+                  child: PageView(
                     controller: _pageController,
-                    itemCount: slides.length,
-                    onPageChanged: (index) =>
-                        setState(() => _currentPage = index),
-                    itemBuilder: (context, index) {
-                      final slide = slides[index];
-                      return _OnboardingPage(
-                        slide: slide,
-                        isDark: isDark,
-                        isActive: index == _currentPage,
-                        pageIndex: index,
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 1.4, sigmaY: 1.4),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          color: Color.alphaBlend(
-                            activeSlide.accentStart.withValues(
-                              alpha: isDark ? 0.04 : 0.018,
-                            ),
-                            scheme.surface.withValues(
-                              alpha: isDark ? 0.068 : 0.22,
-                            ),
-                          ),
-                          border: Border.all(
-                            color: scheme.outline.withValues(alpha: 0.04),
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(slides.length, (index) {
-                                final selected = index == _currentPage;
-                                return AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  curve: Curves.easeOut,
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  width: selected ? 33 : 8,
-                                  height: selected ? 10 : 8,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(999),
-                                    color: selected
-                                        ? Color.alphaBlend(
-                                            Colors.white.withValues(
-                                              alpha: isDark ? 0.14 : 0.24,
-                                            ),
-                                            activeSlide.accentStart,
-                                          )
-                                        : scheme.onSurfaceVariant.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                  ),
-                                );
-                              }),
-                            ),
-                            const SizedBox(height: 14),
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Center(
-                                  child: SizedBox(
-                                    width: constraints.maxWidth * 0.82,
-                                    height: 52,
-                                    child: ElevatedButton(
-                                      onPressed: _finishing ? null : _next,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            activeSlide.accentStart,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                        ),
-                                      ),
-                                      child: _finishing
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : Text(
-                                              // FIX: "Get started" only on the
-                                              // last page, not the first.
-                                              _isLastPage
-                                                  ? context.l10n.tr('Get started')
-                                                  : context.l10n.tr('Continue'),
-                                            ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    physics: const NeverScrollableScrollPhysics(), // Only manual transitions
+                    children: [
+                      _buildGoalSelectionPage(theme, scheme),
+                      _buildNameInputPage(theme, scheme),
+                      _buildLoadingPage(theme, scheme),
+                    ],
                   ),
                 ),
               ],
@@ -373,347 +183,242 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
-}
 
-// ─── Data model ───────────────────────────────────────────────────────────────
-
-class _OnboardingSlide {
-  const _OnboardingSlide({
-    required this.icon,
-    required this.eyebrow,
-    required this.title,
-    required this.description,
-    required this.highlights,
-    required this.accentStart,
-    required this.accentEnd,
-    this.animateTitle = false, // opt-in per slide instead of hard-coded index
-  });
-
-  final IconData icon;
-  final String eyebrow;
-  final String title;
-  final String description;
-  final List<String> highlights;
-  final Color accentStart;
-  final Color accentEnd;
-
-  /// When true, the title is split and animated in from opposite sides.
-  final bool animateTitle;
-}
-
-// ─── Page widget ──────────────────────────────────────────────────────────────
-
-class _OnboardingPage extends StatefulWidget {
-  const _OnboardingPage({
-    required this.slide,
-    required this.isDark,
-    required this.isActive,
-    required this.pageIndex,
-  });
-
-  final _OnboardingSlide slide;
-  final bool isDark;
-  final bool isActive;
-  final int pageIndex;
-
-  @override
-  State<_OnboardingPage> createState() => _OnboardingPageState();
-}
-
-class _OnboardingPageState extends State<_OnboardingPage>
-    with TickerProviderStateMixin {
-  late final AnimationController _benefitController;
-  late final AnimationController _titleController;
-
-  bool get _shouldAnimateTitle => widget.slide.animateTitle;
-
-  @override
-  void initState() {
-    super.initState();
-    _benefitController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 920),
-    );
-    _titleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
-    // Non-animated slides start at completed state immediately
-    if (!_shouldAnimateTitle) {
-      _titleController.value = 1;
-    }
-
-    if (widget.isActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _benefitController.forward(from: 0);
-        if (_shouldAnimateTitle) {
-          _titleController.forward(from: 0);
-        }
-      });
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _OnboardingPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (!_shouldAnimateTitle) {
-      _titleController.value = 1;
-    }
-
-    if (!oldWidget.isActive && widget.isActive) {
-      _benefitController.forward(from: 0);
-      if (_shouldAnimateTitle) {
-        _titleController.forward(from: 0);
-      }
-    } else if (oldWidget.isActive && !widget.isActive) {
-      _benefitController.value = 0;
-      if (_shouldAnimateTitle || oldWidget.slide.animateTitle) {
-        _titleController.value = 0;
-      }
-    }
-  }
-
-  Animation<double> _benefitAnimation(int index) {
-    final start = (_kBenefitIntervalBase + (index * _kBenefitIntervalStep))
-        .clamp(0.0, 0.8);
-    final end = (start + _kBenefitIntervalLength).clamp(start + 0.01, 1.0);
-    return CurvedAnimation(
-      parent: _benefitController,
-      curve: Interval(start, end, curve: Curves.easeOutCubic),
-    );
-  }
-
-  @override
-  void dispose() {
-    _benefitController.dispose();
-    _titleController.dispose();
-    super.dispose();
-  }
-
-  /// Splits title on explicit '\n' first; falls back to word-count pivot.
-  List<String> _titleParts(String title) {
-    if (title.contains('\n')) {
-      final parts = title.split('\n');
-      return [parts.first, parts.sublist(1).join('\n')];
-    }
-    final words = title.trim().split(RegExp(r'\s+'));
-    if (words.length < 2) return [title, ''];
-    final pivot = words.length ~/ 2;
-    return [words.sublist(0, pivot).join(' '), words.sublist(pivot).join(' ')];
-  }
-
-  Widget _buildTitle(TextStyle? style) {
-    if (!_shouldAnimateTitle) {
-      return Text(
-        widget.slide.title,
-        textAlign: TextAlign.center,
-        style: style,
-      );
-    }
-
-    if (widget.pageIndex != 2) {
-      return AnimatedBuilder(
-        animation: _titleController,
-        builder: (context, child) {
-          final progress = Curves.easeOutCubic.transform(
-            _titleController.value.clamp(0.0, 1.0),
-          );
-          return Opacity(
-            opacity: progress,
-            child: Transform.translate(
-              offset: Offset(0, lerpDouble(_kTitleSubtleYOffset, 0, progress)!),
-              child: Text(
-                widget.slide.title,
-                textAlign: TextAlign.center,
-                style: style,
-              ),
-            ),
-          );
-        },
-      );
-    }
-
-    final parts = _titleParts(widget.slide.title);
-    return AnimatedBuilder(
-      animation: _titleController,
-      builder: (context, child) {
-        final leftProgress = Curves.easeInOutCubic.transform(
-          (_titleController.value / _kTitleLeftDivisor).clamp(0.0, 1.0),
-        );
-        final rightProgress = Curves.easeInOutCubic.transform(
-          ((_titleController.value - _kTitleRightOffset) / _kTitleRightDivisor)
-              .clamp(0.0, 1.0),
-        );
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Opacity(
-              opacity: leftProgress,
-              child: Transform.translate(
-                offset: Offset(
-                  lerpDouble(-_kTitleSlideDistance, 0, leftProgress)!,
-                  0,
-                ),
-                child: Text(
-                  parts[0],
-                  textAlign: TextAlign.center,
-                  style: style,
-                ),
-              ),
-            ),
-            if (parts[1].isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Opacity(
-                opacity: rightProgress,
-                child: Transform.translate(
-                  offset: Offset(
-                    lerpDouble(_kTitleSlideDistance, 0, rightProgress)!,
-                    0,
-                  ),
-                  child: Text(
-                    parts[1],
-                    textAlign: TextAlign.center,
-                    style: style,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final benefits = widget.slide.highlights.take(3).toList();
+  /// STEP 1: Goal Selection
+  Widget _buildGoalSelectionPage(ThemeData theme, ColorScheme scheme) {
+    final l10n = context.l10n;
+    final goals = [
+      {'title': l10n.goalConsistency, 'icon': Icons.repeat_rounded},
+      {'title': l10n.goalBurnout, 'icon': Icons.spa_rounded},
+      {'title': l10n.goalFocus, 'icon': Icons.center_focus_strong_rounded},
+    ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              children: [
-                const Spacer(),
-                if (widget.pageIndex == 2) const SizedBox(height: 20),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: _buildTitle(
-                    theme.textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      height: 1.02,
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 340),
-                  child: Text(
-                    widget.slide.description,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: List.generate(benefits.length, (index) {
-                      final animation = _benefitAnimation(index);
-                      final item = benefits[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.16),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 16,
-                                  color: widget.slide.accentStart.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  item,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: widget.isDark
-                                        ? const Color(0xFFCFE1F8)
-                                        : Color.alphaBlend(
-                                            const Color(
-                                              0xFFCFE1F8,
-                                            ).withValues(alpha: 0.36),
-                                            scheme.onSurfaceVariant,
-                                          ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-                const Spacer(flex: 4),
-              ],
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          Text(
+            l10n.onboardingGoalTitle,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+              height: 1.2,
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ─── Glow orb ─────────────────────────────────────────────────────────────────
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({required this.color, required this.size});
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    // RepaintBoundary isolates the orb's repaints from the rest of the tree
-    return RepaintBoundary(
-      child: IgnorePointer(
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color, color.withValues(alpha: 0.0)],
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.onboardingGoalSubtitle,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: scheme.onSurfaceVariant.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 48),
+          ...goals.map((g) {
+            final isSelected = _selectedGoal == g['title'];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: InkWell(
+                onTap: () => _onGoalSelected(g['title'] as String),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 20,
+                    horizontal: 24,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? scheme.onSurface.withOpacity(0.08)
+                        : scheme.surface.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? scheme.onSurface.withOpacity(0.6)
+                          : scheme.outline.withOpacity(0.2),
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        g['icon'] as IconData,
+                        color: isSelected
+                            ? scheme.onSurface
+                            : scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        g['title'] as String,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 32),
+          AnimatedOpacity(
+            opacity: _selectedGoal.isNotEmpty ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 300),
+            child: ElevatedButton(
+              onPressed: _selectedGoal.isNotEmpty ? _nextPage : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: scheme.onSurface,
+                foregroundColor: scheme.surface,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: Text(
+                l10n.onboardingContinue,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.surface,
+                ),
+              ),
             ),
           ),
-        ),
+          const Spacer(flex: 2),
+        ],
       ),
     );
   }
+
+  /// STEP 2: Name Input
+  Widget _buildNameInputPage(ThemeData theme, ColorScheme scheme) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          Text(
+            l10n.onboardingNameTitle,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.onboardingNameSubtitle,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: scheme.onSurfaceVariant.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 60),
+          TextField(
+            controller: _nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
+            decoration: InputDecoration(
+              hintText: l10n.onboardingNameHint,
+              hintStyle: theme.textTheme.displaySmall?.copyWith(
+                color: scheme.onSurfaceVariant.withOpacity(0.4),
+              ),
+              border: InputBorder.none,
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: scheme.onSurface, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 60),
+          ElevatedButton(
+            onPressed: () {
+              if (_nameController.text.trim().isNotEmpty) {
+                _startMagicAssembly();
+              } else {
+                HapticFeedback.vibrate();
+                // Just force them to the next step anyway as "Spark" default if they skip.
+                // In a true app you can block, but we will allow skipping for UX.
+                _nameController.text = "Spark";
+                _startMagicAssembly();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: scheme.onSurface,
+              foregroundColor: scheme.surface,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: Text(
+              l10n.beginJourney,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: scheme.surface,
+              ),
+            ),
+          ),
+          const Spacer(flex: 2),
+        ],
+      ),
+    );
+  }
+
+  /// STEP 3: The Cinematic Magic Assembly
+  Widget _buildLoadingPage(ThemeData theme, ColorScheme scheme) {
+    final l10n = context.l10n;
+    
+    String getLoadingMessage() {
+      switch (_loadingStep) {
+        case 1: return l10n.generatingCalibrating;
+        case 2: return l10n.generatingBuilding;
+        case 3: return l10n.generatingReady;
+        default: return l10n.generatingAnalyzing;
+      }
+    }
+    
+    final message = getLoadingMessage();
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: scheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 48),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          child: Text(
+            message,
+            key: ValueKey<String>(message),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: scheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
 }
-
-
-
-

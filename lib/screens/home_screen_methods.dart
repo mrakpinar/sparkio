@@ -496,6 +496,54 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     return true;
   }
 
+  Future<void> _updateAmbientAudio() async {
+    if (_survivalModeActive) {
+      try {
+        if (_ambientPlayer == null) {
+          _ambientPlayer = AudioPlayer();
+          await _ambientPlayer?.setAsset('assets/audio/rain.mp3');
+          await _ambientPlayer?.setLoopMode(LoopMode.one);
+          await _ambientPlayer?.setVolume(0.4);
+        }
+        _ambientPlayer?.play();
+      } catch (_) {}
+    } else {
+      await _ambientPlayer?.stop();
+    }
+  }
+
+  Future<void> _activateSurvivalMode() async {
+    final todayKey = _todayKey();
+    await _repo.setSurvivalModeActiveDate(todayKey);
+
+    final sorted = List<Task>.from(
+      _today,
+    )..sort((a, b) => a.totalDurationSeconds.compareTo(b.totalDurationSeconds));
+    final filtered = sorted.take(2).toList();
+
+    await _repo.saveSelectedTasks(filtered);
+    _track('survival_mode_activated', {'original_count': _today.length});
+
+    if (!mounted) return;
+    _updateState(() {
+      _survivalModeActive = true;
+      _showSurvivalPrompt = false;
+      _today = filtered;
+    });
+    unawaited(_updateAmbientAudio());
+  }
+
+  Future<void> _declineSurvivalMode() async {
+    final todayKey = _todayKey();
+    await _repo.setSurvivalModeDeclinedDate(todayKey);
+    _track('survival_mode_declined');
+
+    if (!mounted) return;
+    _updateState(() {
+      _showSurvivalPrompt = false;
+    });
+  }
+
   Future<void> _bootstrap() async {
     _updateState(() => _loading = true);
     await _controller.preloadAds();
@@ -515,6 +563,22 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _todayKey(),
     );
     final weeklyReviewShownWeek = await _repo.getWeeklyReviewShownWeek() ?? '';
+
+    // Survival Mode Checks
+    final yesterdayDate = DateTime.now().subtract(const Duration(days: 1));
+    final yesterdayKey = DateFormat('yyyy-MM-dd').format(yesterdayDate);
+    final moodHistory = await _repo.getMoodHistory();
+    final yesterdayMood = moodHistory[yesterdayKey];
+
+    final survivalDate = await _repo.getSurvivalModeActiveDate();
+    final survivalDeclinedDate = await _repo.getSurvivalModeDeclinedDate();
+
+    final isSurvivalActive = survivalDate == _todayKey();
+    final showSurvivalPrompt =
+        !isSurvivalActive &&
+        survivalDeclinedDate != _todayKey() &&
+        (yesterdayMood == 1 || yesterdayMood == 2);
+
     final lastCompletedTask = await _repo.getLastCompletedTask();
     final earnedBadgesCount = (await _repo.getEarnedBadges()).length;
     final totalSparksLit = await _repo.getTotalCompleted();
@@ -562,6 +626,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _weeklyTargets = weeklyTargets;
       _weeklyDone = weeklyDone;
       _activeChallenge = activeChallenge;
+      _survivalModeActive = isSurvivalActive;
+      _showSurvivalPrompt = showSurvivalPrompt;
       _dismissedNudgesToday = dismissedNudges;
       _coachMorningIntentionToday = coachMorningIntention;
       _coachEveningReviewDoneToday = coachEveningReviewDone;
@@ -573,6 +639,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           : null;
       _loading = false;
     });
+    unawaited(_updateAmbientAudio());
     await _restoreActiveTimerIfNeeded();
     unawaited(_syncHomeWidgetSnapshot());
     _track('home_bootstrap_done', {
@@ -2229,12 +2296,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   int _taskXpReward(Task task) {
-    final base = switch (task.difficulty) {
-      'hard' => 8,
-      'medium' => 6,
-      _ => 5,
-    };
-    return task.isSpecial ? base + 2 : base;
+    return task.xpReward;
   }
 
   String _shortDurationLabel(Task task) {
@@ -2749,7 +2811,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  l10n.tr('You can keep going now or leave it ready for later.'),
+                  l10n.tr(
+                    'You can keep going now or leave it ready for later.',
+                  ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.white.withOpacity(0.72),
                     fontWeight: FontWeight.w600,
@@ -4203,6 +4267,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       bool showAccent = false,
       String? helper,
     }) {
+      final xpLabel = '+${task.xpReward} XP';
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(
@@ -4270,14 +4335,48 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        durationLabel(task),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: scheme.onSurfaceVariant.withOpacity(
-                            showAccent ? 0.82 : textOpacity,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            durationLabel(task),
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant.withOpacity(
+                                showAccent ? 0.82 : textOpacity,
+                              ),
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          fontWeight: FontWeight.w600,
-                        ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              color: const Color(0xFF8B7CFF).withOpacity(0.14),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.bolt_rounded,
+                                  size: 12,
+                                  color: Color(0xFF7ED9FF),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  xpLabel,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: scheme.onSurface.withOpacity(0.82),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -4501,9 +4600,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (!wasPremium && _premiumActive) {
       _track('premium_purchased', {'source': 'iap'});
       _track('premium_purchase_success');
-      _trackMany(['premium_started', 'subscription_started'], {
-        'source': 'iap',
-      });
+      _trackMany(
+        ['premium_started', 'subscription_started'],
+        {'source': 'iap'},
+      );
     }
     await _syncPremiumTopics(_premiumActive);
   }
@@ -5114,11 +5214,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _updateState(() => _totalSparksLit = total);
     }
     if (total == 1) {
-      _trackMany(['funnel_first_spark', 'first_task_completed'], {
-        'task_id': task.id,
-        'category': task.category,
-        'duration_sec': task.totalDurationSeconds,
-      });
+      _trackMany(
+        ['funnel_first_spark', 'first_task_completed'],
+        {
+          'task_id': task.id,
+          'category': task.category,
+          'duration_sec': task.totalDurationSeconds,
+        },
+      );
     }
     final best = await _repo.getBestStreak();
     final counts = await _repo.getCategoryCounts();
@@ -5188,6 +5291,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         'from_timer': completedFromTimer,
       });
     }
+    if (xpProgress.level == previousLevel && newBadges.isEmpty) {
+      await _controller.showInterstitialAfterTaskCompletion(
+        dateKey: _todayKey(),
+        completedToday: newDaily,
+      );
+    }
     if (xpProgress.level > previousLevel) {
       _track('level_up', {
         'previous_level': previousLevel,
@@ -5205,6 +5314,52 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _updateState(() => _earnedBadgesCount += newBadges.length);
       _showBadgeUnlocked(newBadges.first);
       unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
+    }
+    final lastCatDateStr = await _repo.getCategoryLastCompletedDate(
+      task.category,
+    );
+    DateTime? lastCatDate;
+    if (lastCatDateStr != null && lastCatDateStr.isNotEmpty) {
+      try {
+        lastCatDate = DateFormat('yyyy-MM-dd').parse(lastCatDateStr);
+      } catch (_) {}
+    }
+
+    final currentCatStreak = await _repo.getCategoryStreak(task.category);
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+
+    final catResolution = StreakService.resolveNextStreak(
+      currentStreak: currentCatStreak,
+      today: todayDate,
+      lastCompletedDate: lastCatDate,
+    );
+
+    if (catResolution.shouldUpdate) {
+      await _repo.setCategoryStreak(task.category, catResolution.nextStreak);
+      await _repo.setCategoryLastCompletedDate(task.category, _todayKey());
+
+      final ms = catResolution.nextStreak;
+      final isMilestone =
+          ms == 3 || ms == 5 || ms == 10 || ms == 15 || ms == 30;
+
+      if (isMilestone && mounted) {
+        task.category.toUpperCase();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "✨ \$catUpper MASTER ✨ You've hit a \$ms-day streak in \$catUpper tasks!",
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        _track('category_streak_milestone', {
+          'category': task.category,
+          'streak': ms,
+        });
+      }
     }
   }
 
@@ -7214,6 +7369,7 @@ class _NextBestSparkCard extends StatelessWidget {
       category: suggestion.task.category,
       taskId: suggestion.task.id,
     );
+    final xpLabel = '+${suggestion.task.xpReward} XP';
 
     return Container(
       width: double.infinity,
@@ -7253,7 +7409,10 @@ class _NextBestSparkCard extends StatelessWidget {
             children: [
               Container(
                 constraints: const BoxConstraints(minWidth: 62),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   gradient: LinearGradient(
@@ -7299,6 +7458,10 @@ class _NextBestSparkCard extends StatelessWidget {
                         _NextBestSparkMetaChip(
                           icon: Icons.schedule_rounded,
                           label: durationLabel,
+                        ),
+                        _NextBestSparkMetaChip(
+                          icon: Icons.bolt_rounded,
+                          label: xpLabel,
                         ),
                         _NextBestSparkMetaChip(
                           icon: Icons.auto_awesome_rounded,

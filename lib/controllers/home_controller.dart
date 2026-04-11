@@ -941,6 +941,16 @@ class HomeController {
     await _adService.showInterstitialIfAllowed(dateKey: dateKey);
   }
 
+  Future<bool> showInterstitialAfterTaskCompletion({
+    required String dateKey,
+    required int completedToday,
+  }) async {
+    return _adService.showInterstitialAfterTaskCompletion(
+      dateKey: dateKey,
+      completedToday: completedToday,
+    );
+  }
+
   Future<void> showInterstitialOnLaunch() async {
     await _adService.showInterstitialOnLaunch();
   }

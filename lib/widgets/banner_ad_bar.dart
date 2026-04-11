@@ -17,6 +17,9 @@ class BannerAdBar extends StatefulWidget {
 }
 
 class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
+  static const int _minWidthDeltaToReload = 16;
+  static const Duration _minRequestGap = Duration(seconds: 15);
+
   BannerAd? _banner;
   AdSize? _bannerSize;
   bool _hideAds = false;
@@ -25,6 +28,9 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
   int _bannerRetryCount = 0;
   int? _lastRequestedWidth;
   int? _currentWidth;
+  DateTime? _lastRequestAt;
+  DateTime? _lastFailureAt;
+  int? _lastFailureCode;
 
   void _track(String event, [Map<String, Object?> params = const {}]) {
     unawaited(AnalyticsService.instance.logEvent(event, params: params));
@@ -77,11 +83,52 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
     }
   }
 
+  bool _hasMeaningfulWidthChange(int a, int b) =>
+      (a - b).abs() >= _minWidthDeltaToReload;
+
+  Duration _retryDelayForCode(int errorCode, int retryCount) {
+    final steps = switch (errorCode) {
+      3 => const <int>[120, 300, 900],
+      2 => const <int>[30, 120, 300],
+      _ => const <int>[60, 180, 600],
+    };
+    final index = (retryCount - 1).clamp(0, steps.length - 1);
+    return Duration(seconds: steps[index]);
+  }
+
+  bool _canAttemptLoad(int width, {bool dueToRetry = false}) {
+    if (_hideAds || !mounted) return false;
+    if (_bannerLoading) return false;
+    if (_banner != null &&
+        _lastRequestedWidth != null &&
+        !_hasMeaningfulWidthChange(_lastRequestedWidth!, width)) {
+      return false;
+    }
+    if (!dueToRetry && _retryTimer?.isActive == true) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    if (!dueToRetry &&
+        _lastRequestAt != null &&
+        now.difference(_lastRequestAt!) < _minRequestGap) {
+      return false;
+    }
+    if (!dueToRetry && _lastFailureAt != null && _lastFailureCode != null) {
+      final cooldown = _retryDelayForCode(
+        _lastFailureCode!,
+        _bannerRetryCount == 0 ? 1 : _bannerRetryCount,
+      );
+      if (now.difference(_lastFailureAt!) < cooldown) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<void> _ensureBannerForWidth(int width) async {
     final normalizedWidth = width.clamp(1, 1200);
-    if (_hideAds || !mounted) return;
-    if (_bannerLoading) return;
-    if (_banner != null && _lastRequestedWidth == normalizedWidth) return;
+    if (!_canAttemptLoad(normalizedWidth)) return;
     await _loadBanner(normalizedWidth);
   }
 
@@ -98,6 +145,7 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
     }
 
     final size = adaptiveSize ?? AdSize.banner;
+    _lastRequestAt = DateTime.now();
     _track('ad_banner_request', {
       'unit_mode': AdService.effectiveBannerUnitId == AdService.bannerUnitId
           ? 'live'
@@ -118,6 +166,8 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
           _bannerSize = size;
           _bannerLoading = false;
           _bannerRetryCount = 0;
+          _lastFailureAt = null;
+          _lastFailureCode = null;
           _track('ad_banner_loaded', {
             'width': width,
             'height': size.height,
@@ -133,6 +183,8 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
           }
           _bannerLoading = false;
           _bannerRetryCount += 1;
+          _lastFailureAt = DateTime.now();
+          _lastFailureCode = error.code;
           _track('ad_banner_failed', {
             'error_code': error.code,
             'error_domain': error.domain,
@@ -155,11 +207,16 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
 
   void _scheduleRetry(LoadAdError error) {
     _retryTimer?.cancel();
-    final steps = error.code == 3
-        ? const <int>[30, 60, 120, 300]
-        : const <int>[10, 20, 40, 80];
-    final index = (_bannerRetryCount - 1).clamp(0, steps.length - 1);
-    final delay = Duration(seconds: steps[index]);
+    if (error.code == 1) {
+      _track('ad_banner_retry_aborted', {
+        'error_code': error.code,
+        'retry_count': _bannerRetryCount,
+        'reason': 'invalid_request',
+      });
+      return;
+    }
+
+    final delay = _retryDelayForCode(error.code, _bannerRetryCount);
     _track('ad_banner_retry_scheduled', {
       'error_code': error.code,
       'retry_count': _bannerRetryCount,
@@ -171,6 +228,7 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
       if (_banner != null) return;
       final width = _currentWidth;
       if (width == null || width <= 0) return;
+      if (!_canAttemptLoad(width, dueToRetry: true)) return;
       unawaited(_loadBanner(width));
     });
   }
@@ -202,9 +260,14 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth.floor();
-        if (width > 0 && width != _currentWidth) {
+        if (width > 0 &&
+            (_currentWidth == null ||
+                _hasMeaningfulWidthChange(width, _currentWidth!))) {
           _currentWidth = width;
-          final shouldReload = _banner != null && _lastRequestedWidth != width;
+          final shouldReload =
+              _banner != null &&
+              _lastRequestedWidth != null &&
+              _hasMeaningfulWidthChange(width, _lastRequestedWidth!);
           if (shouldReload) {
             _disposeBanner();
           }

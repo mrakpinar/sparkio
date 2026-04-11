@@ -54,6 +54,7 @@ void main() {
       expect(find.text('Mark complete'), findsOneWidget);
       expect(find.text('Begin now'), findsNothing);
       expect(find.text('Ready to finish'), findsOneWidget);
+      expect(find.text('+5 XP'), findsOneWidget);
     },
   );
 }

@@ -70,15 +70,6 @@ class TaskCard extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  int _xpReward(Task t) {
-    final base = switch (t.difficulty) {
-      'hard' => 8,
-      'medium' => 6,
-      _ => 5,
-    };
-    return t.isSpecial ? base + 2 : base;
-  }
-
   String _invitationHeadline(BuildContext context, Task t) {
     final l10n = context.l10n;
     var text = TaskLocalizer.localizeTitle(
@@ -167,7 +158,7 @@ class TaskCard extends StatelessWidget {
       task.category,
       fallback: scheme.primary,
     );
-    const timerAccent = Color(0xFF38BDF8);
+    final timerAccent = scheme.onSurface;
 
     final hasInlineTimer = timerRemaining != null;
     final timerActive = (isTimerActive || hasInlineTimer) && !checked;
@@ -176,7 +167,7 @@ class TaskCard extends StatelessWidget {
     final timerProgress = hasInlineTimer
         ? 1 - (remaining.inSeconds / totalSeconds)
         : 0.0;
-    final xp = _xpReward(task);
+    final xp = task.xpReward;
     final invitationHeadline = _invitationHeadline(context, task);
     final invitationDuration = _invitationDuration(task);
     final invitationFooter = _invitationFooter(
@@ -190,7 +181,7 @@ class TaskCard extends StatelessWidget {
               ? _TaskStatusType.streakBonus
               : _TaskStatusType.pending);
 
-    const doneTint = Color(0xFFF59E0B);
+    final doneTint = scheme.onSurfaceVariant;
     final baseSurface = isDark ? const Color(0xFF030812) : scheme.surface;
     final flatSurface = isDark
         ? const Color(0xFF0A1321)
@@ -722,6 +713,7 @@ class _LiveCardShellState extends State<_LiveCardShell>
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: Listenable.merge([_liveController, _settleController]),
       builder: (context, _) {
@@ -763,11 +755,11 @@ class _LiveCardShellState extends State<_LiveCardShell>
                       end: Alignment.bottomRight,
                       colors: [
                         Color.alphaBlend(
-                          const Color(0xFF34D5FF).withOpacity(0.22),
+                          scheme.onSurface.withOpacity(0.08),
                           shellColor,
                         ),
                         Color.alphaBlend(
-                          const Color(0xFF8B5CF6).withOpacity(0.24),
+                          scheme.onSurface.withOpacity(0.02),
                           shellColor,
                         ),
                       ],

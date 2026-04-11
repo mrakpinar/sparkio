@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 
 class LocaleService {
   LocaleService._();
@@ -22,6 +24,7 @@ class LocaleService {
     if (value == null) {
       await prefs.remove(_prefsKey);
       locale.value = null;
+      await syncPushLanguage();
       return;
     }
 
@@ -29,6 +32,7 @@ class LocaleService {
     if (!_supportedCodes.contains(normalized)) return;
     await prefs.setString(_prefsKey, normalized);
     locale.value = Locale(normalized);
+    await syncPushLanguage();
   }
 
   String get effectiveLanguageCode {
@@ -41,5 +45,22 @@ class LocaleService {
     final normalized = code.toLowerCase();
     if (!_supportedCodes.contains(normalized)) return null;
     return Locale(normalized);
+  }
+
+  Future<void> syncPushLanguage() async {
+    final messaging = FirebaseMessaging.instance;
+    await messaging.subscribeToTopic('sparkio_v2');
+
+    final code = effectiveLanguageCode;
+    final matchedCode = _supportedCodes.contains(code) ? code : 'en';
+
+    for (final supported in _supportedCodes) {
+      final topic = 'sparkio_lang_$supported';
+      if (supported == matchedCode) {
+        await messaging.subscribeToTopic(topic);
+      } else {
+        await messaging.unsubscribeFromTopic(topic);
+      }
+    }
   }
 }

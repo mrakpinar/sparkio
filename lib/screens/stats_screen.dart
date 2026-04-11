@@ -37,6 +37,7 @@ class StatsScreen extends StatelessWidget {
     final weekKey = repo.currentWeekKey();
     final weeklyPlan = await repo.getWeeklyPlan(weekKey: weekKey);
     final weeklyProgress = await repo.getWeeklyProgress(weekKey: weekKey);
+    final moodHistory = await repo.getMoodHistory();
     final weeklyTargets = weeklyPlan?.targets ?? const <String, int>{};
     final weeklyDoneByCategory = <String, int>{
       for (final entry in weeklyTargets.entries)
@@ -65,6 +66,7 @@ class StatsScreen extends StatelessWidget {
       weeklyTarget: weeklyTarget,
       weeklyTargets: weeklyTargets,
       weeklyDoneByCategory: weeklyDoneByCategory,
+      moodHistory: moodHistory,
     );
   }
 
@@ -346,6 +348,16 @@ class _StatsBodyState extends State<_StatsBody> {
               ),
               const SizedBox(height: 12),
               _HeatRow(series: series, maxValue: maxDaily),
+
+              const SizedBox(height: 24),
+
+              // Mood Flow
+              _SectionHeader(
+                title: l10n.tr('Mood Flow'),
+                icon: Icons.mood_rounded,
+              ),
+              const SizedBox(height: 12),
+              _MoodHeatRow(moodHistory: data.moodHistory),
 
               const SizedBox(height: 24),
 
@@ -1377,6 +1389,101 @@ class _HeatRowState extends State<_HeatRow>
   }
 }
 
+class _MoodHeatRow extends StatelessWidget {
+  const _MoodHeatRow({required this.moodHistory});
+  
+  final Map<String, int> moodHistory;
+
+  String _moodEmoji(int? mood) {
+    switch (mood) {
+      case 1: return '😖';
+      case 2: return '😕';
+      case 3: return '😐';
+      case 4: return '🙂';
+      case 5: return '🤩';
+      default: return '';
+    }
+  }
+
+  Color _moodColor(int? mood) {
+    switch (mood) {
+      case 1: return const Color(0xFFF43F5E); // Red
+      case 2: return const Color(0xFFF59E0B); // Amber
+      case 3: return const Color(0xFF10B981); // Green
+      case 4: return const Color(0xFF3B82F6); // Blue
+      case 5: return const Color(0xFF8B5CF6); // Purple
+      default: return Colors.white12;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    // Generate the last 7 days keys
+    final keys = List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return DateFormat('yyyy-MM-dd').format(d);
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: const Color(0xFF10B981),
+        radius: 20,
+        tintOpacity: 0.08,
+      ),
+      child: Row(
+        children: keys.map((dateKey) {
+          final val = moodHistory[dateKey];
+          final emoji = _moodEmoji(val);
+          final col = _moodColor(val);
+          final label = dateKey.substring(8, 10); // get DD
+          
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Column(
+                children: [
+                  Container(
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: val == null ? scheme.onSurfaceVariant.withOpacity(0.06) : col.withOpacity(0.2),
+                      border: Border.all(
+                        color: val == null ? scheme.outline.withOpacity(0.16) : col.withOpacity(0.4),
+                      ),
+                      boxShadow: val != null ? [
+                        BoxShadow(
+                          color: col.withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: -2,
+                        ),
+                      ] : [],
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant.withOpacity(0.66),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
 class _CategoryBar extends StatelessWidget {
   const _CategoryBar({
     required this.label,
@@ -2060,6 +2167,7 @@ class _StatsData {
   final int weeklyTarget;
   final Map<String, int> weeklyTargets;
   final Map<String, int> weeklyDoneByCategory;
+  final Map<String, int> moodHistory;
 
   const _StatsData({
     required this.total,
@@ -2074,6 +2182,7 @@ class _StatsData {
     required this.weeklyTarget,
     required this.weeklyTargets,
     required this.weeklyDoneByCategory,
+    required this.moodHistory,
   });
 }
 

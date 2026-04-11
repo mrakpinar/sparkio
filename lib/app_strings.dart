@@ -3420,6 +3420,189 @@ class AppLocalizations {
         }
     }
   }
+
+  // Onboarding Strings
+  String get onboardingGoalTitle {
+    switch (_code) {
+      case 'tr':
+        return 'Sparkio\'ya seni ne getirdi?';
+      case 'es':
+        return '¿Qué te trae a Sparkio?';
+      case 'de':
+        return 'Was führt dich zu Sparkio?';
+      default:
+        return 'What brings you to Sparkio?';
+    }
+  }
+
+  String get onboardingGoalSubtitle {
+    switch (_code) {
+      case 'tr':
+        return 'Motoru ihtiyaçlarına göre uyarlayacağız.';
+      case 'es':
+        return 'Adaptaremos el motor a tus necesidades.';
+      case 'de':
+        return 'Wir passen die Engine deinen Bedürfnissen an.';
+      default:
+        return 'We will adapt the engine to your needs.';
+    }
+  }
+
+  String get goalConsistency {
+    switch (_code) {
+      case 'tr':
+        return 'Tutarlılık Kur';
+      case 'es':
+        return 'Crear constancia';
+      case 'de':
+        return 'Konstanz aufbauen';
+      default:
+        return 'Build Consistency';
+    }
+  }
+
+  String get goalBurnout {
+    switch (_code) {
+      case 'tr':
+        return 'Tükenmişliği Azalt';
+      case 'es':
+        return 'Reducir agotamiento';
+      case 'de':
+        return 'Burnout reduzieren';
+      default:
+        return 'Reduce Burnout';
+    }
+  }
+
+  String get goalFocus {
+    switch (_code) {
+      case 'tr':
+        return 'Derin Odaklanma';
+      case 'es':
+        return 'Enfoque profundo';
+      case 'de':
+        return 'Tiefer Fokus';
+      default:
+        return 'Deep Focus';
+    }
+  }
+
+  String get onboardingNameTitle {
+    switch (_code) {
+      case 'tr':
+        return 'Her harika yolculuk bir isimle başlar.';
+      case 'es':
+        return 'Todo gran viaje comienza con un nombre.';
+      case 'de':
+        return 'Jede große Reise beginnt mit einem Namen.';
+      default:
+        return 'Every great journey starts with a name.';
+    }
+  }
+
+  String get onboardingNameSubtitle {
+    switch (_code) {
+      case 'tr':
+        return 'Sana nasıl hitap etmemizi istersin?';
+      case 'es':
+        return '¿Cómo deberíamos llamarte?';
+      case 'de':
+        return 'Wie dürfen wir dich nennen?';
+      default:
+        return 'What should your companion call you?';
+    }
+  }
+
+  String get onboardingNameHint {
+    switch (_code) {
+      case 'tr':
+        return 'Senin adın';
+      case 'es':
+        return 'Tu nombre';
+      case 'de':
+        return 'Dein Name';
+      default:
+        return 'Your name';
+    }
+  }
+
+  String get beginJourney {
+    switch (_code) {
+      case 'tr':
+        return 'Yolculuğuma Başla';
+      case 'es':
+        return 'Comenzar mi viaje';
+      case 'de':
+        return 'Meine Reise beginnen';
+      default:
+        return 'Begin My Journey';
+    }
+  }
+
+  String get onboardingContinue {
+    switch (_code) {
+      case 'tr':
+        return 'Devam Et';
+      case 'es':
+        return 'Continuar';
+      case 'de':
+        return 'Weiter';
+      default:
+        return 'Continue';
+    }
+  }
+
+  String get generatingAnalyzing {
+    switch (_code) {
+      case 'tr':
+        return 'Hedeflerin analiz ediliyor...';
+      case 'es':
+        return 'Analizando tus objetivos...';
+      case 'de':
+        return 'Deine Ziele analysieren...';
+      default:
+        return 'Analyzing your goals...';
+    }
+  }
+
+  String get generatingCalibrating {
+    switch (_code) {
+      case 'tr':
+        return 'Adaptif motor kalibre ediliyor...';
+      case 'es':
+        return 'Calibrando motor adaptativo...';
+      case 'de':
+        return 'Adaptive Engine kalibrieren...';
+      default:
+        return 'Calibrating adaptive engine...';
+    }
+  }
+
+  String get generatingBuilding {
+    switch (_code) {
+      case 'tr':
+        return 'Kişiselleştirilmiş rutinin inşa ediliyor...';
+      case 'es':
+        return 'Construyendo tu rutina personalizada...';
+      case 'de':
+        return 'Deine personalisierte Routine aufbauen...';
+      default:
+        return 'Building your personalized routine...';
+    }
+  }
+
+  String get generatingReady {
+    switch (_code) {
+      case 'tr':
+        return 'Hazır.';
+      case 'es':
+        return 'Listo.';
+      case 'de':
+        return 'Bereit.';
+      default:
+        return 'Ready.';
+    }
+  }
 }
 
 class _AppLocalizationsDelegate

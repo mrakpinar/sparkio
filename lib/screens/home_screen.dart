@@ -37,11 +37,15 @@ import 'premium_purchase_sheet.dart';
 import 'profile_screen.dart';
 import 'package:sparkio/screens/stats_screen.dart';
 import 'badges_screen.dart';
+import 'focus_screen.dart';
 import '../widgets/banner_ad_bar.dart';
 import '../widgets/streak_share_card.dart';
 import '../widgets/home_badge_unlock_overlay.dart';
 import '../widgets/home_skeleton.dart';
 import '../widgets/daily_mood_sheet.dart';
+import '../widgets/survival_prompt_card.dart';
+import '../widgets/spark_particles_background.dart';
+import 'package:just_audio/just_audio.dart';
 import '../widgets/home_app_bar.dart';
 import '../widgets/home_header_sliver.dart';
 import '../widgets/home_flow_mode_sliver.dart';
@@ -92,6 +96,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _loading = true;
   bool _refreshing = false;
   bool _dailyMoodPrompting = false;
+  bool _survivalModeActive = false;
+  bool _showSurvivalPrompt = false;
   static const int _maxRefreshPerDay = 2;
   static const int _maxSkipsPerDay = 2;
   bool _rewardBusy = false;
@@ -150,6 +156,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _flowModeEnabled = false;
   String? _flowTaskId;
   bool _flowMomentumPrompt = false;
+  AudioPlayer? _ambientPlayer;
   late final VoidCallback _localeListener = _handleLocaleChanged;
 
   @override
@@ -166,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _homeScrollController.dispose();
     _activeTimerTicker?.cancel();
     _premiumTicker?.cancel();
+    _ambientPlayer?.dispose();
     super.dispose();
   }
 
@@ -278,10 +286,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _startFlowFromHome(Task task) async {
-    if (!_flowModeEnabled) {
-      _enterFlowMode(task);
+    final completed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => FocusScreen(task: task)),
+    );
+    if (completed == true && mounted) {
+      if (_completed[task.id] == true) return;
+
+      _updateState(() => _completed[task.id] = true);
+      await _repo.saveCompletedMap(_completed);
+      await _markTaskDone(task);
+      await _applyStreakIfAllDone();
     }
-    await _handleFlowPrimaryAction(task);
   }
 
   Future<void> _completeFlowTaskAfterTimer(Task task) async {
@@ -403,11 +419,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         : null;
     final isDark = theme.brightness == Brightness.dark;
     final homeBaseBackground = isDark
-        ? const Color(0xFF0B0F1A)
+        ? const Color(0xFF030508)
         : scheme.background;
     final bottomRightAmbient = isDark
-        ? const Color.fromRGBO(0, 220, 255, 0.04)
-        : scheme.secondary.withOpacity(0.06);
+        ? Colors.white.withOpacity(0.02)
+        : scheme.onSurface.withOpacity(0.04);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: homeBaseBackground,
@@ -425,6 +441,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          if (!_survivalModeActive && _streak >= 5)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: SparkParticlesBackground(streak: _streak),
+              ),
+            ),
+          if (_survivalModeActive)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF0D0F21).withOpacity(0.8),
+                        const Color(0xFF231A3A).withOpacity(0.9),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             right: -152,
             bottom: -156,
@@ -463,6 +502,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       onOpenMenu: () =>
                           _scaffoldKey.currentState?.openEndDrawer(),
                     ),
+                    if (_showSurvivalPrompt)
+                      SliverToBoxAdapter(
+                        child: SurvivalPromptCard(
+                          onAccept: _activateSurvivalMode,
+                          onDecline: _declineSurvivalMode,
+                        ),
+                      ),
                     HomeHeaderSliver(
                       doneCount: completedTodayCount,
                       totalCount: _today.length,
@@ -547,6 +593,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 category: heroTask.category,
                                 taskId: heroTask.id,
                               ),
+                        nowXp: heroTask?.xpReward,
                         laterCount: max(
                           pendingTasks.length - (heroTask == null ? 0 : 1),
                           0,

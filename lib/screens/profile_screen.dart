@@ -18,26 +18,32 @@ const double _kProfileCardSurfaceAlpha = 0.84;
 
 BoxDecoration _profileNeoGlassDecoration(
   ColorScheme scheme, {
-  Color tint = const Color(0xFF34D5FF),
+  Color? tint,
   double radius = _kProfileCardRadius,
-  double tintOpacity = 0.1,
+  double tintOpacity = 0.04,
   double surfaceOpacity = _kProfileCardSurfaceAlpha,
 }) {
+  final isDark = scheme.brightness == Brightness.dark;
   final base = Color.alphaBlend(
-    Colors.white.withOpacity(0.03),
-    const Color(0xFF101726).withOpacity(surfaceOpacity),
+    scheme.onSurface.withOpacity(isDark ? 0.04 : 0.08),
+    scheme.surface,
   );
+  final effectiveTint = tint ?? scheme.onSurface;
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
     gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.alphaBlend(tint.withOpacity(tintOpacity), base),
-        Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.08), base),
+        Color.alphaBlend(effectiveTint.withOpacity(tintOpacity), base),
+        Color.alphaBlend(scheme.onSurface.withOpacity(tintOpacity * 0.5), base),
       ],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+    border: Border.all(
+        color: isDark 
+            ? Colors.white.withOpacity(0.05) 
+            : scheme.onSurface.withOpacity(0.08), 
+        width: 1),
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(0.16),
@@ -565,7 +571,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: _profileNeoGlassDecoration(
         scheme,
-        tint: const Color(0xFF8B5CF6),
+        tint: scheme.onSurface,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,14 +590,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                     height: 28,
                     decoration: _profileNeoGlassDecoration(
                       scheme,
-                      tint: const Color(0xFF34D5FF),
+                      tint: scheme.onSurface,
                       radius: 8,
                       tintOpacity: 0.2,
                     ),
                     child: Icon(
                       Icons.group_add_rounded,
                       size: 16,
-                      color: scheme.primary,
+                      color: scheme.onSurface,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -723,7 +729,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               'code': status.redeemedCode ?? '',
                             }),
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: scheme.primary,
+                              color: scheme.onSurface,
                               fontWeight: FontWeight.w700,
                             ),
                           )
@@ -807,7 +813,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return Scaffold(
       backgroundColor: isDark
-          ? const Color(0xFF0B0F1A)
+          ? const Color(0xFF030508)
           : theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
@@ -816,7 +822,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: isDark
-                      ? const Color(0xFF0B0F1A)
+                      ? const Color(0xFF030508)
                       : theme.scaffoldBackgroundColor,
                 ),
               ),
@@ -835,7 +841,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color.fromRGBO(0, 220, 255, 0.04),
+                        scheme.onSurface.withOpacity(isDark ? 0.04 : 0),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.5],
@@ -866,10 +872,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: const Color.fromRGBO(11, 15, 26, 0.96),
+                            color: isDark ? const Color.fromRGBO(3, 5, 8, 0.96) : Colors.white.withOpacity(0.96),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.05),
+                              color: isDark ? Colors.white.withOpacity(0.05) : scheme.onSurface.withOpacity(0.08),
                               width: 1,
                             ),
                             boxShadow: const [
@@ -926,9 +932,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
                         decoration: _profileNeoGlassDecoration(
                           scheme,
-                          tint: const Color(0xFF5B6CFF),
+                          tint: scheme.onSurface,
                           radius: _kProfileCardRadius,
-                          tintOpacity: 0.12,
+                          tintOpacity: 0.08,
                           surfaceOpacity: _kProfileCardSurfaceAlpha,
                         ),
                         child: Column(
@@ -962,10 +968,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                           boxShadow: hasStreakRing
                                               ? [
                                                   BoxShadow(
-                                                    color:
-                                                        const Color(
-                                                          0xFF8B7CFF,
-                                                        ).withValues(
+                                                    color: scheme.onSurface
+                                                        .withValues(
                                                           alpha: isDark
                                                               ? 0.2
                                                               : 0.14,
@@ -976,10 +980,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                 ]
                                               : [
                                                   BoxShadow(
-                                                    color:
-                                                        const Color(
-                                                          0xFF8B5CF6,
-                                                        ).withValues(
+                                                    color: scheme.onSurface
+                                                        .withValues(
                                                           alpha: isDark
                                                               ? 0.08
                                                               : 0.05,
@@ -997,14 +999,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                                             gradient: LinearGradient(
                                               begin: Alignment.topLeft,
                                               end: Alignment.bottomRight,
-                                              colors: const [
-                                                Color(0xFF5B6CFF),
-                                                Color(0xFF8FD3FF),
+                                              colors: [
+                                                scheme.onSurface.withOpacity(0.9),
+                                                scheme.onSurface,
                                               ],
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: const Color(0xFF5B6CFF)
+                                                color: scheme.onSurface
                                                     .withValues(
                                                       alpha: isDark
                                                           ? 0.18
@@ -1038,9 +1040,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                               colors: [
                                                 scheme.surface,
                                                 Color.alphaBlend(
-                                                  const Color(
-                                                    0xFF8FD3FF,
-                                                  ).withValues(alpha: 0.12),
+                                                  scheme.onSurface.withValues(alpha: 0.12),
                                                   scheme.surface,
                                                 ),
                                               ],
@@ -1054,7 +1054,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                           child: Icon(
                                             Icons.edit_rounded,
                                             size: 15,
-                                            color: scheme.primary,
+                                            color: scheme.onSurface,
                                           ),
                                         ),
                                       ),
@@ -1107,7 +1107,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                               onPressed: _saveInlineName,
                                               icon: Icon(
                                                 Icons.check_rounded,
-                                                color: scheme.primary,
+                                                color: scheme.onSurface,
                                                 size: 20,
                                               ),
                                               visualDensity:
@@ -1155,9 +1155,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                   Icon(
                                                     Icons.bolt_rounded,
                                                     size: 20,
-                                                    color: const Color(
-                                                      0xFF8FD3FF,
-                                                    ),
+                                                    color: scheme.onSurface,
                                                   ),
                                                 ],
                                               ),
@@ -1179,7 +1177,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                     Icon(
                                                       Icons.edit_rounded,
                                                       size: 14,
-                                                      color: scheme.primary
+                                                      color: scheme.onSurface
                                                           .withValues(
                                                             alpha: 0.9,
                                                           ),
@@ -1191,8 +1189,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                           .textTheme
                                                           .labelMedium
                                                           ?.copyWith(
-                                                            color:
-                                                                scheme.primary,
+                                                                color:
+                                                                    scheme.onSurface,
                                                             fontWeight:
                                                                 FontWeight.w700,
                                                           ),
@@ -1242,7 +1240,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         .withValues(alpha: 0.84),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: scheme.primary.withValues(
+                                        color: scheme.onSurface.withValues(
                                           alpha: trackGlow,
                                         ),
                                         blurRadius: 22,
@@ -1250,7 +1248,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         offset: const Offset(0, 8),
                                       ),
                                       BoxShadow(
-                                        color: scheme.primary.withValues(
+                                        color: scheme.onSurface.withValues(
                                           alpha: isDark ? 0.18 : 0.1,
                                         ),
                                         blurRadius: 8,
@@ -1277,25 +1275,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                   end: Alignment.centerRight,
                                                   colors: [
                                                     Color.alphaBlend(
-                                                      Colors.black.withValues(
-                                                        alpha: 0.06,
+                                                      scheme.onSurface.withValues(
+                                                        alpha: isDark ? 0.8 : 0.5,
                                                       ),
-                                                      scheme.primary,
+                                                      scheme.surface,
                                                     ),
-                                                    scheme.primary,
+                                                    scheme.onSurface,
                                                     Color.alphaBlend(
                                                       Colors.white.withValues(
                                                         alpha: isDark
                                                             ? 0.18
                                                             : 0.28,
                                                       ),
-                                                      scheme.primary,
+                                                      scheme.onSurface,
                                                     ),
                                                   ],
                                                 ),
                                                 boxShadow: [
                                                   BoxShadow(
-                                                    color: scheme.primary
+                                                    color: scheme.onSurface
                                                         .withValues(
                                                           alpha: fillGlow,
                                                         ),
@@ -1382,7 +1380,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     ),
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(999),
-                                      color: scheme.primary.withValues(
+                                      color: scheme.onSurface.withValues(
                                         alpha: 0.12,
                                       ),
                                     ),
@@ -1390,7 +1388,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       label,
                                       style: theme.textTheme.labelMedium
                                           ?.copyWith(
-                                            color: scheme.primary.withValues(
+                                            color: scheme.onSurface.withValues(
                                               alpha: 0.95,
                                             ),
                                             fontWeight: FontWeight.w700,
@@ -1483,7 +1481,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                             decoration: _profileNeoGlassDecoration(
                               scheme,
-                              tint: const Color(0xFF34D5FF),
+                              tint: scheme.onSurface,
                               surfaceOpacity: 0.72,
                               tintOpacity: 0.1,
                             ),
@@ -1537,7 +1535,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                             horizontal: 0,
                                             vertical: 4,
                                           ),
-                                          foregroundColor: scheme.primary,
+                                          foregroundColor: scheme.onSurface,
                                           textStyle: theme.textTheme.labelLarge
                                               ?.copyWith(
                                                 fontWeight: FontWeight.w700,

@@ -47,6 +47,7 @@ Future<void> main() async {
   await messaging.requestPermission(alert: true, badge: true, sound: true);
   await messaging.setAutoInitEnabled(true);
   await messaging.subscribeToTopic('all_users');
+  await LocaleService.instance.syncPushLanguage();
   final token = await messaging.getToken();
   if (kDebugMode) {
     // ignore: avoid_print

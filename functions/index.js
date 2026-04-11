@@ -55,26 +55,48 @@ exports.sendDailyReminder = onSchedule(
     region: "us-central1",
   },
   async () => {
-    const message = {
-      topic: "all_users",
-      notification: {
-        title: "Tiny steps, big momentum",
-        body: "Pick a quick task and feel the progress.",
-      },
-      data: {
-        type: "daily_reminder",
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "sparkio_daily_v2",
-        },
-      },
+    const languages = {
+      en: { title: "Tiny steps, big momentum", body: "Pick a quick task and feel the progress." },
+      tr: { title: "Küçük adımlar, büyük ivme", body: "Hızlı bir görev seç ve ilerlemeyi hisset." },
+      es: { title: "Pequeños pasos, gran impulso", body: "Elige una tarea rápida y siente el progreso." },
+      de: { title: "Kleine Schritte, großes Momentum", body: "Wähle eine schnelle Aufgabe und spüre den Fortschritt." }
     };
 
+    const messages = [];
+
+    // Localized messages for updated clients
+    for (const [lang, notification] of Object.entries(languages)) {
+      messages.push({
+        topic: `sparkio_lang_${lang}`,
+        notification,
+        data: { type: "daily_reminder" },
+        android: {
+          priority: "high",
+          notification: { channelId: "sparkio_daily_v2" },
+        },
+      });
+    }
+
+    // Fallback message for older clients (uses English by default)
+    messages.push({
+      condition: "'all_users' in topics && !('sparkio_v2' in topics)",
+      notification: languages.en,
+      data: { type: "daily_reminder" },
+      android: {
+        priority: "high",
+        notification: { channelId: "sparkio_daily_v2" },
+      },
+    });
+
     try {
-      await admin.messaging().send(message);
-      return { ok: true };
+      const results = await Promise.all(
+        messages.map((msg) => admin.messaging().send(msg).catch((e) => {
+          console.error(`Failed to send message: ${msg.topic || msg.condition}`, e);
+          return null;
+        }))
+      );
+      
+      return { ok: true, results };
     } catch (error) {
       console.error("sendDailyReminder failed", error);
       return { ok: false };

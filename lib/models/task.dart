@@ -30,6 +30,15 @@ class Task {
     return raw.clamp(1, 360000);
   }
 
+  int get xpReward {
+    final base = switch (difficulty) {
+      'hard' => 8,
+      'medium' => 6,
+      _ => 5,
+    };
+    return isSpecial ? base + 2 : base;
+  }
+
   factory Task.fromMap(Map<String, dynamic> m) {
     final difficulty = _normalizeDifficulty(m['difficulty'] as String?);
     final category = m['category'] as String? ?? 'mind';

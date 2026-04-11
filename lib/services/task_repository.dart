@@ -72,6 +72,11 @@ class TaskRepository {
   static const _kTaskInsightCounts = 'task_insight_counts_v1';
   static const _kSavedCreatorPackIds = 'saved_creator_pack_ids_v1';
   static const _kCreatorPackRatings = 'creator_pack_ratings_v1';
+  static const _kCategoryStreakPrefix = 'cat_streak_v1_';
+  static const _kCategoryLastDatePrefix = 'cat_last_date_v1_';
+  static const _kDailyMoodHistory_v2 = 'daily_mood_history_v2';
+  static const _kSurvivalModeActiveDate = 'survival_mode_active_date_v1';
+  static const _kSurvivalModeDeclinedDate = 'survival_mode_declined_date_v1';
 
   String? _lastPoolError;
   String? get lastPoolError => _lastPoolError;
@@ -560,6 +565,65 @@ class TaskRepository {
   Future<void> setLastCompletedDate(String dateKey) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kLastCompletedDate, dateKey);
+  }
+
+  Future<int> getCategoryStreak(String category) async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getInt('$_kCategoryStreakPrefix$category') ?? 0;
+  }
+
+  Future<void> setCategoryStreak(String category, int value) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setInt('$_kCategoryStreakPrefix$category', value);
+  }
+
+  Future<String?> getCategoryLastCompletedDate(String category) async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString('$_kCategoryLastDatePrefix$category');
+  }
+
+  Future<void> setCategoryLastCompletedDate(String category, String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('$_kCategoryLastDatePrefix$category', dateKey);
+  }
+
+  Future<Map<String, int>> getMoodHistory() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kDailyMoodHistory_v2);
+    if (raw == null) return {};
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded.map((k, v) => MapEntry(k, (v as num).toInt()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveDailyMood(String dateKey, int moodValue) async {
+    final sp = await SharedPreferences.getInstance();
+    final hist = await getMoodHistory();
+    hist[dateKey] = moodValue.clamp(1, 5);
+    await sp.setString(_kDailyMoodHistory_v2, jsonEncode(hist));
+  }
+
+  Future<String?> getSurvivalModeActiveDate() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kSurvivalModeActiveDate);
+  }
+
+  Future<void> setSurvivalModeActiveDate(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kSurvivalModeActiveDate, dateKey);
+  }
+
+  Future<String?> getSurvivalModeDeclinedDate() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kSurvivalModeDeclinedDate);
+  }
+
+  Future<void> setSurvivalModeDeclinedDate(String dateKey) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kSurvivalModeDeclinedDate, dateKey);
   }
 
   Future<bool> getReminderEnabled() async {

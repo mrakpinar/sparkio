@@ -6,11 +6,12 @@ import '../theme/task_category_style.dart';
 
 BoxDecoration _weeklyPlanSurface(
   ColorScheme scheme, {
-  Color tint = const Color(0xFF8B7CFF),
+  Color? tint,
   double radius = 16,
   double tintOpacity = 0.08,
   double surfaceOpacity = 0.98,
 }) {
+  final activeTint = tint ?? scheme.onSurface;
   final base = Color.alphaBlend(
     Colors.white.withOpacity(0.02),
     const Color(0xFF0E1523).withOpacity(surfaceOpacity),
@@ -21,8 +22,8 @@ BoxDecoration _weeklyPlanSurface(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.alphaBlend(tint.withOpacity(tintOpacity * 0.8), base),
-        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+        Color.alphaBlend(activeTint.withOpacity(tintOpacity * 0.8), base),
+        Color.alphaBlend(scheme.surface.withOpacity(0.18), base),
       ],
     ),
     border: Border.all(color: Colors.white.withOpacity(0.06)),
@@ -140,7 +141,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
         decoration:
             _weeklyPlanSurface(
               scheme,
-              tint: const Color(0xFF34D5FF),
               radius: 32,
               tintOpacity: 0.06,
               surfaceOpacity: 0.99,
@@ -201,7 +201,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
                           decoration: _weeklyPlanSurface(
                             scheme,
-                            tint: const Color(0xFF8B7CFF),
                             radius: 20,
                             tintOpacity: 0.06 + (0.03 * t),
                             surfaceOpacity: 0.98,
@@ -215,7 +214,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                   height: 44,
                                   decoration: _weeklyPlanSurface(
                                     scheme,
-                                    tint: const Color(0xFF8B7CFF),
                                     radius: 13,
                                     tintOpacity: 0.18,
                                     surfaceOpacity: 0.96,
@@ -266,7 +264,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                 Container(
                                   decoration: _weeklyPlanSurface(
                                     scheme,
-                                    tint: const Color(0xFF8B7CFF),
                                     radius: 999,
                                     tintOpacity: 0.05,
                                     surfaceOpacity: 0.96,
@@ -319,7 +316,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           ),
                           decoration: _weeklyPlanSurface(
                             scheme,
-                            tint: const Color(0xFF8B7CFF),
                             radius: 16,
                             tintOpacity: 0.05 + (0.06 * summaryT),
                             surfaceOpacity: 0.98,
@@ -332,7 +328,6 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                 padding: const EdgeInsets.all(8),
                                 decoration: _weeklyPlanSurface(
                                   scheme,
-                                  tint: const Color(0xFF8B7CFF),
                                   radius: 12,
                                   tintOpacity: 0.12 + (0.1 * summaryT),
                                   surfaceOpacity: 0.96,
@@ -402,12 +397,12 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
+                                  gradient: LinearGradient(
                                     begin: Alignment.centerLeft,
                                     end: Alignment.centerRight,
                                     colors: [
-                                      Color(0xFF8B7CFF),
-                                      Color(0xFF5DE1FF),
+                                      scheme.onSurface.withOpacity(0.9),
+                                      scheme.onSurface,
                                     ],
                                   ),
                                   borderRadius: BorderRadius.circular(12),
@@ -474,14 +469,12 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                         onPressed: () => widget.onSave(_targets),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          backgroundColor: const Color(0xFF8B7CFF),
+                          backgroundColor: scheme.onSurface,
+                          foregroundColor: scheme.surface,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 4,
-                          shadowColor: const Color(
-                            0xFF8B7CFF,
-                          ).withOpacity(0.34),
+                          elevation: 0,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,

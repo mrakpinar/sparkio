@@ -6,12 +6,14 @@ class HomePlanPreviewSliver extends StatelessWidget {
     super.key,
     required this.doneCount,
     required this.nowLabel,
+    this.nowXp,
     required this.laterCount,
     required this.onTap,
   });
 
   final int doneCount;
   final String? nowLabel;
+  final int? nowXp;
   final int laterCount;
   final VoidCallback onTap;
 
@@ -37,6 +39,7 @@ class HomePlanPreviewSliver extends StatelessWidget {
       FontWeight textWeight = FontWeight.w600,
       bool glowIcon = false,
       double bottomSpacing = rowSpacing,
+      String? trailingLabel,
     }) {
       return Padding(
         padding: EdgeInsets.only(bottom: bottomSpacing),
@@ -93,6 +96,10 @@ class HomePlanPreviewSliver extends StatelessWidget {
                   ),
                 ),
               ),
+              if (trailingLabel != null) ...[
+                const SizedBox(width: 8),
+                _PreviewXpBadge(label: trailingLabel, color: color),
+              ],
             ],
           ),
         ),
@@ -187,6 +194,7 @@ class HomePlanPreviewSliver extends StatelessWidget {
                             scale: 1.05,
                             textWeight: FontWeight.w500,
                             glowIcon: true,
+                            trailingLabel: nowXp == null ? null : '+$nowXp XP',
                           ),
                           flowRow(
                             status: l10n.later,
@@ -207,6 +215,40 @@ class HomePlanPreviewSliver extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PreviewXpBadge extends StatelessWidget {
+  const _PreviewXpBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.2), color.withOpacity(0.1)],
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt_rounded, size: 11, color: color.withOpacity(0.92)),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color.withOpacity(0.92),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

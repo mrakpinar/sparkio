@@ -149,6 +149,7 @@ class HomeFlowModeSliver extends StatelessWidget {
         : timerActive
         ? l10n.keepYourRhythm
         : l10n.approxNoPressure(_localizedDurationLabel(l10n, activeTask));
+    final xpLabel = activeTask == null ? null : '+${activeTask.xpReward} XP';
     final ctaLabel = showMomentumPrompt
         ? l10n.startSparkNumber((safeDoneToday + 1).clamp(2, 99))
         : timerFinished
@@ -183,26 +184,23 @@ class HomeFlowModeSliver extends StatelessWidget {
                 colors: isDark
                     ? [
                         Color.alphaBlend(
-                          visual.tone.withOpacity(0.10),
-                          const Color(0xFF151C2C),
+                          scheme.onSurface.withOpacity(0.06),
+                          scheme.surface,
                         ),
-                        const Color(0xFF12192A),
+                        scheme.surface,
                         Color.alphaBlend(
-                          visual.tone.withOpacity(0.07),
-                          const Color(0xFF101726),
+                          scheme.onSurface.withOpacity(0.03),
+                          scheme.surface,
                         ),
                       ]
                     : [
                         Color.alphaBlend(
-                          visual.tone.withOpacity(0.10),
+                          scheme.onSurface.withOpacity(0.08),
                           scheme.surface,
                         ),
+                        scheme.surface,
                         Color.alphaBlend(
-                          visual.tone.withOpacity(0.06),
-                          scheme.surface,
-                        ),
-                        Color.alphaBlend(
-                          const Color(0xFF1F2A40).withOpacity(0.06),
+                          scheme.onSurface.withOpacity(0.04),
                           scheme.surface,
                         ),
                       ],
@@ -222,7 +220,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            visual.tone.withOpacity(0.14),
+                            scheme.onSurface.withOpacity(isDark ? 0.08 : 0.04),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 1.0],
@@ -239,7 +237,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                           center: const Alignment(0.0, 0.02),
                           radius: 0.88,
                           colors: [
-                            visual.tone.withOpacity(0.06),
+                            scheme.onSurface.withOpacity(isDark ? 0.04 : 0.02),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 1.0],
@@ -271,7 +269,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                               progress: (safeDoneToday / safeDailyGoal)
                                   .clamp(0.0, 1.0)
                                   .toDouble(),
-                              color: const Color(0xFF8776FF),
+                              color: scheme.onSurface,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -300,7 +298,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                               Icon(
                                 Icons.check_circle_rounded,
                                 size: 16,
-                                color: const Color(0xFF8776FF),
+                                color: scheme.onSurface,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -342,7 +340,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                           child: LinearProgressIndicator(
                             minHeight: 3,
                             value: weeklyProgress,
-                            color: const Color(0xFF8776FF),
+                            color: scheme.onSurface,
                             backgroundColor: scheme.onSurfaceVariant
                                 .withOpacity(0.2),
                           ),
@@ -378,16 +376,6 @@ class HomeFlowModeSliver extends StatelessWidget {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          color: Color.alphaBlend(
-                            Colors.white.withOpacity(isDark ? 0.03 : 0.34),
-                            scheme.surface.withOpacity(isDark ? 0.24 : 0.72),
-                          ),
-                          border: Border.all(
-                            color: scheme.outline.withOpacity(0.14),
-                          ),
-                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -436,6 +424,10 @@ class HomeFlowModeSliver extends StatelessWidget {
                                               fontWeight: FontWeight.w700,
                                             ),
                                       ),
+                                      if (xpLabel != null) ...[
+                                        const SizedBox(height: 8),
+                                        _FlowXpBadge(label: xpLabel),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -466,8 +458,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                                 ),
                               ),
                             ],
-                            if (!showInlineCta)
-                              const SizedBox(height: 10),
+                            if (!showInlineCta) const SizedBox(height: 10),
                             if (!timerActive && !showInlineCta)
                               Text(
                                 l10n.approxNoPressure(
@@ -491,7 +482,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                               const SizedBox(height: 10),
                               _SparkProgressBar(
                                 value: timerProgress,
-                                color: const Color(0xFF8776FF),
+                                color: scheme.onSurface,
                                 backgroundColor: scheme.onSurfaceVariant
                                     .withOpacity(0.2),
                               ),
@@ -509,7 +500,7 @@ class HomeFlowModeSliver extends StatelessWidget {
                             if (timerFinished) ...[
                               _SparkProgressBar(
                                 value: 1,
-                                color: const Color(0xFF8776FF),
+                                color: scheme.onSurface,
                                 backgroundColor: scheme.onSurfaceVariant
                                     .withOpacity(0.2),
                               ),
@@ -533,6 +524,46 @@ class HomeFlowModeSliver extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FlowXpBadge extends StatelessWidget {
+  const _FlowXpBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: LinearGradient(
+          colors: [
+            scheme.onSurface.withOpacity(0.12),
+            scheme.onSurface.withOpacity(0.06),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt_rounded, size: 12, color: scheme.onSurface),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onSurface.withOpacity(0.88),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.12,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -653,6 +684,7 @@ class _GradientActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final enabled = onTap != null;
     return Opacity(
       opacity: enabled ? 1 : 0.5,
@@ -661,17 +693,17 @@ class _GradientActionButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(13),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: [Color(0xFF8B7CFF), Color(0xFF6FE3FF)],
+              colors: [scheme.onSurface.withOpacity(0.9), scheme.onSurface],
             ),
             boxShadow: enabled
-                ? const [
+                ? [
                     BoxShadow(
-                      color: Color.fromRGBO(120, 90, 255, 0.35),
-                      blurRadius: 22,
-                      offset: Offset(0, 8),
+                      color: scheme.onSurface.withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
                   ]
                 : null,
@@ -687,13 +719,13 @@ class _GradientActionButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 15, color: Colors.white.withOpacity(0.96)),
+                    Icon(icon, size: 15, color: scheme.surface),
                     const SizedBox(width: 6),
                   ],
                   Text(
                     label,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
+                      color: scheme.surface,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

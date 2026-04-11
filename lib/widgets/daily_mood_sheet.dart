@@ -7,11 +7,12 @@ import '../app_strings.dart';
 
 BoxDecoration _dailyMoodSurface(
   ColorScheme scheme, {
-  Color tint = const Color(0xFF34D5FF),
+  Color? tint,
   double radius = 20,
   double tintOpacity = 0.08,
   double surfaceOpacity = 0.98,
 }) {
+  final activeTint = tint ?? scheme.onSurface;
   final base = Color.alphaBlend(
     Colors.white.withOpacity(0.02),
     const Color(0xFF0E1523).withOpacity(surfaceOpacity),
@@ -22,8 +23,8 @@ BoxDecoration _dailyMoodSurface(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.alphaBlend(tint.withOpacity(tintOpacity), base),
-        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+        Color.alphaBlend(activeTint.withOpacity(tintOpacity), base),
+        Color.alphaBlend(scheme.surface.withOpacity(0.18), base),
       ],
     ),
     border: Border.all(color: Colors.white.withOpacity(0.06)),
@@ -103,7 +104,6 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
         decoration:
             _dailyMoodSurface(
               scheme,
-              tint: const Color(0xFF34D5FF),
               radius: 32,
               tintOpacity: 0.06,
               surfaceOpacity: 0.99,
@@ -122,7 +122,7 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: const [Color(0xFF101726), Color(0xFF0E1523)],
+                      colors: [scheme.surface, scheme.background],
                     ),
                   ),
                 ),
@@ -138,7 +138,7 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          scheme.primary.withOpacity(isDark ? 0.08 : 0.05),
+                          scheme.onSurface.withOpacity(isDark ? 0.06 : 0.03),
                           Colors.transparent,
                         ],
                       ),
@@ -157,7 +157,7 @@ class _DailyMoodSheetState extends State<DailyMoodSheet>
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          scheme.tertiary.withOpacity(isDark ? 0.06 : 0.03),
+                          scheme.onSurface.withOpacity(isDark ? 0.04 : 0.02),
                           Colors.transparent,
                         ],
                       ),

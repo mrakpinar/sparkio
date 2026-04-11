@@ -130,7 +130,7 @@ class _HomeHeroHeaderDelegate extends SliverPersistentHeaderDelegate {
     final easedT = Curves.easeOutCubic.transform(rawT);
     final t = lockCollapsed ? 1.0 : easedT;
     final topInset = MediaQuery.of(context).padding.top;
-    final blur = lerpDouble(0, 8, t)!;
+    final blur = lerpDouble(0, 16, t)!;
     final expandedOpacity = (1 - (t * 1.2)).clamp(0.0, 1.0);
     final quoteOpacity = (1 - (t * 2.35)).clamp(0.0, 1.0);
     final brandOpacity = (1 - (t * 1.4)).clamp(0.0, 1.0);
@@ -154,13 +154,13 @@ class _HomeHeroHeaderDelegate extends SliverPersistentHeaderDelegate {
       ),
       scheme.surface,
     );
-    final topLeftGlow = const Color(
-      0xFF34D5FF,
-    ).withOpacity(lerpDouble(0.16, 0.05, t)!);
-    final topRightGlow = const Color(
-      0xFF8B5CF6,
-    ).withOpacity(lerpDouble(0.14, 0.045, t)!);
-    final hazeOpacity = lerpDouble(0.07, 0.03, t)!;
+    final topLeftGlow = Colors.white.withOpacity(
+      isDark ? lerpDouble(0.06, 0.015, t)! : lerpDouble(0.1, 0.02, t)!,
+    );
+    final topRightGlow = Colors.white.withOpacity(
+      isDark ? lerpDouble(0.04, 0.01, t)! : lerpDouble(0.05, 0.01, t)!,
+    );
+    final hazeOpacity = lerpDouble(0.04, 0.02, t)!;
     final surfaceScale = lerpDouble(1.03, 1.0, t)!;
     final surfaceDarkenOpacity = lerpDouble(0.02, 0.15, t)!;
     final bodyTextTranslateY = lerpDouble(0.0, -8.0, t)!;
@@ -473,10 +473,7 @@ class _BrandHeader extends StatelessWidget {
           height: 34,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Color.alphaBlend(
-              const Color(0xFF8B5CF6).withOpacity(0.18),
-              scheme.surface,
-            ),
+            color: scheme.onSurface.withOpacity(0.08),
           ),
           child: Icon(
             Icons.bolt_rounded,
