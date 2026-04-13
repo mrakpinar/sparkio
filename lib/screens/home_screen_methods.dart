@@ -5013,7 +5013,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _track('completion_second_action_started', {
         'chain_id': _pendingCompletionChainId,
         'completed_today_at_entry': _pendingCompletionDoneCount,
-        if (elapsedSec != null) 'elapsed_sec': elapsedSec,
+        'elapsed_sec': ?elapsedSec,
         'task_id': task.id,
       });
       _updateState(() {
