@@ -35,6 +35,24 @@ class NotificationService {
   static const _dailyBody =
       "Your daily sparks are ready. Let's keep the streak!";
 
+  String _formatTaskTimerCountdown(Duration duration) {
+    final totalSeconds = duration.inSeconds < 0 ? 0 : duration.inSeconds;
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+
+    if (hours > 0) {
+      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
+    }
+    return '${twoDigits(minutes)}:${twoDigits(seconds)}';
+  }
+
+  String _taskTimerOngoingBody(Duration remaining) {
+    return 'Time left: ${_formatTaskTimerCountdown(remaining)}';
+  }
+
   AndroidNotificationDetails _androidDetails(String body) {
     return AndroidNotificationDetails(
       channelId,
@@ -62,8 +80,9 @@ class NotificationService {
 
   AndroidNotificationDetails _androidTaskTimerOngoingDetails({
     required String body,
-    required int endAtMs,
     required int timeoutAfterMs,
+    required int progress,
+    required int maxProgress,
   }) {
     return AndroidNotificationDetails(
       taskTimerOngoingChannelId,
@@ -81,13 +100,14 @@ class NotificationService {
       // Pin while a task is active so the countdown is always visible.
       ongoing: true,
       autoCancel: false,
-      // Use the system chronometer so the countdown stays live even if the app is backgrounded.
-      showWhen: true,
-      when: endAtMs,
-      usesChronometer: true,
-      chronometerCountDown: true,
+      // Keep the header clean; the remaining time is rendered in the body below.
+      showWhen: false,
       playSound: false,
       enableVibration: false,
+      styleInformation: BigTextStyleInformation(body),
+      showProgress: true,
+      maxProgress: maxProgress,
+      progress: progress,
       timeoutAfter: timeoutAfterMs,
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.stopwatch,
@@ -353,6 +373,28 @@ class NotificationService {
     return enabled ?? true;
   }
 
+  Future<bool> ensureNotificationsEnabled() async {
+    await _ensureInitialized();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return true;
+
+    var enabled = await android.areNotificationsEnabled() ?? true;
+    // ignore: avoid_print
+    print('NOTI: notifications enabled current=$enabled');
+    if (!enabled) {
+      final requested = await android.requestNotificationsPermission();
+      // ignore: avoid_print
+      print('NOTI: notifications permission request result=$requested');
+      enabled = await android.areNotificationsEnabled() ?? (requested ?? false);
+      // ignore: avoid_print
+      print('NOTI: notifications enabled afterRequest=$enabled');
+    }
+    return enabled;
+  }
+
   Future<void> cancelDailyReminder() async {
     await _ensureInitialized();
     await _plugin.cancel(dailyReminderId);
@@ -361,6 +403,10 @@ class NotificationService {
   Future<String?> showTestNotification() async {
     try {
       await _ensureInitialized();
+      final enabled = await ensureNotificationsEnabled();
+      if (!enabled) {
+        return 'Notifications are disabled.';
+      }
 
       final androidDetails = _androidDetails(_dailyBody);
       const iosDetails = DarwinNotificationDetails();
@@ -384,6 +430,12 @@ class NotificationService {
 
   Future<void> showRemoteNotification({String? title, String? body}) async {
     await _ensureInitialized();
+    final enabled = await ensureNotificationsEnabled();
+    if (!enabled) {
+      // ignore: avoid_print
+      print('NOTI: showRemoteNotification skipped because notifications are disabled');
+      return;
+    }
     final androidDetails = _androidDetails(body ?? _dailyBody);
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -403,6 +455,12 @@ class NotificationService {
     required String body,
   }) async {
     await _ensureInitialized();
+    final enabled = await ensureNotificationsEnabled();
+    if (!enabled) {
+      // ignore: avoid_print
+      print('NOTI: showTaskTimerNotification skipped because notifications are disabled');
+      return;
+    }
     final androidDetails = _androidTaskTimerDetails(body);
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -424,6 +482,10 @@ class NotificationService {
     required Duration duration,
   }) async {
     await _ensureInitialized();
+    final enabled = await ensureNotificationsEnabled();
+    if (!enabled) {
+      throw StateError('Notifications are disabled.');
+    }
     try {
       await _ensureExactAlarmPermission();
     } catch (e) {
@@ -521,15 +583,27 @@ class NotificationService {
     required Duration total,
   }) async {
     await _ensureInitialized();
-    // The system chronometer shows the live countdown; keep the body generic so
-    // we don't display a stale "Remaining: 05:00" while the OS timer updates.
-    const body = 'Time left';
-    final timeoutAfterMs = remaining.inMilliseconds.clamp(0, 24 * 3600 * 1000);
-    final endAtMs = DateTime.now().add(remaining).millisecondsSinceEpoch;
+    final enabled = await ensureNotificationsEnabled();
+    if (!enabled) {
+      // ignore: avoid_print
+      print('NOTI: showTaskTimerOngoing skipped because notifications are disabled');
+      return;
+    }
+    final safeRemaining = remaining <= Duration.zero ? Duration.zero : remaining;
+    final body = _taskTimerOngoingBody(safeRemaining);
+    final timeoutAfterMs = safeRemaining.inMilliseconds > 24 * 3600 * 1000
+        ? 24 * 3600 * 1000
+        : safeRemaining.inMilliseconds;
+    final maxProgress = total.inSeconds > 0 ? total.inSeconds : 1;
+    final remainingSeconds = safeRemaining.inSeconds > maxProgress
+        ? maxProgress
+        : safeRemaining.inSeconds;
+    final elapsedProgress = maxProgress - remainingSeconds;
     final androidDetails = _androidTaskTimerOngoingDetails(
       body: body,
-      endAtMs: endAtMs,
       timeoutAfterMs: timeoutAfterMs,
+      progress: elapsedProgress,
+      maxProgress: maxProgress,
     );
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(

@@ -5043,30 +5043,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       notificationId: notificationId,
     );
 
-    // Best-effort local scheduling for the "timer finished" notification (covers
-    // background/idle). Do not block the UI timer if scheduling fails.
-    unawaited(() async {
-      try {
-        await NotificationService.instance.cancelTaskTimer(notificationId);
-        await NotificationService.instance.scheduleTaskTimer(
-          notificationId: notificationId,
-          title: 'Task timer finished',
-          body: '${task.title} is ready to mark done.',
-          duration: duration,
-        );
-      } catch (e) {
-        _log('NOTI: scheduleTaskTimer failed: $e');
-        if (mounted) {
-          final scheme = Theme.of(context).colorScheme;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Timer notification failed: $e', maxLines: 3),
-              backgroundColor: scheme.error,
-            ),
-          );
-        }
-      }
-    }());
+    _scheduleTaskTimerFinishNotificationBestEffort(
+      task: task,
+      duration: duration,
+      notificationId: notificationId,
+      showSnackBarOnFailure: true,
+    );
 
     _showTaskTimerOngoingBestEffort(task: task, remaining: duration);
     unawaited(_syncHomeWidgetSnapshot());
@@ -5124,19 +5106,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       endAt: endAt,
       notificationId: notificationId,
     );
-    unawaited(() async {
-      try {
-        await NotificationService.instance.cancelTaskTimer(notificationId);
-        await NotificationService.instance.scheduleTaskTimer(
-          notificationId: notificationId,
-          title: 'Task timer finished',
-          body: '${task.title} is ready to mark done.',
-          duration: remaining,
-        );
-      } catch (e) {
-        _log('NOTI: scheduleTaskTimer (resume) failed: $e');
-      }
-    }());
+    _scheduleTaskTimerFinishNotificationBestEffort(
+      task: task,
+      duration: remaining,
+      notificationId: notificationId,
+      logContext: 'resume',
+    );
     _showTaskTimerOngoingBestEffort(task: task, remaining: remaining);
     _track('task_timer_resumed', {'task_id': task.id});
     unawaited(_syncHomeWidgetSnapshot());
@@ -5425,11 +5400,59 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         endAt: saved.endAt,
         notificationId: notificationId,
       );
+      _scheduleTaskTimerFinishNotificationBestEffort(
+        task: matchedTask,
+        duration: remaining,
+        notificationId: notificationId,
+        logContext: 'restore',
+      );
       _showTaskTimerOngoingBestEffort(task: matchedTask, remaining: remaining);
       await _syncHomeWidgetSnapshot();
     } catch (e) {
       _log('TIMER: restore failed: $e');
     }
+  }
+
+  String _taskTimerFinishedBody(Task task) {
+    return '${task.title} is ready to mark done.';
+  }
+
+  bool _isAppResumedForLocalNotifications() {
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    return lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+  }
+
+  void _scheduleTaskTimerFinishNotificationBestEffort({
+    required Task task,
+    required Duration duration,
+    required int notificationId,
+    bool showSnackBarOnFailure = false,
+    String logContext = '',
+  }) {
+    if (duration <= Duration.zero) return;
+    unawaited(() async {
+      try {
+        await NotificationService.instance.cancelTaskTimer(notificationId);
+        await NotificationService.instance.scheduleTaskTimer(
+          notificationId: notificationId,
+          title: 'Task timer finished',
+          body: _taskTimerFinishedBody(task),
+          duration: duration,
+        );
+      } catch (e) {
+        final contextLabel = logContext.isEmpty ? '' : ' ($logContext)';
+        _log('NOTI: scheduleTaskTimer$contextLabel failed: $e');
+        if (showSnackBarOnFailure && mounted) {
+          final scheme = Theme.of(context).colorScheme;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Timer notification failed: $e', maxLines: 3),
+              backgroundColor: scheme.error,
+            ),
+          );
+        }
+      }
+    }());
   }
 
   void _startActiveTimerTicker({
@@ -5447,19 +5470,25 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           _activeTimerFinished = true;
           _activeTimerPaused = false;
         });
+        final shouldShowImmediateCompletionNotification =
+            _isAppResumedForLocalNotifications() && !_flowModeEnabled;
         unawaited(NotificationService.instance.cancelTaskTimerOngoing());
-        unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
+        if (shouldShowImmediateCompletionNotification || _flowModeEnabled) {
+          unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
+        }
         if (_flowModeEnabled) {
           _activeTimerTicker?.cancel();
           unawaited(_completeFlowTaskAfterTimer(task));
           return;
         }
-        unawaited(
-          NotificationService.instance.showTaskTimerNotification(
-            title: 'Task timer finished',
-            body: '${task.title} is ready to mark done.',
-          ),
-        );
+        if (shouldShowImmediateCompletionNotification) {
+          unawaited(
+            NotificationService.instance.showTaskTimerNotification(
+              title: 'Task timer finished',
+              body: _taskTimerFinishedBody(task),
+            ),
+          );
+        }
         _track('task_timer_finished', {
           'task_id': task.id,
           'duration_min': task.durationMinutes,
@@ -5475,8 +5504,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         return;
       }
       _updateState(() => _activeTimerRemaining = remaining);
-      if (remaining.inSeconds % 15 == 0) {
+      if (remaining.inSeconds <= 60 || remaining.inSeconds % 5 == 0) {
         _showTaskTimerOngoingBestEffort(task: task, remaining: remaining);
+      }
+      if (remaining.inSeconds % 15 == 0) {
         unawaited(_syncHomeWidgetSnapshot());
       }
     });
