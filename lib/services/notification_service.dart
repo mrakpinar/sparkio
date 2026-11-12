@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -81,8 +82,7 @@ class NotificationService {
   AndroidNotificationDetails _androidTaskTimerOngoingDetails({
     required String body,
     required int timeoutAfterMs,
-    required int progress,
-    required int maxProgress,
+    required int endAtMs,
   }) {
     return AndroidNotificationDetails(
       taskTimerOngoingChannelId,
@@ -100,14 +100,14 @@ class NotificationService {
       // Pin while a task is active so the countdown is always visible.
       ongoing: true,
       autoCancel: false,
-      // Keep the header clean; the remaining time is rendered in the body below.
-      showWhen: false,
+      // Android renders this countdown even while the Dart process is stopped.
+      showWhen: true,
+      when: endAtMs,
+      usesChronometer: true,
+      chronometerCountDown: true,
       playSound: false,
       enableVibration: false,
       styleInformation: BigTextStyleInformation(body),
-      showProgress: true,
-      maxProgress: maxProgress,
-      progress: progress,
       timeoutAfter: timeoutAfterMs,
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.stopwatch,
@@ -133,7 +133,7 @@ class NotificationService {
       print('NOTI: failed to read device timezone, falling back to UTC: $e');
     }
 
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('ic_notification');
     const iosInit = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -481,6 +481,7 @@ class NotificationService {
     required String body,
     required Duration duration,
   }) async {
+    final endAt = DateTime.now().add(duration);
     await _ensureInitialized();
     final enabled = await ensureNotificationsEnabled();
     if (!enabled) {
@@ -500,7 +501,7 @@ class NotificationService {
     );
 
     final now = tz.TZDateTime.now(tz.local);
-    final scheduled = now.add(duration);
+    final scheduled = tz.TZDateTime.from(endAt, tz.local);
     // ignore: avoid_print
     print('NOTI: taskTimer now=$now scheduled=$scheduled (local)');
     final exactAllowed = await _plugin
@@ -582,6 +583,7 @@ class NotificationService {
     required Duration remaining,
     required Duration total,
   }) async {
+    final endAt = DateTime.now().add(remaining);
     await _ensureInitialized();
     final enabled = await ensureNotificationsEnabled();
     if (!enabled) {
@@ -589,21 +591,22 @@ class NotificationService {
       print('NOTI: showTaskTimerOngoing skipped because notifications are disabled');
       return;
     }
-    final safeRemaining = remaining <= Duration.zero ? Duration.zero : remaining;
-    final body = _taskTimerOngoingBody(safeRemaining);
+    final left = endAt.difference(DateTime.now());
+    if (left <= Duration.zero) return;
+    final safeRemaining = left;
+    // A static time in the body would freeze on process death. Android shows
+    // the live time in its native chronometer; retain the text on other OSes.
+    final nativeCountdown = defaultTargetPlatform == TargetPlatform.android;
+    final body = nativeCountdown
+        ? taskTitle
+        : _taskTimerOngoingBody(safeRemaining);
     final timeoutAfterMs = safeRemaining.inMilliseconds > 24 * 3600 * 1000
         ? 24 * 3600 * 1000
         : safeRemaining.inMilliseconds;
-    final maxProgress = total.inSeconds > 0 ? total.inSeconds : 1;
-    final remainingSeconds = safeRemaining.inSeconds > maxProgress
-        ? maxProgress
-        : safeRemaining.inSeconds;
-    final elapsedProgress = maxProgress - remainingSeconds;
     final androidDetails = _androidTaskTimerOngoingDetails(
       body: body,
       timeoutAfterMs: timeoutAfterMs,
-      progress: elapsedProgress,
-      maxProgress: maxProgress,
+      endAtMs: endAt.millisecondsSinceEpoch,
     );
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(
@@ -612,7 +615,7 @@ class NotificationService {
     );
     await _plugin.show(
       taskTimerOngoingId,
-      'SPARKIO - $taskTitle',
+      nativeCountdown ? 'SPARKIO' : 'SPARKIO - $taskTitle',
       body,
       details,
     );

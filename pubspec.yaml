@@ -2,7 +2,7 @@ name: sparkio
 description: "A new Flutter project."
 publish_to: 'none' 
 
-version: 1.0.14+33
+version: 1.0.17+36
 
 environment:
   sdk: ^3.10.0
@@ -23,7 +23,7 @@ dependencies:
   timezone: ^0.10.1
   flutter_timezone: ^5.0.1
   google_mobile_ads: ^7.0.0
-  in_app_purchase: ^3.2.0
+  in_app_purchase: ^3.3.1
   share_plus: ^10.1.2
   path_provider: ^2.1.4
   image_picker: ^1.1.2
@@ -48,30 +48,46 @@ flutter:
 
   assets:
     - assets/audio/
-    - assets/fonts/Inter-VariableFont_opsz,wght.ttf
+    - assets/fonts/PlusJakartaSans-OFL.txt
     - assets/icon/sparkio_icon.png
+    - assets/icon/sparkio_svg.svg
     - assets/avatars/
     - assets/in_app_icons/
 
   fonts:
-    - family: Inter
+    - family: PlusJakartaSans
       fonts:
-        - asset: assets/fonts/Inter-VariableFont_opsz,wght.ttf
+        - asset: assets/fonts/PlusJakartaSans-VariableFont_wght.ttf
+        - asset: assets/fonts/PlusJakartaSans-Italic-VariableFont_wght.ttf
+          style: italic
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/icon/sparkio_icon.png
-  adaptive_icon_background: "#0F172A"
-  adaptive_icon_foreground: assets/icon/sparkio_icon.png
+  image_path_ios: assets/icon/sparkio_icon_ios.png
+  adaptive_icon_background: "#13172A"
+  adaptive_icon_foreground: assets/icon/sparkio_foreground.png
+  adaptive_icon_monochrome: assets/icon/sparkio_monochrome.png
   remove_alpha_ios: true
+  background_color_ios: "#13172A"
+  web:
+    generate: true
+    image_path: assets/icon/sparkio_icon_ios.png
+    background_color: "#13172A"
+    theme_color: "#13172A"
+  windows:
+    generate: true
+    icon_size: 256
+  macos:
+    generate: true
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/icon/sparkio_icon.png
+  image: assets/splash_screen/sparkio_splash.png
   android_12:
     color: "#FFFFFF"
-    image: assets/icon/sparkio_icon.png
+    image: assets/icon/sparkio_android12_splash.png
   ios: true
   android: true
 

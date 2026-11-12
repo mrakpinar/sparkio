@@ -9,12 +9,16 @@ BoxDecoration _weeklyPlanSurface(
   Color? tint,
   double radius = 16,
   double tintOpacity = 0.08,
+  double? trailingTintOpacity,
   double surfaceOpacity = 0.98,
 }) {
   final activeTint = tint ?? scheme.onSurface;
   final base = Color.alphaBlend(
     Colors.white.withOpacity(0.02),
-    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
+    (scheme.brightness == Brightness.dark
+            ? const Color(0xFF0E1523)
+            : scheme.surface)
+        .withOpacity(surfaceOpacity),
   );
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
@@ -23,10 +27,16 @@ BoxDecoration _weeklyPlanSurface(
       end: Alignment.bottomRight,
       colors: [
         Color.alphaBlend(activeTint.withOpacity(tintOpacity * 0.8), base),
-        Color.alphaBlend(scheme.surface.withOpacity(0.18), base),
+        trailingTintOpacity == null
+            ? Color.alphaBlend(scheme.surface.withOpacity(0.18), base)
+            : Color.alphaBlend(activeTint.withOpacity(trailingTintOpacity), base),
       ],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.06)),
+    border: Border.all(
+      color: scheme.brightness == Brightness.dark
+          ? Colors.white.withOpacity(0.06)
+          : scheme.outline.withOpacity(0.35),
+    ),
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(0.18),
@@ -134,6 +144,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
     final theme = Theme.of(context);
     final feedback = _feedback(l10n);
     final summaryT = (_total / (_categories.length * 5)).clamp(0.0, 1.0);
+    const actionMinHeight = 56.0;
+    final listBottomPadding =
+        actionMinHeight + 16 + MediaQuery.viewPaddingOf(context).bottom;
 
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -224,7 +237,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                       width: 20,
                                       height: 20,
                                       fit: BoxFit.contain,
-                                      color: scheme.onPrimary,
+                                      color: scheme.brightness == Brightness.dark
+                                          ? scheme.onPrimary
+                                          : scheme.onSurfaceVariant,
                                       colorBlendMode: BlendMode.srcIn,
                                     ),
                                   ),
@@ -241,9 +256,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                           ?.copyWith(
                                             fontWeight: FontWeight.w800,
                                             letterSpacing: -0.2,
-                                            color: Colors.white.withOpacity(
-                                              0.96,
-                                            ),
+                                            color: scheme.brightness == Brightness.dark
+                                                ? Colors.white.withOpacity(0.96)
+                                                : scheme.onSurface,
                                           ),
                                     ),
                                     const SizedBox(height: 2),
@@ -251,8 +266,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                       l10n.tr('Set your goals for this week'),
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: scheme.onSurfaceVariant
-                                                .withOpacity(0.72),
+                                            color: scheme.brightness == Brightness.dark
+                                                ? scheme.onSurfaceVariant.withOpacity(0.72)
+                                                : scheme.onSurfaceVariant,
                                             fontWeight: FontWeight.w500,
                                             fontSize: 12.5,
                                           ),
@@ -286,6 +302,7 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(bottom: listBottomPadding),
                     child: Column(
                       children: [
                         // Categories
@@ -380,8 +397,9 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                                       feedback.subtitle,
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: scheme.onSurfaceVariant
-                                                .withOpacity(0.88),
+                                            color: scheme.brightness == Brightness.dark
+                                                ? scheme.onSurfaceVariant.withOpacity(0.88)
+                                                : scheme.onSurfaceVariant,
                                             fontWeight: FontWeight.w600,
                                           ),
                                     ),
@@ -444,12 +462,16 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           onPressed: widget.onSkip,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: const Color(0xFF101726),
+                            backgroundColor: scheme.brightness == Brightness.dark
+                                ? const Color(0xFF101726)
+                                : scheme.surface,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             side: BorderSide(
-                              color: Colors.white.withOpacity(0.08),
+                              color: scheme.brightness == Brightness.dark
+                                  ? Colors.white.withOpacity(0.08)
+                                  : scheme.outline.withOpacity(0.35),
                               width: 1,
                             ),
                           ),
@@ -471,6 +493,19 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           backgroundColor: scheme.onSurface,
                           foregroundColor: scheme.surface,
+                          disabledBackgroundColor: scheme.brightness == Brightness.dark
+                              ? Color.alphaBlend(
+                                  Colors.white.withOpacity(0.08),
+                                  const Color(0xFF101726),
+                                )
+                              : scheme.surfaceContainerHighest,
+                          disabledForegroundColor: scheme.brightness == Brightness.dark
+                              ? Colors.white70
+                              : scheme.onSurfaceVariant,
+                          minimumSize: const Size.fromHeight(actionMinHeight),
+                          textStyle: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -481,10 +516,10 @@ class _WeeklyPlanSheetState extends State<WeeklyPlanSheet>
                           children: [
                             const Icon(Icons.check_rounded, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              l10n.tr('Start this week'),
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                l10n.tr('Start this week'),
+                                textAlign: TextAlign.center,
                               ),
                             ),
                           ],
@@ -572,14 +607,25 @@ class _PlanRowState extends State<_PlanRow>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
     final accent = _categoryColor(widget.category);
     final level = widget.target.clamp(0, 5);
     final levelT = level / 5;
-    final emphasis = Curves.easeOutCubic.transform(levelT);
-    final toneStrength = Curves.easeInCubic.transform(levelT);
+    // Every step adds visible color, including the middle of the scale.
+    final toneStrength = levelT;
+    final levelAccent = Color.lerp(
+      Color.alphaBlend(
+        scheme.surface.withOpacity(isDark ? 0.35 : 0.42),
+        accent,
+      ),
+      accent,
+      toneStrength,
+    )!;
     final levelTextColor = level == 0
-        ? scheme.onSurfaceVariant.withOpacity(0.72)
-        : accent.withOpacity(0.92);
+        ? scheme.onSurfaceVariant.withOpacity(isDark ? 0.72 : 1)
+        : isDark
+        ? Color.lerp(scheme.onSurface, accent, 0.35 + (0.4 * toneStrength))!
+        : Color.alphaBlend(Colors.black.withOpacity(0.45), levelAccent);
 
     return ScaleTransition(
       scale: _scale,
@@ -591,8 +637,17 @@ class _PlanRowState extends State<_PlanRow>
           scheme,
           tint: accent,
           radius: 16,
-          tintOpacity: 0.04 + (0.09 * toneStrength),
+          tintOpacity: 0.025 + ((isDark ? 0.28 : 0.22) * toneStrength),
+          trailingTintOpacity: 0.015 + ((isDark ? 0.18 : 0.14) * toneStrength),
           surfaceOpacity: 0.98,
+        ).copyWith(
+          border: Border.all(
+            color: Color.lerp(
+              scheme.outline.withOpacity(isDark ? 0.25 : 0.35),
+              accent.withOpacity(isDark ? 0.65 : 0.45),
+              toneStrength,
+            )!,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,17 +662,20 @@ class _PlanRowState extends State<_PlanRow>
                     scheme,
                     tint: accent,
                     radius: 12,
-                    tintOpacity: 0.1 + (0.08 * emphasis),
+                    tintOpacity: 0.08 + (0.3 * toneStrength),
+                    trailingTintOpacity: 0.04 + (0.16 * toneStrength),
                     surfaceOpacity: 0.96,
                   ),
                   child: Center(
                     child: TaskCategoryStyle.iconWidget(
                       widget.category,
                       size: 20,
-                      color: Color.alphaBlend(
-                        Colors.white.withOpacity(0.16 + (0.18 * emphasis)),
-                        accent,
-                      ),
+                      color: isDark
+                          ? Color.alphaBlend(
+                              Colors.white.withOpacity(0.26 - (0.12 * toneStrength)),
+                              levelAccent,
+                            )
+                          : levelAccent,
                     ),
                   ),
                 ),
@@ -631,14 +689,16 @@ class _PlanRowState extends State<_PlanRow>
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.2,
-                          color: Colors.white.withOpacity(0.94),
+                          color: isDark
+                              ? Colors.white.withOpacity(0.94)
+                              : scheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _categoryHint(context, widget.category),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant.withOpacity(0.74),
+                          color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.74 : 1),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -659,18 +719,15 @@ class _PlanRowState extends State<_PlanRow>
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 8,
-                activeTrackColor: accent.withOpacity(
-                  0.42 + (0.38 * toneStrength),
+                activeTrackColor: levelAccent.withOpacity(
+                  0.55 + (0.45 * toneStrength),
                 ),
                 inactiveTrackColor: scheme.onSurfaceVariant.withOpacity(0.16),
-                thumbColor: Color.alphaBlend(
-                  Colors.white.withOpacity(0.18 + (0.18 * emphasis)),
-                  accent,
-                ),
-                overlayColor: accent.withOpacity(0.12 + (0.1 * toneStrength)),
+                thumbColor: levelAccent,
+                overlayColor: levelAccent.withOpacity(0.12 + (0.1 * toneStrength)),
                 thumbShape: _WeeklyPlanThumbShape(
-                  color: accent,
-                  emphasis: emphasis,
+                  color: levelAccent,
+                  emphasis: toneStrength,
                 ),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
                 trackShape: const RoundedRectSliderTrackShape(),
@@ -690,7 +747,7 @@ class _PlanRowState extends State<_PlanRow>
                 Text(
                   context.l10n.tr('Light'),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant.withOpacity(0.74),
+                    color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.74 : 1),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -698,7 +755,7 @@ class _PlanRowState extends State<_PlanRow>
                 Text(
                   context.l10n.tr('Stronger'),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant.withOpacity(0.74),
+                    color: scheme.onSurfaceVariant.withOpacity(isDark ? 0.74 : 1),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -743,7 +800,7 @@ class _WeeklyPlanThumbShape extends SliderComponentShape {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
     final outerPaint = Paint()
       ..color = Color.alphaBlend(
-        Colors.white.withOpacity(0.18 + (0.16 * emphasis)),
+        Colors.white.withOpacity(0.28 * (1 - emphasis)),
         color,
       );
     final innerPaint = Paint()..color = Colors.white.withOpacity(0.96);
@@ -813,7 +870,3 @@ Color _categoryColor(String key) {
       return const Color(0xFF60A5FA);
   }
 }
-
-
-
-

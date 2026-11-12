@@ -4,6 +4,7 @@ import 'dart:ui' show ImageFilter, lerpDouble;
 import 'package:flutter/material.dart';
 import '../app_strings.dart';
 import '../services/locale_service.dart';
+import 'sparkio_logo.dart';
 
 class HomeHeroHeaderSliver extends StatelessWidget {
   const HomeHeroHeaderSliver({
@@ -468,19 +469,7 @@ class _BrandHeader extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: scheme.onSurface.withOpacity(0.08),
-          ),
-          child: Icon(
-            Icons.bolt_rounded,
-            size: 18,
-            color: scheme.onSurface.withOpacity(0.94),
-          ),
-        ),
+        const SparkioLogo(size: 34),
         const SizedBox(width: 10),
         Text(
           'Sparkio',

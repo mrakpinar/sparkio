@@ -1,13 +1,16 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../app_strings.dart';
+import 'sparkio_logo.dart';
 
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     super.key,
     required this.userName,
     required this.isDark,
+    required this.streak,
     required this.onOpenProfile,
     required this.onOpenStats,
     required this.onOpenMenu,
@@ -15,6 +18,7 @@ class HomeAppBar extends StatelessWidget {
 
   final String userName;
   final bool isDark;
+  final int streak;
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenStats;
   final VoidCallback onOpenMenu;
@@ -29,6 +33,16 @@ class HomeAppBar extends StatelessWidget {
     final greeting = l10n.greetingForHour(DateTime.now().hour);
 
     return SliverAppBar(
+      systemOverlayStyle: (isDark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark)
+          .copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: theme.scaffoldBackgroundColor,
+            systemNavigationBarIconBrightness: isDark
+                ? Brightness.light
+                : Brightness.dark,
+          ),
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
@@ -67,73 +81,59 @@ class HomeAppBar extends StatelessWidget {
           ),
         ),
       ),
-      title: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onOpenProfile,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF5B6CFF), Color(0xFF8FD3FF)],
-                    ),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+      title: SizedBox(
+        height: 48,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onOpenProfile,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox.square(
+                    dimension: 48,
+                    child: Center(child: SparkioLogo(size: 44)),
                   ),
-                  child: Icon(
-                    Icons.bolt_rounded,
-                    color: Colors.white.withOpacity(0.92),
-                    size: 17,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '$greeting, ',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.22,
-                            fontSize: 15.5,
-                            color: scheme.onSurface.withOpacity(0.78),
-                            height: 1.1,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$greeting, ',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.22,
+                              fontSize: 15.5,
+                              color: scheme.onSurface.withOpacity(0.78),
+                              height: 1.1,
+                            ),
                           ),
-                        ),
-                        TextSpan(
-                          text: displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.28,
-                            fontSize: 17.5,
-                            color: scheme.onSurface.withOpacity(0.98),
-                            height: 1.1,
-
-                            shadows: const [
-                              Shadow(
-                                color: Color.fromRGBO(5, 8, 18, 0.28),
-                                blurRadius: 12,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
+                          TextSpan(
+                            text: displayName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.28,
+                              fontSize: 17.5,
+                              color: scheme.onSurface.withOpacity(0.98),
+                              height: 1.1,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      textHeightBehavior: const TextHeightBehavior(
+                        applyHeightToFirstAscent: false,
+                        applyHeightToLastDescent: false,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -222,42 +222,44 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
 
     return Tooltip(
       message: widget.tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
-          onTapDown: (_) => _setPressed(true),
-          onTapUp: (_) => _setPressed(false),
-          onTapCancel: () => _setPressed(false),
-          borderRadius: BorderRadius.circular(15),
-          splashColor: scheme.primary.withOpacity(0.08),
-          highlightColor: scheme.primary.withOpacity(0.03),
-          child: ClipRRect(
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            onTapDown: (_) => _setPressed(true),
+            onTapUp: (_) => _setPressed(false),
+            onTapCancel: () => _setPressed(false),
             borderRadius: BorderRadius.circular(15),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                curve: Curves.easeOutCubic,
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  color: const Color.fromRGBO(255, 255, 255, 0.04),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color.fromRGBO(0, 0, 0, 0.10),
-                      blurRadius: 8,
-                      offset: Offset(0, 3),
+            splashColor: scheme.primary.withOpacity(0.08),
+            highlightColor: scheme.primary.withOpacity(0.03),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    color: const Color.fromRGBO(255, 255, 255, 0.04),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromRGBO(0, 0, 0, 0.10),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 120),
+                      curve: Curves.easeOutCubic,
+                      scale: _pressed ? 1.04 : 1.0,
+                      child: Icon(widget.icon, size: 20, color: iconColor),
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: AnimatedScale(
-                    duration: const Duration(milliseconds: 120),
-                    curve: Curves.easeOutCubic,
-                    scale: _pressed ? 1.04 : 1.0,
-                    child: Icon(widget.icon, size: 20, color: iconColor),
                   ),
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'sparkio_logo.dart';
 
 class StreakShareCard extends StatelessWidget {
   const StreakShareCard({
@@ -161,13 +162,20 @@ class StreakShareCard extends StatelessWidget {
             Positioned(
               right: 14,
               top: 12,
-              child: Text(
-                'Sparkio',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.white.withOpacity(0.52),
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.4,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SparkioLogo(size: 20),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Sparkio',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: Colors.white.withOpacity(0.52),
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
               ),
             ),
             Padding(

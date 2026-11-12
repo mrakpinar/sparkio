@@ -5,7 +5,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../app_strings.dart';
 import '../models/task.dart';
+import '../models/onboarding_goal.dart';
 import '../models/level_unlocks.dart';
+import 'home_calendar_controller.dart';
 import '../services/ad_service.dart';
 import '../services/locale_service.dart';
 import '../services/notification_service.dart';
@@ -30,6 +32,7 @@ class HomeBootstrapResult {
     required this.adaptiveTaskCount,
     required this.adaptiveDifficultyDelta,
     required this.poolError,
+    required this.calendar,
   });
 
   final int streak;
@@ -45,6 +48,35 @@ class HomeBootstrapResult {
   final int adaptiveTaskCount;
   final int adaptiveDifficultyDelta;
   final String? poolError;
+  final HomeCalendarSnapshot calendar;
+}
+
+class HomeCalendarSnapshot {
+  const HomeCalendarSnapshot({
+    required this.period,
+    required this.today,
+    required this.completed,
+    required this.todayCompleted,
+    required this.dailyAddCount,
+    required this.adaptivePlan,
+    required this.weeklyTargets,
+    required this.weeklyDone,
+    required this.poolError,
+    this.queuedPlanApplied = false,
+    this.onboardingFirstSelection,
+  });
+
+  final LocalCalendarPeriod period;
+  final List<Task> today;
+  final Map<String, bool> completed;
+  final int todayCompleted;
+  final int dailyAddCount;
+  final AdaptiveDailyPlan adaptivePlan;
+  final Map<String, int> weeklyTargets;
+  final Map<String, int> weeklyDone;
+  final String? poolError;
+  final bool queuedPlanApplied;
+  final OnboardingFirstSelection? onboardingFirstSelection;
 }
 
 class AdaptiveDailyPlan {
@@ -213,7 +245,10 @@ class HomeController {
   bool _sameTaskOrder(List<Task> left, List<Task> right) {
     if (left.length != right.length) return false;
     for (var i = 0; i < left.length; i++) {
-      if (left[i].id != right[i].id) return false;
+      if (left[i].id != right[i].id ||
+          left[i].assignmentId != right[i].assignmentId) {
+        return false;
+      }
     }
     return true;
   }
@@ -257,8 +292,11 @@ class HomeController {
     final withoutStarter = tasks
         .where((task) => !_isStarterSpark(task))
         .toList(growable: false);
+    final starter = _starterSparkTask(dateKey: dateKey, category: category);
     final withStarter = <Task>[
-      _starterSparkTask(dateKey: dateKey, category: category),
+      starterIndex >= 0
+          ? starter.withAssignmentId(tasks[starterIndex].assignmentId)
+          : starter.newAssignment(),
       ...withoutStarter,
     ];
     final limit = tasks.length.clamp(1, 99);
@@ -296,31 +334,30 @@ class HomeController {
     await _repo.saveLastSeenTaskIds(dateKey: dateKey, taskIds: merged);
   }
 
-  Future<HomeBootstrapResult> bootstrap() async {
-    final streak = await _repo.getStreakCount();
-    final reminderEnabled = await _repo.getReminderEnabled();
-
+  /// Daily/weekly data only: no ads, referral sync, purchase checks or prompts.
+  Future<HomeCalendarSnapshot> loadCalendar({
+    required LocalCalendarPeriod period,
+    required bool premiumActive,
+  }) async {
     final pool = await _repo.loadPool();
     final poolError = _repo.lastPoolError;
     final completed = await _repo.getCompletedMap();
 
-    final dateKey = todayKey();
+    final dateKey = period.dayKey;
     final savedDate = await _repo.getSelectedDate();
     final lastSeenDate = await _repo.getLastSeenDate();
     final lastSeenIds = await _repo.getLastSeenTaskIds();
     final todayCompleted = await _repo.getDailyCompleted(dateKey);
     final adaptivePlan = await resolveAdaptiveDailyPlan(days: 7);
     final adaptiveDelta = adaptivePlan.difficultyDelta;
-    final weekKey = _repo.currentWeekKey();
+    final weekKey = period.weekKey;
+    final queuedApplied = await _repo.applyQueuedWeeklyPlanIfReady(
+      weekKey: weekKey,
+    );
     final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
     final weeklyProgress = await _repo.getWeeklyProgress(weekKey: weekKey);
 
-    final premiumUntilEpoch = await _premium.getPremiumUntilEpoch();
-    final noAdsUntilEpoch = await _premium.getNoAdsUntilEpoch();
-    final premiumActive = await _premium.isPremiumActive();
-    await _premium.isNoAdsActive();
     final dailyAddCount = await _repo.getDailyCustomAddCount(dateKey);
-    final skipCount = await _repo.getSkipCount(dateKey);
 
     final effectivePool = premiumActive
         ? pool
@@ -328,35 +365,27 @@ class HomeController {
 
     final avoidIds = lastSeenDate == dateKey ? <String>{} : lastSeenIds.toSet();
 
-    final premiumUntil = premiumUntilEpoch == null
-        ? null
-        : DateTime.fromMillisecondsSinceEpoch(premiumUntilEpoch);
-    final noAdsUntil = noAdsUntilEpoch == null
-        ? null
-        : DateTime.fromMillisecondsSinceEpoch(noAdsUntilEpoch);
-
     if (effectivePool.isEmpty) {
-      return HomeBootstrapResult(
-        streak: streak,
-        reminderEnabled: reminderEnabled,
+      return HomeCalendarSnapshot(
+        queuedPlanApplied: queuedApplied,
+        period: period,
         today: const [],
         completed: const {},
         todayCompleted: todayCompleted,
-        premiumActive: premiumActive,
-        premiumUntil: premiumUntil,
-        noAdsUntil: noAdsUntil,
         dailyAddCount: dailyAddCount,
-        skipCount: skipCount,
-        adaptiveTaskCount: adaptivePlan.taskCount,
-        adaptiveDifficultyDelta: adaptiveDelta,
+        adaptivePlan: adaptivePlan,
+        weeklyTargets: weeklyPlan?.targets ?? const {},
+        weeklyDone: weeklyProgress.done,
         poolError: poolError,
       );
     }
 
     List<Task> today;
+    OnboardingGoal? initialGoal;
+    String? preferredTaskId;
 
     if (savedDate != dateKey) {
-      final picked = pickTasksNoRepeat(
+      var picked = pickTasksNoRepeat(
         pool: effectivePool,
         count: adaptivePlan.taskCount,
         seedKey: dateKey,
@@ -364,10 +393,44 @@ class HomeController {
         weeklyTargets: weeklyPlan?.targets,
         weeklyDone: weeklyProgress.done,
       );
+      if (savedDate == null) {
+        initialGoal = await _repo.getPendingOnboardingGoal();
+        final goal = initialGoal;
+        if (goal != null) {
+          final matching = effectivePool
+              .where(
+                (task) =>
+                    task.category == goal.category &&
+                    task.id.isNotEmpty &&
+                    task.title.trim().isNotEmpty &&
+                    !_isStarterSpark(task),
+              )
+              .toList();
+          if (matching.isNotEmpty) {
+            final alreadyPicked = picked.where(
+              (task) => matching.any((candidate) => candidate.id == task.id),
+            );
+            final preferred = alreadyPicked.isNotEmpty
+                ? alreadyPicked.first
+                : _engine
+                      .pickDailyTasks(
+                        pool: matching,
+                        count: 1,
+                        seedKey: 'onboarding_${dateKey}_${goal.id}',
+                      )
+                      .first;
+            preferredTaskId = preferred.id;
+            picked = [
+              preferred,
+              ...picked.where((task) => task.id != preferred.id),
+            ].take(adaptivePlan.taskCount).toList();
+          }
+        }
+      }
       final adjusted = applyDifficultyDelta(
         tasks: picked,
         delta: adaptiveDelta,
-      );
+      ).map((task) => task.newAssignment()).toList();
       await _repo.saveSelectedTasks(adjusted);
       await _repo.setSelectedDate(dateKey);
       await _repo.clearCompleted();
@@ -390,33 +453,89 @@ class HomeController {
         final adjusted = applyDifficultyDelta(
           tasks: picked,
           delta: adaptiveDelta,
-        );
+        ).map((task) => task.newAssignment()).toList();
         await _repo.saveSelectedTasks(adjusted);
         await updateLastSeen(dateKey: dateKey, tasks: adjusted);
         today = adjusted;
       }
     }
 
-    final starterAdjusted = ensureStarterSpark(tasks: today, dateKey: dateKey);
+    final previousFirstSelection = await _repo.getOnboardingFirstSelection();
+    final retainedPreferredTaskId = previousFirstSelection?.preferredTaskFor(
+      today, dateKey,
+    );
+    // Preserve a real singleton goal match on initial selection and re-entry.
+    // Other selections retain the existing generic starter.
+    final keepSingleton = today.length == 1 &&
+        (preferredTaskId != null || retainedPreferredTaskId != null);
+    final starterAdjusted = keepSingleton
+        ? today
+        : ensureStarterSpark(tasks: today, dateKey: dateKey);
     if (!_sameTaskOrder(today, starterAdjusted)) {
       today = starterAdjusted;
       await _repo.saveSelectedTasks(today);
     }
 
-    return HomeBootstrapResult(
-      streak: streak,
-      reminderEnabled: reminderEnabled,
+    OnboardingFirstSelection? onboardingFirstSelection;
+    if (initialGoal != null) {
+      // Consume the first selection even if no matching task was available.
+      final selection = OnboardingFirstSelection(
+        dateKey: dateKey,
+        taskIds: today.map((task) => task.id).toList(),
+        preferredTaskId: preferredTaskId,
+      );
+      if (await _repo.saveOnboardingFirstSelection(selection)) {
+        onboardingFirstSelection = selection;
+      }
+    } else {
+      onboardingFirstSelection = previousFirstSelection;
+    }
+
+    return HomeCalendarSnapshot(
+      onboardingFirstSelection: onboardingFirstSelection,
+      queuedPlanApplied: queuedApplied,
+      period: period,
       today: today,
       completed: (savedDate != dateKey) ? {} : completed.cast<String, bool>(),
       todayCompleted: todayCompleted,
-      premiumActive: premiumActive,
-      premiumUntil: premiumUntil,
-      noAdsUntil: noAdsUntil,
       dailyAddCount: dailyAddCount,
-      skipCount: skipCount,
-      adaptiveTaskCount: adaptivePlan.taskCount,
-      adaptiveDifficultyDelta: adaptiveDelta,
+      adaptivePlan: adaptivePlan,
+      weeklyTargets: weeklyPlan?.targets ?? const {},
+      weeklyDone: weeklyProgress.done,
       poolError: poolError,
+    );
+  }
+
+  Future<HomeBootstrapResult> bootstrap() async {
+    final streak = await _repo.getStreakCount();
+    final reminderEnabled = await _repo.getReminderEnabled();
+    final premiumUntilEpoch = await _premium.getPremiumUntilEpoch();
+    final noAdsUntilEpoch = await _premium.getNoAdsUntilEpoch();
+    final premiumActive = await _premium.isPremiumActive();
+    await _premium.isNoAdsActive();
+    final calendar = await loadCalendar(
+      period: LocalCalendarPeriod(DateTime.now()),
+      premiumActive: premiumActive,
+    );
+    return HomeBootstrapResult(
+      calendar: calendar,
+      streak: streak,
+      reminderEnabled: reminderEnabled,
+      today: calendar.today,
+      completed: calendar.completed,
+      todayCompleted: calendar.todayCompleted,
+      premiumActive: premiumActive,
+      premiumUntil: premiumUntilEpoch == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(premiumUntilEpoch),
+      noAdsUntil: noAdsUntilEpoch == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(noAdsUntilEpoch),
+      dailyAddCount: calendar.dailyAddCount,
+      skipCount: await _repo.getSkipCount(calendar.period.dayKey),
+      adaptiveTaskCount: calendar.adaptivePlan.taskCount,
+      adaptiveDifficultyDelta: calendar.adaptivePlan.difficultyDelta,
+      poolError: calendar.poolError,
     );
   }
 
@@ -449,6 +568,7 @@ class HomeController {
       final nextDuration = (task.durationMinutes + durationDelta).clamp(2, 20);
       return Task(
         id: task.id,
+        assignmentId: task.assignmentId,
         title: task.title,
         category: task.category,
         isCustom: task.isCustom,
@@ -595,7 +715,7 @@ class HomeController {
     return AiTaskResponse.success(
       updated: result.updated,
       newCount: result.newCount,
-      added: [task],
+      added: [result.task],
     );
   }
 
@@ -689,7 +809,7 @@ class HomeController {
       final result = await _appendTask(task: task, current: updated);
       updated = result.updated;
       newCount = result.newCount;
-      added.add(task);
+      added.add(result.task);
     }
 
     return AiTaskResponse.success(
@@ -895,7 +1015,7 @@ class HomeController {
       final append = await _appendTask(task: task, current: updated);
       updated = append.updated;
       newCount = append.newCount;
-      added.add(task);
+      added.add(append.task);
       if (!premiumActive) {
         remainingFreeSlots -= 1;
       }
@@ -1018,10 +1138,11 @@ class HomeController {
   }) async {
     final dateKey = todayKey();
     final newCount = await _repo.addCustomTask(task, dateKey);
-    final updated = [...current, task];
+    final assigned = task.newAssignment();
+    final updated = [...current, assigned];
     await _repo.saveSelectedTasks(updated);
     return AddTaskResult(
-      task: task,
+      task: assigned,
       updated: updated,
       newCount: newCount,
       premiumActive: await _premium.isPremiumActive(),

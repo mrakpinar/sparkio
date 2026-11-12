@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+import '../theme/reward_colors.dart';
 import 'pulse_icon.dart';
 
 class HomeAllDoneSliver extends StatelessWidget {
-  const HomeAllDoneSliver({super.key});
+  const HomeAllDoneSliver({super.key, this.streakCount});
+
+  final int? streakCount;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final l10n = context.l10n;
 
     return SliverToBoxAdapter(
       child: TweenAnimationBuilder<double>(
@@ -86,7 +91,7 @@ class HomeAllDoneSliver extends StatelessWidget {
                             children: [
                               const SizedBox(height: 2),
                               Text(
-                                'All done for today',
+                                l10n.tr('All done for today'),
                                 style: text.titleLarge?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.3,
@@ -95,7 +100,7 @@ class HomeAllDoneSliver extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "You're set for today.",
+                                l10n.tr("You're set for today."),
                                 style: text.bodyMedium?.copyWith(
                                   color: scheme.onSurfaceVariant.withOpacity(
                                     0.8,
@@ -126,8 +131,10 @@ class HomeAllDoneSliver extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     // Consolidated progress summary
-                    const _AllDonePill(
-                      label: 'Streak +1 - Goal completed',
+                    _AllDonePill(
+                      label: streakCount != null && streakCount! > 0
+                          ? l10n.currentStreak(streakCount!)
+                          : l10n.tr('Daily goal completed'),
                       icon: Icons.local_fire_department_rounded,
                     ),
                   ],
@@ -166,12 +173,13 @@ class _AllDonePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final rewardAccent = RewardColors.accent(scheme);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: scheme.surface.withOpacity(0.8),
+        color: RewardColors.background(scheme),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.outline.withOpacity(0.35), width: 1.5),
+        border: Border.all(color: rewardAccent.withOpacity(0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -180,18 +188,20 @@ class _AllDonePill extends StatelessWidget {
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.15),
+              color: rewardAccent.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 13, color: scheme.primary),
+            child: Icon(icon, size: 13, color: rewardAccent),
           ),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: RewardColors.foreground(scheme),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
           ),
         ],

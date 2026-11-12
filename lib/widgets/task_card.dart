@@ -169,12 +169,6 @@ class TaskCard extends StatelessWidget {
         : 0.0;
     final xp = task.xpReward;
     final invitationHeadline = _invitationHeadline(context, task);
-    final invitationDuration = _invitationDuration(task);
-    final invitationFooter = _invitationFooter(
-      context,
-      checked: checked,
-      timerActive: timerActive,
-    );
     final status = checked
         ? _TaskStatusType.done
         : (task.isSpecial
@@ -216,9 +210,13 @@ class TaskCard extends StatelessWidget {
           offset: Offset.zero,
           curve: Curves.easeOutCubic,
           child: Padding(
-            padding: EdgeInsets.only(bottom: checked ? 15 : 12),
+            padding: EdgeInsets.only(bottom: checked ? 16 : 14),
             child: Material(
               color: Colors.transparent,
+              elevation: 2,
+              shadowColor: Colors.black.withOpacity(isDark ? 0.12 : 0.08),
+              borderRadius: BorderRadius.circular(18),
+              clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: (timerActive || checked)
                     ? null
@@ -304,9 +302,7 @@ class TaskCard extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        checked
-                                            ? invitationHeadline
-                                            : '-> $invitationHeadline',
+                                        invitationHeadline,
                                         style: theme.textTheme.titleMedium
                                             ?.copyWith(
                                               fontWeight: checked
@@ -320,31 +316,7 @@ class TaskCard extends StatelessWidget {
                                               height: 1.3,
                                             ),
                                       ),
-                                      if (!checked) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          invitationDuration,
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(
-                                                color: scheme.onSurfaceVariant,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                        ),
-                                      ],
-                                      if (!checked &&
-                                          invitationFooter.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          invitationFooter,
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                                color: scheme.onSurfaceVariant
-                                                    .withOpacity(0.86),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 7),
+                                      const SizedBox(height: 8),
                                       if (checked)
                                         Text(
                                           '+$xp XP earned',

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'analytics_service.dart';
 import 'premium_service.dart';
 
@@ -25,21 +24,12 @@ class AdService {
   static const String _rewardedTestUnitId =
       'ca-app-pub-3940256099942544/5224354917';
 
-  static const _kLastInterstitialDate = 'last_interstitial_date_v1';
-  static const _kLaunchGateDate = 'launch_interstitial_gate_date_v1';
-  static const _kLaunchGateCount = 'launch_interstitial_gate_count_v1';
-  static const _kFirstInstallLaunchSkipped =
-      'first_install_launch_interstitial_skipped_v1';
-  static const _kTaskInterstitialDate =
-      'task_completion_interstitial_date_v1';
-  static const _kTaskInterstitialCount =
-      'task_completion_interstitial_count_v1';
-  static const _kTaskInterstitialLastShownMs =
-      'task_completion_interstitial_last_shown_ms_v1';
-
   InterstitialAd? _interstitial;
   RewardedAd? _rewarded;
-  bool _launchInterstitialShown = false;
+  // Shared by every interstitial trigger for this process lifetime. Returning
+  // from the background or rebuilding Home does not create another session.
+  bool _sessionInterstitialShown = false;
+  bool _interstitialRequestInProgress = false;
   bool _launchInterstitialPending = false;
   bool _interstitialShowing = false;
   bool _interstitialLoading = false;
@@ -74,7 +64,7 @@ class AdService {
   }
 
   void _loadInterstitial() {
-    if (hideAdsForScreenshots) return;
+    if (hideAdsForScreenshots || _sessionInterstitialShown) return;
     if (_interstitial != null || _interstitialLoading) return;
     _interstitialLoading = true;
 
@@ -91,7 +81,7 @@ class AdService {
           _interstitialRetryTimer = null;
           // ignore: avoid_print
           print('AD: interstitial loaded ($_effectiveInterstitialUnitId)');
-          if (_launchInterstitialPending && !_launchInterstitialShown) {
+          if (_launchInterstitialPending && !_sessionInterstitialShown) {
             unawaited(_tryShowPendingLaunchInterstitial());
           }
         },
@@ -109,7 +99,7 @@ class AdService {
   }
 
   void _scheduleInterstitialRetry() {
-    if (hideAdsForScreenshots) return;
+    if (hideAdsForScreenshots || _sessionInterstitialShown) return;
     if (_interstitialRetryTimer?.isActive == true) return;
     const steps = <int>[2, 4, 8, 15, 30, 60];
     final idx = _interstitialRetryStep.clamp(0, steps.length - 1);
@@ -165,386 +155,168 @@ class AdService {
     );
   }
 
-  Future<bool> _canShowInterstitialToday(String dateKey) async {
-    final sp = await SharedPreferences.getInstance();
-    final last = sp.getString(_kLastInterstitialDate);
-    return last != dateKey;
-  }
-
-  Future<void> _markInterstitialShown(String dateKey) async {
-    final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kLastInterstitialDate, dateKey);
-  }
-
-  Future<bool> _canShowTaskCompletionInterstitial({
-    required String dateKey,
-    required int completedToday,
-  }) async {
-    if (completedToday < 2) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'first_task_protected',
-        'completed_today': completedToday,
-      });
-      return false;
-    }
-    if (completedToday.isOdd) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'cadence_skip',
-        'completed_today': completedToday,
-      });
-      return false;
-    }
-
-    final sp = await SharedPreferences.getInstance();
-    final savedDate = sp.getString(_kTaskInterstitialDate);
-    final now = DateTime.now();
-    final countToday = savedDate == dateKey
-        ? (sp.getInt(_kTaskInterstitialCount) ?? 0)
-        : 0;
-    final lastShownMs = savedDate == dateKey
-        ? (sp.getInt(_kTaskInterstitialLastShownMs) ?? 0)
-        : 0;
-
-    if (countToday >= 2) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'daily_task_cap',
-        'completed_today': completedToday,
-        'shown_today': countToday,
-      });
-      return false;
-    }
-
-    if (lastShownMs > 0) {
-      final lastShownAt = DateTime.fromMillisecondsSinceEpoch(lastShownMs);
-      if (now.difference(lastShownAt) < const Duration(minutes: 10)) {
-        _track('interstitial_skipped', {
-          'trigger': 'task_completion',
-          'reason': 'cooldown_active',
-          'completed_today': completedToday,
-          'shown_today': countToday,
-        });
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  Future<void> _markTaskCompletionInterstitialShown({
-    required String dateKey,
-  }) async {
-    final sp = await SharedPreferences.getInstance();
-    final savedDate = sp.getString(_kTaskInterstitialDate);
-    final currentCount = savedDate == dateKey
-        ? (sp.getInt(_kTaskInterstitialCount) ?? 0)
-        : 0;
-    await sp.setString(_kTaskInterstitialDate, dateKey);
-    await sp.setInt(_kTaskInterstitialCount, currentCount + 1);
-    await sp.setInt(
-      _kTaskInterstitialLastShownMs,
-      DateTime.now().millisecondsSinceEpoch,
-    );
-  }
-
-  String _todayDateKey() {
-    final now = DateTime.now();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return '${now.year}-$m-$d';
-  }
-
-  /// Launch strategy:
-  /// - show on the first launch of the day
-  /// - then show after skipping two launches (1, 4, 7, ...)
-  Future<bool> _shouldShowLaunchInterstitial() async {
-    final sp = await SharedPreferences.getInstance();
-
-    // Do not show an interstitial on the very first open after install.
-    final firstInstallSkipped =
-        sp.getBool(_kFirstInstallLaunchSkipped) ?? false;
-    if (!firstInstallSkipped) {
-      await sp.setBool(_kFirstInstallLaunchSkipped, true);
-      return false;
-    }
-
-    final todayKey = _todayDateKey();
-    final savedDate = sp.getString(_kLaunchGateDate);
-    var launchCount = sp.getInt(_kLaunchGateCount) ?? 0;
-
-    if (savedDate != todayKey) {
-      launchCount = 0;
-      await sp.setString(_kLaunchGateDate, todayKey);
-    }
-
-    launchCount += 1;
-    await sp.setInt(_kLaunchGateCount, launchCount);
-
-    // 1st, 4th, 7th... launches of the day
-    return ((launchCount - 1) % 3) == 0;
-  }
-
-  /// Allow at most 1 interstitial per day.
-  Future<bool> showInterstitialIfAllowed({required String dateKey}) async {
-    if (hideAdsForScreenshots) {
-      _track('interstitial_skipped', {'reason': 'hide_ads_define'});
-      return false;
-    }
-    if (_interstitialShowing) {
-      // ignore: avoid_print
-      print('AD: interstitial skipped (another ad is showing)');
-      _track('interstitial_skipped', {'reason': 'already_showing'});
-      return false;
-    }
-
-    final adFree = await _isAdFreeActive();
-    if (adFree) {
-      // ignore: avoid_print
-      print('AD: interstitial skipped (premium/no-ads active)');
-      _track('interstitial_skipped', {'reason': 'ad_free_active'});
-      return false;
-    }
-
-    final can = await _canShowInterstitialToday(dateKey);
-    if (!can) {
-      // ignore: avoid_print
-      print('AD: interstitial skipped (already shown today)');
-      _track('interstitial_skipped', {'reason': 'daily_cap'});
-      return false;
-    }
-
-    final ad = await _takeReadyInterstitial(
+  /// Compatibility entry point; all interstitials share the session limit.
+  Future<bool> showInterstitialIfAllowed({required String dateKey}) {
+    return _showSessionInterstitial(
+      trigger: 'daily_gate',
+      params: {'date_key': dateKey},
       waitUpTo: const Duration(seconds: 3),
     );
-    if (ad == null) {
-      // ignore: avoid_print
-      print('AD: interstitial not ready, reloading');
-      _track('interstitial_skipped', {'reason': 'not_ready'});
-      _loadInterstitial();
-      return false;
-    }
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-      },
-      onAdFailedToShowFullScreenContent: (ad, _) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-      },
-    );
-
-    await _markInterstitialShown(dateKey);
-    _interstitialShowing = true;
-    // ignore: avoid_print
-    print('AD: showing interstitial (daily gate)');
-    _track('interstitial_shown', {'trigger': 'daily_gate'});
-    ad.show();
-    return true;
   }
 
   Future<bool> showInterstitialAfterTaskCompletion({
     required String dateKey,
     required int completedToday,
   }) async {
-    if (hideAdsForScreenshots) {
+    // Keep the first task protected and the existing task-completion cadence.
+    if (completedToday < 2 || completedToday.isOdd) {
       _track('interstitial_skipped', {
         'trigger': 'task_completion',
-        'reason': 'hide_ads_define',
-      });
-      return false;
-    }
-    if (_interstitialShowing) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'already_showing',
-      });
-      return false;
-    }
-
-    final adFree = await _isAdFreeActive();
-    if (adFree) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'ad_free_active',
-      });
-      return false;
-    }
-
-    final canShow = await _canShowTaskCompletionInterstitial(
-      dateKey: dateKey,
-      completedToday: completedToday,
-    );
-    if (!canShow) return false;
-
-    final ad = await _takeReadyInterstitial(
-      waitUpTo: const Duration(seconds: 2),
-    );
-    if (ad == null) {
-      _track('interstitial_skipped', {
-        'trigger': 'task_completion',
-        'reason': 'not_ready',
+        'reason': completedToday < 2 ? 'first_task_protected' : 'cadence_skip',
         'completed_today': completedToday,
       });
-      _loadInterstitial();
       return false;
     }
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-        _track('interstitial_skipped', {
-          'trigger': 'task_completion',
-          'reason': 'failed_to_show',
-          'error_code': error.code,
-        });
-      },
+    return _showSessionInterstitial(
+      trigger: 'task_completion',
+      params: {'date_key': dateKey, 'completed_today': completedToday},
+      waitUpTo: const Duration(seconds: 2),
     );
-
-    _interstitialShowing = true;
-    await _markTaskCompletionInterstitialShown(dateKey: dateKey);
-    _track('interstitial_shown', {
-      'trigger': 'task_completion',
-      'completed_today': completedToday,
-    });
-    ad.show();
-    return true;
   }
 
-  /// Show once per app launch (cold start). No persistence between runs.
+  /// Each cold start gets one opportunity, shared with task-completion ads.
   Future<bool> showInterstitialOnLaunch() async {
-    if (hideAdsForScreenshots) {
-      _track('interstitial_skipped', {'reason': 'hide_ads_define_launch'});
+    if (_sessionInterstitialShown ||
+        _launchInterstitialPending ||
+        _interstitialRequestInProgress ||
+        _interstitialShowing) {
       return false;
     }
-    if (_launchInterstitialShown || _launchInterstitialPending) return false;
-    if (_interstitialShowing) return false;
-
-    final adFree = await _isAdFreeActive();
-    if (adFree) {
-      // ignore: avoid_print
-      print('AD: launch interstitial skipped (premium/no-ads active)');
-      _track('interstitial_skipped', {'reason': 'ad_free_active_launch'});
-      return false;
-    }
-
-    final shouldShow = await _shouldShowLaunchInterstitial();
-    if (!shouldShow) {
-      _track('interstitial_skipped', {'reason': 'launch_gate_skip'});
-      return false;
-    }
-
-    final ad = _interstitial;
-    if (ad != null) {
-      _interstitial = null;
-      return _showLaunchInterstitial(ad);
-    }
-
-    // Queue the launch ad so it auto-shows as soon as load succeeds.
     _launchInterstitialPending = true;
-    _loadInterstitial();
-    // ignore: avoid_print
-    print('AD: launch interstitial queued');
-    _track('interstitial_queued', {'trigger': 'launch'});
-    return false;
+    final shown = await _showSessionInterstitial(
+      trigger: 'launch',
+      waitUpTo: Duration.zero,
+    );
+    if (!shown && _launchInterstitialPending) {
+      _track('interstitial_queued', {'trigger': 'launch'});
+    }
+    return shown;
   }
 
   Future<void> _tryShowPendingLaunchInterstitial() async {
-    if (!_launchInterstitialPending || _launchInterstitialShown) return;
-    if (_interstitialShowing) return;
+    if (!_launchInterstitialPending || _sessionInterstitialShown) return;
+    await _showSessionInterstitial(
+      trigger: 'launch',
+      waitUpTo: Duration.zero,
+    );
+  }
 
-    final adFree = await _isAdFreeActive();
-    if (adFree) {
-      _launchInterstitialPending = false;
-      // ignore: avoid_print
-      print(
-        'AD: launch interstitial pending cancelled (premium/no-ads active)',
-      );
-      _track('interstitial_skipped', {'reason': 'ad_free_pending_launch'});
-      return;
+  Future<bool> _showSessionInterstitial({
+    required String trigger,
+    required Duration waitUpTo,
+    Map<String, Object?> params = const {},
+  }) async {
+    void skipped(String reason) {
+      _track('interstitial_skipped', {
+        ...params,
+        'trigger': trigger,
+        'reason': reason,
+      });
     }
 
-    final ad = _interstitial;
-    if (ad == null) return;
-
-    _interstitial = null;
-    _launchInterstitialPending = false;
-    await _showLaunchInterstitial(ad);
-  }
-
-  Future<bool> _showLaunchInterstitial(InterstitialAd ad) async {
-    _launchInterstitialShown = true;
-    _interstitialShowing = true;
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-        // ignore: avoid_print
-        print('AD: launch interstitial failed to show ${error.message}');
-      },
-    );
-
-    ad.show();
-    // ignore: avoid_print
-    print('AD: showing interstitial (launch)');
-    _track('interstitial_shown', {'trigger': 'launch'});
-    return true;
-  }
-
-  /// Debug helper to validate interstitial rendering without gates.
-  Future<bool> showInterstitialNowForDebug() async {
-    if (hideAdsForScreenshots) return false;
-    if (!kDebugMode) return false;
-    if (_interstitialShowing) return false;
-    final ad = await _takeReadyInterstitial(
-      waitUpTo: const Duration(seconds: 5),
-    );
-    if (ad == null) {
-      _loadInterstitial();
-      // ignore: avoid_print
-      print('AD: debug interstitial not ready');
+    if (hideAdsForScreenshots) {
+      _launchInterstitialPending = false;
+      skipped('hide_ads_define');
+      return false;
+    }
+    if (_sessionInterstitialShown) {
+      skipped('session_cap');
+      return false;
+    }
+    if (_interstitialRequestInProgress || _interstitialShowing) {
+      skipped('already_showing');
       return false;
     }
 
-    _interstitialShowing = true;
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        _interstitialShowing = false;
-        ad.dispose();
-        _loadInterstitial();
-        // ignore: avoid_print
-        print('AD: debug interstitial failed to show ${error.message}');
-      },
-    );
+    // Reserve before the first await: launch, delayed load and task callbacks
+    // must not pass the eligibility check concurrently.
+    _interstitialRequestInProgress = true;
+    InterstitialAd? ad;
+    var released = false;
+    void releaseAd() {
+      if (released) return;
+      released = true;
+      _interstitialShowing = false;
+      ad?.dispose();
+    }
 
-    ad.show();
-    // ignore: avoid_print
-    print('AD: showing interstitial (debug)');
-    return true;
+    try {
+      if (await _isAdFreeActive()) {
+        _launchInterstitialPending = false;
+        skipped('ad_free_active');
+        return false;
+      }
+
+      final readyAd = await _takeReadyInterstitial(waitUpTo: waitUpTo);
+      ad = readyAd;
+      if (readyAd == null) {
+        skipped('not_ready');
+        return false;
+      }
+      final outcome = Completer<bool>();
+      void markShown() {
+        if (!_sessionInterstitialShown) {
+          _sessionInterstitialShown = true;
+          _launchInterstitialPending = false;
+          _interstitialRetryTimer?.cancel();
+          _interstitialRetryTimer = null;
+          _track('interstitial_shown', {...params, 'trigger': trigger});
+        }
+        if (!outcome.isCompleted) outcome.complete(true);
+      }
+
+      readyAd.fullScreenContentCallback = FullScreenContentCallback(
+        onAdShowedFullScreenContent: (_) => markShown(),
+        onAdDismissedFullScreenContent: (_) {
+          // Dismissal also confirms a display if the show callback was missed.
+          markShown();
+          releaseAd();
+        },
+        onAdFailedToShowFullScreenContent: (_, error) {
+          releaseAd();
+          _track('interstitial_skipped', {
+            ...params,
+            'trigger': trigger,
+            'reason': 'failed_to_show',
+            'error_code': error.code,
+          });
+          if (!outcome.isCompleted) outcome.complete(false);
+          _scheduleInterstitialRetry();
+        },
+      );
+
+      _interstitialShowing = true;
+      await readyAd.show();
+      return await outcome.future;
+    } catch (error) {
+      releaseAd();
+      skipped('show_request_failed');
+      // ignore: avoid_print
+      print('AD: interstitial request failed ($trigger): $error');
+      if (ad != null) _scheduleInterstitialRetry();
+      return false;
+    } finally {
+      _interstitialRequestInProgress = false;
+    }
+  }
+
+  /// Debug displays follow the same session limit as production triggers.
+  Future<bool> showInterstitialNowForDebug() async {
+    if (!kDebugMode) return false;
+    return _showSessionInterstitial(
+      trigger: 'debug',
+      waitUpTo: const Duration(seconds: 5),
+    );
   }
 
   /// Returns true if the rewarded ad was completed.

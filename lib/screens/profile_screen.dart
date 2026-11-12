@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,37 +20,14 @@ BoxDecoration _profileNeoGlassDecoration(
   Color? tint,
   double radius = _kProfileCardRadius,
   double tintOpacity = 0.04,
-  double surfaceOpacity = _kProfileCardSurfaceAlpha,
 }) {
-  final isDark = scheme.brightness == Brightness.dark;
-  final base = Color.alphaBlend(
-    scheme.onSurface.withOpacity(isDark ? 0.04 : 0.08),
-    scheme.surface,
-  );
-  final effectiveTint = tint ?? scheme.onSurface;
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Color.alphaBlend(effectiveTint.withOpacity(tintOpacity), base),
-        Color.alphaBlend(scheme.onSurface.withOpacity(tintOpacity * 0.5), base),
-      ],
+    color: Color.alphaBlend(
+      (tint ?? scheme.primary).withValues(alpha: tintOpacity.clamp(0.0, 0.08)),
+      scheme.surface,
     ),
-    border: Border.all(
-        color: isDark 
-            ? Colors.white.withOpacity(0.05) 
-            : scheme.onSurface.withOpacity(0.08), 
-        width: 1),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.16),
-        blurRadius: 18,
-        spreadRadius: -6,
-        offset: const Offset(0, 10),
-      ),
-    ],
+    border: Border.all(color: scheme.outline.withValues(alpha: 0.35)),
   );
 }
 
@@ -145,9 +121,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     final bestStreak = await _repo.getBestStreak();
     final weekKey = _repo.currentWeekKey();
     final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
-    final weeklyProgress = weeklyPlan == null
-        ? 0
-        : (await _repo.getWeeklyProgress(weekKey: weekKey)).totalDone;
+    var weeklyProgress = 0;
+    if (weeklyPlan != null) {
+      final progress = await _repo.getWeeklyProgress(weekKey: weekKey);
+      weeklyProgress = weeklyPlan.targets.entries
+          .where((entry) => entry.value > 0)
+          .fold<int>(0, (sum, entry) => sum + (progress.done[entry.key] ?? 0));
+    }
     final history = await _repo.getDailyHistory(days: 7);
     return _JourneySnapshot(
       earnedBadges: earned.length,
@@ -412,7 +392,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             return Text(
               initials,
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: scheme.onPrimary,
+                color: scheme.onPrimaryContainer,
                 fontWeight: FontWeight.w800,
               ),
             );
@@ -432,7 +412,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             return Text(
               initials,
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: scheme.onPrimary,
+                color: scheme.onPrimaryContainer,
                 fontWeight: FontWeight.w800,
               ),
             );
@@ -451,7 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Text(
       initials,
       style: theme.textTheme.headlineSmall?.copyWith(
-        color: scheme.onPrimary,
+        color: scheme.onPrimaryContainer,
         fontWeight: FontWeight.w800,
       ),
     );
@@ -568,11 +548,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return Container(
       key: _referralCardKey,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: _profileNeoGlassDecoration(
-        scheme,
-        tint: scheme.onSurface,
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: _profileNeoGlassDecoration(scheme, tint: scheme.onSurface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -582,7 +559,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               setState(() => _referralExpanded = !_referralExpanded);
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
                   Container(
@@ -811,776 +788,451 @@ class _ProfileScreenState extends State<ProfileScreen>
     final levelProgress = (clampedXpInLevel / safeXpToNext).clamp(0.0, 1.0);
     final hasStreakRing = widget.currentStreak > 0;
 
+    final nameEditor = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _nameController,
+          autofocus: true,
+          maxLength: 24,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: l10n.tr('Enter your first name'),
+          ),
+          onSubmitted: (_) => _saveInlineName(),
+        ),
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: _cancelInlineEdit,
+              child: Text(l10n.tr('Cancel')),
+            ),
+            FilledButton(
+              onPressed: _saveInlineName,
+              child: Text(l10n.tr('Save')),
+            ),
+          ],
+        ),
+      ],
+    );
+    final nextBadge = FutureBuilder<_JourneySnapshot>(
+      future: _journeySnapshotFuture,
+      builder: (context, snapshot) {
+        final label =
+            snapshot.data?.safeNextUnlockLabel ??
+            context.l10n.trf('{title} in {count} {unit}', {
+              'title': context.l10n.tr('Focus Badge'),
+              'count': 3,
+              'unit': context.l10n.tr('sparks'),
+            });
+
+        return Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            height: 1.4,
+          ),
+        );
+      },
+    );
+
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF030508)
           : theme.scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF030508)
-                      : theme.scaffoldBackgroundColor,
-                ),
-              ),
-            ),
+      appBar: AppBar(
+        backgroundColor: isDark
+            ? const Color(0xFF030508)
+            : theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        leading: _ProfileTopIconButton(
+          icon: Icons.arrow_back_ios_new_rounded,
+          onTap: () => Navigator.pop(context),
+        ),
+        title: Text(
+          l10n.tr('Profile'),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
           ),
-          Positioned(
-            right: -150,
-            bottom: -150,
-            child: IgnorePointer(
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  width: 380,
-                  height: 380,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        scheme.onSurface.withOpacity(isDark ? 0.04 : 0),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.5],
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: _profileNeoGlassDecoration(
+                      scheme,
+                      tint: scheme.primary,
+                      tintOpacity: 0.035,
+                      radius: 24,
                     ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  pinned: false,
-                  floating: true,
-                  snap: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  surfaceTintColor: Colors.transparent,
-                  scrolledUnderElevation: 0,
-                  toolbarHeight: 68,
-                  titleSpacing: 16,
-                  flexibleSpace: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color.fromRGBO(3, 5, 8, 0.96) : Colors.white.withOpacity(0.96),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isDark ? Colors.white.withOpacity(0.05) : scheme.onSurface.withOpacity(0.08),
-                              width: 1,
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color.fromRGBO(0, 0, 0, 0.25),
-                                blurRadius: 22,
-                                offset: Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  leading: Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: _ProfileTopIconButton(
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      onTap: () => Navigator.pop(context),
-                    ),
-                  ),
-                  title: Text(
-                    l10n.tr('Profile'),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(1),
-                    child: Container(
-                      height: 1,
-                      margin: const EdgeInsets.fromLTRB(18, 0, 18, 0),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: [
-                            Colors.transparent,
-                            Colors.white.withOpacity(0.08),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                        decoration: _profileNeoGlassDecoration(
-                          scheme,
-                          tint: scheme.onSurface,
-                          radius: _kProfileCardRadius,
-                          tintOpacity: 0.08,
-                          surfaceOpacity: _kProfileCardSurfaceAlpha,
-                        ),
-                        child: Column(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: _openAvatarPicker,
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 260,
+                            Semantics(
+                              button: true,
+                              label: l10n.tr('Choose avatar'),
+                              child: InkWell(
+                                onTap: _openAvatarPicker,
+                                customBorder: const CircleBorder(),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: scheme.primaryContainer,
+                                        border: Border.all(
+                                          color: scheme.primary.withValues(
+                                            alpha: hasStreakRing ? 0.7 : 0.25,
+                                          ),
+                                          width: 2,
                                         ),
-                                        curve: Curves.easeOutCubic,
-                                        width: 91,
-                                        height: 91,
-                                        padding: const EdgeInsets.all(3.2),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: _buildAvatarFace(
+                                        theme: theme,
+                                        scheme: scheme,
+                                        avatar: avatar,
+                                        initials: initials,
+                                        size: 62,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(5),
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
+                                          color: scheme.surface,
                                           border: Border.all(
-                                            color: Colors.white.withValues(
-                                              alpha: hasStreakRing
-                                                  ? (isDark ? 0.22 : 0.18)
-                                                  : (isDark ? 0.12 : 0.1),
-                                            ),
-                                            width: 1.3,
-                                          ),
-                                          boxShadow: hasStreakRing
-                                              ? [
-                                                  BoxShadow(
-                                                    color: scheme.onSurface
-                                                        .withValues(
-                                                          alpha: isDark
-                                                              ? 0.2
-                                                              : 0.14,
-                                                        ),
-                                                    blurRadius: 16,
-                                                    spreadRadius: -2,
-                                                  ),
-                                                ]
-                                              : [
-                                                  BoxShadow(
-                                                    color: scheme.onSurface
-                                                        .withValues(
-                                                          alpha: isDark
-                                                              ? 0.08
-                                                              : 0.05,
-                                                        ),
-                                                    blurRadius: 8,
-                                                    spreadRadius: -5,
-                                                  ),
-                                                ],
-                                        ),
-                                        child: Container(
-                                          width: 84,
-                                          height: 84,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                              colors: [
-                                                scheme.onSurface.withOpacity(0.9),
-                                                scheme.onSurface,
-                                              ],
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: scheme.onSurface
-                                                    .withValues(
-                                                      alpha: isDark
-                                                          ? 0.18
-                                                          : 0.14,
-                                                    ),
-                                                blurRadius: 14,
-                                                spreadRadius: -8,
-                                                offset: const Offset(0, 8),
-                                              ),
-                                            ],
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: _buildAvatarFace(
-                                            theme: theme,
-                                            scheme: scheme,
-                                            avatar: avatar,
-                                            initials: initials,
-                                            size: 84,
+                                            color: scheme.outline,
                                           ),
                                         ),
-                                      ),
-                                      Positioned(
-                                        right: -2,
-                                        bottom: -2,
-                                        child: Container(
-                                          width: 28,
-                                          height: 28,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                scheme.surface,
-                                                Color.alphaBlend(
-                                                  scheme.onSurface.withValues(alpha: 0.12),
-                                                  scheme.surface,
-                                                ),
-                                              ],
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.18,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.edit_rounded,
-                                            size: 15,
-                                            color: scheme.onSurface,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (_isEditingName)
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: TextField(
-                                                controller: _nameController,
-                                                autofocus: true,
-                                                maxLength: 24,
-                                                textCapitalization:
-                                                    TextCapitalization.words,
-                                                decoration: InputDecoration(
-                                                  isDense: true,
-                                                  counterText: '',
-                                                  hintText: context.l10n.tr(
-                                                    'Enter your first name',
-                                                  ),
-                                                  hintStyle: theme
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: scheme
-                                                            .onSurfaceVariant,
-                                                      ),
-                                                  border: InputBorder.none,
-                                                ),
-                                                style: theme
-                                                    .textTheme
-                                                    .headlineSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                                onSubmitted: (_) =>
-                                                    _saveInlineName(),
-                                              ),
-                                            ),
-                                            IconButton(
-                                              onPressed: _saveInlineName,
-                                              icon: Icon(
-                                                Icons.check_rounded,
-                                                color: scheme.onSurface,
-                                                size: 20,
-                                              ),
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              tooltip: context.l10n.tr('Save'),
-                                            ),
-                                            IconButton(
-                                              onPressed: _cancelInlineEdit,
-                                              icon: Icon(
-                                                Icons.close_rounded,
-                                                color: scheme.onSurfaceVariant,
-                                                size: 20,
-                                              ),
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              tooltip: context.l10n.tr(
-                                                'Cancel',
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      else
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Flexible(
-                                                    child: Text(
-                                                      name,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: theme
-                                                          .textTheme
-                                                          .headlineMedium
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            letterSpacing: 0.2,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Icon(
-                                                    Icons.bolt_rounded,
-                                                    size: 20,
-                                                    color: scheme.onSurface,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            InkWell(
-                                              onTap: _startInlineEdit,
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 2,
-                                                      vertical: 1,
-                                                    ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons.edit_rounded,
-                                                      size: 14,
-                                                      color: scheme.onSurface
-                                                          .withValues(
-                                                            alpha: 0.9,
-                                                          ),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      l10n.tr('Edit'),
-                                                      style: theme
-                                                          .textTheme
-                                                          .labelMedium
-                                                          ?.copyWith(
-                                                                color:
-                                                                    scheme.onSurface,
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        l10n.levelLabel(
-                                          safeLevel,
-                                          _levelTitle(safeLevel),
-                                        ),
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                              color: scheme.onSurfaceVariant,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            AnimatedBuilder(
-                              animation: _xpAnimation,
-                              builder: (context, child) {
-                                final t = _xpAnimation.value;
-                                final animatedProgress = (levelProgress * t)
-                                    .clamp(0.0, 1.0);
-                                final trackGlow =
-                                    (isDark ? 0.3 : 0.2) +
-                                    (0.18 * animatedProgress);
-                                final fillGlow =
-                                    (isDark ? 0.46 : 0.34) +
-                                    (0.24 * animatedProgress);
-                                return Container(
-                                  height: 18,
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(999),
-                                    color: scheme.surfaceContainerHighest
-                                        .withValues(alpha: 0.84),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: scheme.onSurface.withValues(
-                                          alpha: trackGlow,
-                                        ),
-                                        blurRadius: 22,
-                                        spreadRadius: -6,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                      BoxShadow(
-                                        color: scheme.onSurface.withValues(
-                                          alpha: isDark ? 0.18 : 0.1,
-                                        ),
-                                        blurRadius: 8,
-                                        spreadRadius: -4,
-                                        offset: const Offset(0, 0),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(999),
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: animatedProgress,
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.centerLeft,
-                                                  end: Alignment.centerRight,
-                                                  colors: [
-                                                    Color.alphaBlend(
-                                                      scheme.onSurface.withValues(
-                                                        alpha: isDark ? 0.8 : 0.5,
-                                                      ),
-                                                      scheme.surface,
-                                                    ),
-                                                    scheme.onSurface,
-                                                    Color.alphaBlend(
-                                                      Colors.white.withValues(
-                                                        alpha: isDark
-                                                            ? 0.18
-                                                            : 0.28,
-                                                      ),
-                                                      scheme.onSurface,
-                                                    ),
-                                                  ],
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: scheme.onSurface
-                                                        .withValues(
-                                                          alpha: fillGlow,
-                                                        ),
-                                                    blurRadius: 14,
-                                                    spreadRadius: -2,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Align(
-                                              alignment: Alignment.topCenter,
-                                              child: Container(
-                                                height: 3,
-                                                margin:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
-                                                      ),
-                                                  color: Colors.white
-                                                      .withValues(
-                                                        alpha: isDark
-                                                            ? 0.28
-                                                            : 0.34,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                        child: Icon(
+                                          Icons.edit_rounded,
+                                          size: 12,
+                                          color: scheme.onSurface,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  ],
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name,
+                                    style: theme.textTheme.headlineSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: scheme.onSurface,
+                                          height: 1.2,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    l10n.levelLabel(
+                                      safeLevel,
+                                      _levelTitle(safeLevel),
+                                    ),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!_isEditingName)
+                              IconButton(
+                                onPressed: _startInlineEdit,
+                                tooltip: l10n.tr('Edit'),
+                                constraints: const BoxConstraints(
+                                  minWidth: 48,
+                                  minHeight: 48,
+                                ),
+                                icon: Icon(
+                                  Icons.edit_outlined,
+                                  size: 20,
+                                  color: scheme.primary,
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (_isEditingName) ...[
+                          const SizedBox(height: 16),
+                          nameEditor,
+                        ],
+                        const SizedBox(height: 24),
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          spacing: 12,
+                          runSpacing: 6,
+                          children: [
                             Text(
-                              '$clampedXpInLevel / $safeXpToNext ${l10n.trf('XP to Level {level}', {'level': safeLevel + 1})}',
+                              '$clampedXpInLevel / $safeXpToNext XP',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              l10n.trf('{xp} XP remaining to level {level}', {
+                                'xp': safeXpToNext - clampedXpInLevel,
+                                'level': safeLevel + 1,
+                              }),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: scheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              LevelUnlocks.nextUnlockLabel(safeLevel),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: scheme.onSurfaceVariant.withValues(
-                                  alpha: 0.9,
-                                ),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Divider(
-                              height: 1,
-                              thickness: 0.8,
-                              color: scheme.outline.withValues(alpha: 0.18),
-                            ),
-                            const SizedBox(height: 6),
-                            FutureBuilder<_JourneySnapshot>(
-                              future: _journeySnapshotFuture,
-                              builder: (context, snapshot) {
-                                final label =
-                                    snapshot.data?.safeNextUnlockLabel ??
-                                    context.l10n.trf(
-                                      '{title} in {count} {unit}',
-                                      {
-                                        'title': context.l10n.tr('Focus Badge'),
-                                        'count': 3,
-                                        'unit': context.l10n.tr('sparks'),
-                                      },
-                                    );
-                                return Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(999),
-                                      color: scheme.onSurface.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      label,
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                            color: scheme.onSurface.withValues(
-                                              alpha: 0.95,
-                                            ),
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                );
-                              },
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      FutureBuilder<_JourneySnapshot>(
-                        future: _journeySnapshotFuture,
-                        builder: (context, snapshot) {
-                          final data =
-                              snapshot.data ??
-                              const _JourneySnapshot(
-                                earnedBadges: 0,
-                                sparksLit: 0,
-                                bestStreak: 0,
-                                weeklyDone: 0,
-                                weeklyTarget: 0,
-                                recentDailyCounts: <int>[0, 0, 0, 0, 0, 0, 0],
-                              );
-                          final todayCount =
-                              data.safeRecentDailyCounts.isNotEmpty
-                              ? data.safeRecentDailyCounts.last
-                              : 0;
-                          final weeklyRemaining =
-                              data.safeWeeklyTarget - data.safeWeeklyDone;
-                          final nextStepMessage =
-                              data.safeWeeklyTarget > 0 && weeklyRemaining > 0
-                              ? l10n.tr(
-                                  'Complete 1 spark to move your weekly plan forward.',
-                                )
-                              : todayCount <= 0
-                              ? l10n.tr('Light your first spark today.')
-                              : l10n.tr(
-                                  'Do one more spark today to keep momentum.',
-                                );
-                          final showedUpToday =
-                              data.safeRecentDailyCounts.isNotEmpty &&
-                              data.safeRecentDailyCounts.last > 0;
-                          return Column(
-                            children: [
-                              _NextStepCard(
-                                message: nextStepMessage,
-                                onTap: () => Navigator.of(context).maybePop(),
-                              ),
-                              const SizedBox(height: 10),
-                              _WeeklyProgressCard(snapshot: data),
-                              const SizedBox(height: 10),
-                              _SevenDaySparkCard(
-                                dailyCounts: data.safeRecentDailyCounts,
-                                bestStreak: data.safeBestStreak,
-                              ),
-                              const SizedBox(height: 10),
-                              _PersonalBestStrip(
-                                bestStreak: data.safeBestStreak,
-                                totalSparks: data.sparksLit,
-                                consistencyPercent: data.safeConsistencyPercent,
-                              ),
-                              if (showedUpToday) ...[
-                                const SizedBox(height: 8),
-                                const _MiniActivityFeedback(),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      FutureBuilder<Set<String>>(
-                        future: _earnedFuture,
-                        builder: (context, snapshot) {
-                          final earned = snapshot.data ?? <String>{};
-                          final defs = _allProfileBadges
-                              .where((badge) => earned.contains(badge.id))
-                              .toList();
-
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 10),
+                        AnimatedBuilder(
+                          animation: _xpAnimation,
+                          builder: (context, child) {
+                            final t = _xpAnimation.value;
+                            final animatedProgress = (levelProgress * t).clamp(
+                              0.0,
+                              1.0,
                             );
-                          }
-                          return Container(
-                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: LinearProgressIndicator(
+                                value: animatedProgress,
+                                minHeight: 8,
+                                backgroundColor: scheme.outline.withValues(
+                                  alpha: 0.45,
+                                ),
+                                color: scheme.primary,
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          LevelUnlocks.nextUnlockLabel(safeLevel),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FutureBuilder<_JourneySnapshot>(
+                    future: _journeySnapshotFuture,
+                    builder: (context, snapshot) {
+                      final data =
+                          snapshot.data ??
+                          const _JourneySnapshot(
+                            earnedBadges: 0,
+                            sparksLit: 0,
+                            bestStreak: 0,
+                            weeklyDone: 0,
+                            weeklyTarget: 0,
+                            recentDailyCounts: <int>[0, 0, 0, 0, 0, 0, 0],
+                          );
+                      final todayCount = data.safeRecentDailyCounts.isNotEmpty
+                          ? data.safeRecentDailyCounts.last
+                          : 0;
+                      final weeklyRemaining =
+                          data.safeWeeklyTarget - data.safeWeeklyDone;
+                      final nextStepMessage =
+                          data.safeWeeklyTarget > 0 && weeklyRemaining > 0
+                          ? l10n.tr(
+                              'Complete 1 spark to move your weekly plan forward.',
+                            )
+                          : todayCount <= 0
+                          ? l10n.tr('Light your first spark today.')
+                          : l10n.tr(
+                              'Do one more spark today to keep momentum.',
+                            );
+                      final showedUpToday =
+                          data.safeRecentDailyCounts.isNotEmpty &&
+                          data.safeRecentDailyCounts.last > 0;
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _NextStepCard(
+                            message: nextStepMessage,
+                            onTap: () => Navigator.of(context).maybePop(),
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.all(20),
                             decoration: _profileNeoGlassDecoration(
                               scheme,
-                              tint: scheme.onSurface,
-                              surfaceOpacity: 0.72,
-                              tintOpacity: 0.1,
+                              radius: 24,
                             ),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Text(
-                                  l10n.tr('Journey'),
+                                  l10n.tr('Your Stats'),
                                   style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: scheme.onSurface.withValues(
-                                      alpha: 0.92,
-                                    ),
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                if (defs.isEmpty)
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        l10n.tr('Your journey just started.'),
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              color: scheme.onSurface,
-                                              height: 1.35,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      TextButton.icon(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const BadgesScreen(),
-                                            ),
-                                          );
-                                        },
-                                        icon: const Icon(
-                                          Icons.emoji_events_rounded,
-                                          size: 16,
-                                        ),
-                                        label: Text(
-                                          l10n.tr('Unlock first badge'),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 0,
-                                            vertical: 4,
-                                          ),
-                                          foregroundColor: scheme.onSurface,
-                                          textStyle: theme.textTheme.labelLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                          minimumSize: Size.zero,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                else
-                                  Column(
-                                    children: List.generate(defs.length, (
-                                      index,
-                                    ) {
-                                      final badge = defs[index];
-                                      return Column(
-                                        children: [
-                                          _JourneyBadgeRow(badge: badge),
-                                          if (index != defs.length - 1)
-                                            Divider(
-                                              height: 14,
-                                              color: scheme.outline.withValues(
-                                                alpha: 0.16,
-                                              ),
-                                            ),
-                                        ],
-                                      );
-                                    }),
-                                  ),
+                                const SizedBox(height: 20),
+                                _WeeklyProgressCard(snapshot: data),
+                                const Divider(height: 32),
+                                _SevenDaySparkCard(
+                                  dailyCounts: data.safeRecentDailyCounts,
+                                  bestStreak: data.safeBestStreak,
+                                ),
+                                const Divider(height: 32),
+                                _PersonalBestStrip(
+                                  bestStreak: data.safeBestStreak,
+                                  totalSparks: data.sparksLit,
+                                  consistencyPercent:
+                                      data.safeConsistencyPercent,
+                                ),
+                                if (showedUpToday) ...[
+                                  const SizedBox(height: 16),
+                                  const _MiniActivityFeedback(),
+                                ],
                               ],
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      _buildReferralCard(theme: theme, scheme: scheme),
-                    ]),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                  FutureBuilder<Set<String>>(
+                    future: _earnedFuture,
+                    builder: (context, snapshot) {
+                      final earned = snapshot.data ?? <String>{};
+                      final defs = _allProfileBadges
+                          .where((badge) => earned.contains(badge.id))
+                          .toList();
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: _profileNeoGlassDecoration(scheme),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const BadgesScreen(),
+                                ),
+                              ),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.emoji_events_outlined,
+                                      color: scheme.primary,
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.tr('Journey'),
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            nextBadge,
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting)
+                              const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (defs.isEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.tr('Your journey just started.'),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const BadgesScreen(),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.add_rounded, size: 16),
+                                  label: Text(l10n.tr('Unlock first badge')),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(48, 48),
+                                  ),
+                                ),
+                              ),
+                            ] else ...[
+                              const SizedBox(height: 16),
+                              for (
+                                var index = 0;
+                                index < defs.length;
+                                index++
+                              ) ...[
+                                _JourneyBadgeRow(badge: defs[index]),
+                                if (index < defs.length - 1)
+                                  const Divider(height: 24),
+                              ],
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildReferralCard(theme: theme, scheme: scheme),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1780,8 +1432,8 @@ class _ProfileTopIconButton extends StatelessWidget {
         splashColor: scheme.primary.withOpacity(0.08),
         highlightColor: scheme.primary.withOpacity(0.03),
         child: SizedBox(
-          width: 40,
-          height: 40,
+          width: 48,
+          height: 48,
           child: Icon(icon, size: 18, color: scheme.onSurface.withOpacity(0.9)),
         ),
       ),
@@ -1826,9 +1478,7 @@ class _JourneySnapshot {
 
 class _WeeklyProgressCard extends StatelessWidget {
   const _WeeklyProgressCard({required this.snapshot});
-
   final _JourneySnapshot snapshot;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1840,135 +1490,99 @@ class _WeeklyProgressCard extends StatelessWidget {
     final progress = hasPlan
         ? (snapshot.safeWeeklyDone / safeTarget).clamp(0.0, 1.0)
         : 0.0;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
-      decoration: _profileNeoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF8B5CF6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: _profileNeoGlassDecoration(
-                  scheme,
-                  tint: const Color(0xFF34D5FF),
-                  radius: 8,
-                  tintOpacity: 0.18,
-                ),
-                child: Center(
-                  child: Image.asset(
-                    'assets/in_app_icons/calendar.png',
-                    width: 15,
-                    height: 15,
-                    fit: BoxFit.contain,
-                    color: scheme.primary,
-                    colorBlendMode: BlendMode.srcIn,
-                  ),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            Text(
+              context.l10n.tr('Weekly progress'),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  context.l10n.tr('Weekly progress'),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                !hasPlan
-                    ? context.l10n.tr('No plan')
-                    : snapshot.safeWeeklyDone <= 0
-                    ? context.l10n.tr('Week just started')
-                    : '${snapshot.safeWeeklyDone}/${snapshot.safeWeeklyTarget}',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 7,
-              value: progress,
-              backgroundColor: scheme.surfaceContainerHighest.withValues(
-                alpha: 0.7,
-              ),
-              valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
             ),
+            Text(
+              !hasPlan
+                  ? context.l10n.tr('No plan')
+                  : snapshot.safeWeeklyDone <= 0
+                  ? context.l10n.tr('Week just started')
+                  : '${snapshot.safeWeeklyDone}/${snapshot.safeWeeklyTarget}',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            minHeight: 6,
+            value: progress,
+            color: scheme.primary,
+            backgroundColor: scheme.outline.withValues(alpha: 0.4),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _NextStepCard extends StatelessWidget {
   const _NextStepCard({required this.message, required this.onTap});
-
   final String message;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.all(16),
       decoration: _profileNeoGlassDecoration(
         scheme,
-        tint: const Color(0xFF34D5FF),
-        surfaceOpacity: _kProfileCardSurfaceAlpha + 0.06,
-        tintOpacity: 0.2,
+        tint: scheme.primary,
+        tintOpacity: 0.06,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: _profileNeoGlassDecoration(
-              scheme,
-              tint: const Color(0xFF8B5CF6),
-              radius: 8,
-              tintOpacity: 0.18,
-              surfaceOpacity: 0.9,
-            ),
-            child: Icon(
-              Icons.flag_rounded,
-              size: 15,
-              color: scheme.primary.withValues(alpha: 0.95),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w700,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.flag_outlined, size: 20, color: scheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurface,
+                    height: 1.4,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 10),
-          TextButton(
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
             onPressed: onTap,
-            style: TextButton.styleFrom(
-              foregroundColor: scheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              textStyle: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: Text(
+              context.l10n.tr('Back to today'),
+              textAlign: TextAlign.center,
+            ),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              backgroundColor: scheme.primaryContainer,
+              foregroundColor: scheme.onPrimaryContainer,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(context.l10n.tr('Back to today')),
           ),
         ],
       ),
@@ -2008,8 +1622,7 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
   }
 
   String _weekdayShort(int weekday) {
-    const labels = <String>['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    return labels[(weekday - 1).clamp(0, labels.length - 1)];
+    return MaterialLocalizations.of(context).narrowWeekdays[weekday % 7];
   }
 
   @override
@@ -2025,170 +1638,91 @@ class _SevenDaySparkCardState extends State<_SevenDaySparkCard>
     final safeMax = maxCount <= 0 ? 1 : maxCount;
     final now = DateTime.now();
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: _profileNeoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF34D5FF),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.show_chart_rounded, size: 18, color: scheme.primary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  context.l10n.tr('Last 7 days'),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                context.l10n.trf('Best streak: {count}', {
-                  'count': widget.bestStreak,
-                }),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.l10n.tr('Last 7 days'),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 14),
-          AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, _) {
-              final pulseT = _pulse.value;
-              return Row(
-                children: List.generate(values.length, (index) {
-                  final value = values[index];
-                  final completed = value > 0;
-                  final intensity = completed ? (value / safeMax) : 0.0;
-                  final isToday = index == values.length - 1;
-                  final day = DateTime(
-                    now.year,
-                    now.month,
-                    now.day,
-                  ).subtract(Duration(days: 6 - index));
-
-                  final dotColor = completed
-                      ? Color.alphaBlend(
-                          scheme.primary.withValues(
-                            alpha: 0.62 + (0.3 * intensity),
-                          ),
-                          scheme.surface,
-                        )
-                      : scheme.surfaceContainerHighest.withValues(alpha: 0.2);
-                  final scale = isToday
-                      ? 1 + ((completed ? 0.12 : 0.08) * pulseT)
-                      : 1.0;
-                  final shadows = <BoxShadow>[
-                    if (completed)
-                      BoxShadow(
-                        color: scheme.primary.withValues(
-                          alpha: 0.5 + (0.28 * intensity),
+        ),
+        const SizedBox(height: 16),
+        AnimatedBuilder(
+          animation: _pulse,
+          builder: (context, _) {
+            final pulseT = _pulse.value;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(values.length, (index) {
+                final value = values[index];
+                final completed = value > 0;
+                final intensity = completed ? (value / safeMax) : 0.0;
+                final isToday = index == values.length - 1;
+                final day = DateTime(
+                  now.year,
+                  now.month,
+                  now.day,
+                ).subtract(Duration(days: 6 - index));
+                final dotColor = completed
+                    ? Color.alphaBlend(
+                        scheme.primary.withValues(
+                          alpha: 0.62 + (0.3 * intensity),
                         ),
-                        blurRadius: 18,
-                        spreadRadius: -0.5,
-                      ),
-                    if (completed)
-                      BoxShadow(
-                        color: scheme.primary.withValues(
-                          alpha: 0.26 + (0.18 * intensity),
-                        ),
-                        blurRadius: 10,
-                        spreadRadius: -1.5,
-                      ),
-                    if (isToday)
-                      BoxShadow(
-                        color: scheme.primary.withValues(
-                          alpha: (completed ? 0.32 : 0.18) + (0.2 * pulseT),
-                        ),
-                        blurRadius: 18 + (9 * pulseT),
-                        spreadRadius: completed ? 0.8 : -0.5,
-                      ),
-                  ];
-
-                  return Expanded(
+                        scheme.surface,
+                      )
+                    : scheme.outline.withValues(alpha: 0.35);
+                return Expanded(
+                  child: Tooltip(
+                    message:
+                        '${MaterialLocalizations.of(context).formatMediumDate(day)}: $value',
                     child: Column(
                       children: [
-                        SizedBox(
-                          width: 38,
-                          height: 38,
-                          child: Center(
-                            child: Transform.scale(
-                              scale: scale,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                alignment: Alignment.center,
-                                children: [
-                                  if (isToday)
-                                    Container(
-                                      width: 34 + (4 * pulseT),
-                                      height: 34 + (4 * pulseT),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: scheme.primary.withValues(
-                                          alpha: completed
-                                              ? 0.1 + (0.08 * pulseT)
-                                              : 0.06 + (0.05 * pulseT),
-                                        ),
-                                      ),
+                        Container(
+                          width: 28,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: dotColor,
+                            borderRadius: BorderRadius.circular(9),
+                            border: isToday
+                                ? Border.all(
+                                    color: scheme.primary.withValues(
+                                      alpha: 0.65 + 0.2 * pulseT,
                                     ),
-                                  Container(
-                                    width: 26,
-                                    height: 26,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: dotColor,
-                                      boxShadow: shadows,
-                                    ),
-                                    child: completed
-                                        ? Align(
-                                            alignment: const Alignment(
-                                              -0.25,
-                                              -0.25,
-                                            ),
-                                            child: Container(
-                                              width: 7,
-                                              height: 7,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.34,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                ],
-                              ),
-                            ),
+                                    width: 2,
+                                  )
+                                : null,
                           ),
+                          child: completed
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  size: 15,
+                                  color: Colors.white,
+                                )
+                              : null,
                         ),
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 8),
                         Text(
                           _weekdayShort(day.weekday),
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant.withValues(
-                              alpha: 0.86,
-                            ),
-                            fontWeight: FontWeight.w700,
+                            color: isToday
+                                ? scheme.onSurface
+                                : scheme.onSurfaceVariant,
+                            fontWeight: isToday
+                                ? FontWeight.w700
+                                : FontWeight.w400,
                           ),
                         ),
                       ],
                     ),
-                  );
-                }),
-              );
-            },
-          ),
-        ],
-      ),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -2199,141 +1733,96 @@ class _PersonalBestStrip extends StatelessWidget {
     required this.totalSparks,
     required this.consistencyPercent,
   });
-
   final int bestStreak;
   final int totalSparks;
   final int consistencyPercent;
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dayLabel = bestStreak == 1
-        ? context.l10n.tr('day')
-        : context.l10n.tr('days');
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: _profileNeoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF8B5CF6),
+    final l10n = context.l10n;
+    final dayLabel = bestStreak == 1 ? l10n.tr('day') : l10n.tr('days');
+    final metrics = [
+      (
+        Icons.local_fire_department_outlined,
+        l10n.tr('Best streak'),
+        '$bestStreak $dayLabel',
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Row(
+      (Icons.bolt_outlined, l10n.tr('Total sparks'), '$totalSparks'),
+      (
+        Icons.track_changes_rounded,
+        l10n.tr('Consistency'),
+        '$consistencyPercent%',
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        final columns = constraints.maxWidth >= 280 && scale <= 1.2
+            ? 3
+            : constraints.maxWidth >= 240 && scale <= 1.6
+            ? 2
+            : 1;
+        final width = (constraints.maxWidth - 16 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 16,
+          runSpacing: 20,
+          children: [
+            for (final metric in metrics)
+              SizedBox(
+                width: width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 17,
-                      color: scheme.primary,
+                      metric.$1,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        context.l10n.trf('Best streak: {count} {dayLabel}', {
-                          'count': bestStreak,
-                          'dayLabel': dayLabel,
-                        }),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    const SizedBox(height: 8),
+                    Text(
+                      metric.$3,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      metric.$2,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Row(
-                  children: [
-                    Icon(Icons.bolt_rounded, size: 17, color: scheme.primary),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        context.l10n.trf('Total sparks: {count}', {
-                          'count': totalSparks,
-                        }),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Divider(
-            height: 1,
-            thickness: 0.8,
-            color: scheme.outline.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              Icon(
-                Icons.track_changes_rounded,
-                size: 16,
-                color: scheme.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                context.l10n.trf('Consistency: {count}%', {
-                  'count': consistencyPercent,
-                }),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _MiniActivityFeedback extends StatelessWidget {
   const _MiniActivityFeedback();
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: _profileNeoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF34D5FF),
-        surfaceOpacity: _kProfileCardSurfaceAlpha + 0.03,
-        tintOpacity: 0.2,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.check_circle_rounded, size: 16, color: scheme.primary),
-          const SizedBox(width: 6),
-          Text(
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(
+          Icons.check_circle_outline_rounded,
+          size: 16,
+          color: scheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
             context.l10n.tr('You showed up today.'),
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

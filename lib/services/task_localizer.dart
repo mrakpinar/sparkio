@@ -766,6 +766,7 @@ class TaskLocalizer {
     if (localizedTitle == task.title) return task;
     return Task(
       id: task.id,
+      assignmentId: task.assignmentId,
       title: localizedTitle,
       category: task.category,
       isCustom: task.isCustom,

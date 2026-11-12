@@ -1,7 +1,272 @@
 part of 'home_screen.dart';
 
 extension _HomeScreenStateMethods on _HomeScreenState {
-  String _todayKey() => _controller.todayKey();
+  String _todayKey() => _controller.todayKey(_completionStartedAt);
+
+  Future<bool> _runCalendarAction(
+    String? dayKey,
+    Future<void> Function(DateTime startedAt) action,
+  ) async {
+    try {
+      return await _calendar.runForDay(dayKey, action);
+    } catch (_) {
+      if (mounted) {
+        _showSnack(
+          context.l10n.tr(
+            'Daily tasks could not be refreshed. Please try again.',
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<VoidCallback> _loadCalendarState(LocalCalendarPeriod period) async {
+    // Stop the old inline timer before any new-day data is published.
+    final oldTimer = _activeTimerTask;
+    final sameDayTimer =
+        oldTimer != null && _activeTimerDateKey == period.dayKey;
+    if (!sameDayTimer) {
+      _activeTimerTicker?.cancel();
+      if (oldTimer != null) await _cancelTaskTimer(oldTimer);
+    }
+    final state = await _controller.loadCalendar(
+      period: period,
+      premiumActive: _premiumActive,
+    );
+    final focusSession = await _readResumableFocusSession(
+      state.today,
+      state.completed,
+      period.dayKey,
+    );
+    final streak = await _repo.getStreakCount();
+    final dismissed = await _repo.getDismissedInAppNudges(period.dayKey);
+    final morning = await _repo.getCoachMorningIntention(period.dayKey);
+    final evening = await _repo.getCoachEveningReviewDone(period.dayKey);
+    final lastCompleted = await _repo.getLastCompletedTask();
+    final survival = await _repo.getSurvivalModeActiveDate();
+    final declined = await _repo.getSurvivalModeDeclinedDate();
+    final day = DateTime.parse(period.dayKey);
+    final yesterdayKey = _controller.todayKey(
+      DateTime(day.year, day.month, day.day - 1),
+    );
+    final yesterdayMood = (await _repo.getMoodHistory())[yesterdayKey];
+    final done = _filterWeeklyDoneByTargets(
+      done: state.weeklyDone,
+      targets: state.weeklyTargets,
+    );
+    return () {
+      if (!mounted) return;
+      _updateState(() {
+        _today = state.today;
+        _resumableFocusSession = focusSession;
+        _onboardingFirstSelection = state.onboardingFirstSelection;
+        _completed = {
+          for (final task in state.today)
+            task.id: state.completed[task.id] ?? false,
+        };
+        _todayCompleted = state.todayCompleted;
+        _dailyAddCount = state.dailyAddCount;
+        _adaptiveDifficultyDelta = state.adaptivePlan.difficultyDelta;
+        _weeklyWeekKey = period.weekKey;
+        _weeklyTargets = state.weeklyTargets;
+        _weeklyDone = done;
+        _poolError = state.poolError;
+        _refreshing = false;
+        _streak = streak;
+        _dismissedNudgesToday = dismissed;
+        _coachMorningIntentionToday = morning;
+        _coachEveningReviewDoneToday = evening;
+        _lastCompletedTaskTitle = lastCompleted?.dateKey == period.dayKey
+            ? _repo.localizeTaskTitleForCurrentLocale(lastCompleted!.title)
+            : null;
+        _survivalModeActive = survival == period.dayKey;
+        _showSurvivalPrompt =
+            !_survivalModeActive &&
+            declined != period.dayKey &&
+            (yesterdayMood == 1 || yesterdayMood == 2);
+        _streakRescueTask = null;
+        _streakRescueMissedDays = 0;
+        _allDoneShownKey = null;
+        if (!sameDayTimer) {
+          _flowModeEnabled = false;
+          _flowAssignmentId = null;
+          _flowMomentumPrompt = false;
+        }
+        _awaitingSecondAction = false;
+        _pendingCompletionChainId = null;
+        _pendingCompletionTaskId = null;
+        _pendingCompletionAt = null;
+        _pendingCompletionDoneCount = 0;
+      });
+      _startFocusResumeTicker();
+      if (sameDayTimer && !_activeTimerPaused) {
+        unawaited(
+          _runCalendarAction(
+            period.dayKey,
+            (_) => _restoreActiveTimerIfNeeded(),
+          ),
+        );
+      }
+      unawaited(_updateAmbientAudio());
+      unawaited(_syncHomeWidgetSnapshot());
+    };
+  }
+
+  Future<TaskCompletionResult> _completeCalendarTask(
+    Task task, {
+    required String? dateKey,
+  }) async {
+    final feedback = <Future<void> Function()>[];
+    var result = const TaskCompletionResult.rejected(
+      TaskCompletionRejection.unavailable,
+    );
+    try {
+      final accepted = await _calendar.runForDay(dateKey, (startedAt) async {
+        if (!mounted) return;
+        if (_completed[task.id] == true) {
+          result = const TaskCompletionResult.alreadyCompleted();
+          return;
+        }
+        if (!_today.any((item) => item.hasSameAssignment(task))) {
+          result = const TaskCompletionResult.rejected(
+            TaskCompletionRejection.taskNotInDay,
+          );
+          return;
+        }
+        final request = TaskCompletionRequest(
+          task: task,
+          dateKey: dateKey!,
+          startedAt: startedAt,
+          todayTaskIds: _today.map((item) => item.id),
+          todayAssignmentIds: _today
+              .map((item) => item.assignmentId).whereType<String>(),
+          completed: _completed,
+          xpReward: _taskXpReward(task),
+          categoryWeeklyTarget: _weeklyTargets[task.category] ?? 0,
+          currentStreak: _streak,
+          allDoneAlreadyHandled: _allDoneShownKey == dateKey,
+          clearInlineTimer: task.hasSameAssignment(_activeTimerTask),
+        );
+        _completionStartedAt = startedAt;
+        try {
+          // Keep the existing early guard. A partial failure must not invite
+          // a blind second increment of rewards already written.
+          _updateState(() => _completed[task.id] = true);
+          result = await _completionWriter.write(request);
+          if (result.allDoneHandled) _allDoneShownKey = request.dateKey;
+
+          // The persistent timer removal belongs to the writer. Notification
+          // cleanup and view updates cannot change its explicit result.
+          if (result.inlineTimerCleared) {
+            try {
+              await _finishRecordedTaskTimer(task);
+            } catch (error) {
+              _log('Recorded timer presentation cleanup failed: $error');
+            }
+          }
+          if (result.status == TaskCompletionStatus.failed) {
+            // Stop runForDay's subsequent reload just as a failed write did
+            // before extraction. The caller still receives the typed result.
+            Error.throwWithStackTrace(result.error!, result.stackTrace!);
+          }
+          if (result.isCommitted) {
+            try {
+              feedback.addAll(
+                _applyRecordedTask(
+                  task,
+                  result.commit!,
+                  completedFromTimer: request.clearInlineTimer,
+                  xpReward: request.xpReward,
+                ),
+              );
+            } catch (error) {
+              _log('Recorded completion view update failed: $error');
+            }
+          }
+        } finally {
+          _completionStartedAt = null;
+        }
+      });
+      if (!accepted) {
+        result = const TaskCompletionResult.rejected(
+          TaskCompletionRejection.differentDay,
+        );
+        if (mounted) {
+          _showSnack(
+            context.l10n.tr(
+              'This session belongs to a different day and was not counted today.',
+            ),
+          );
+        }
+      }
+    } catch (error, stackTrace) {
+      // A post-write calendar/UI failure must never replace a committed result.
+      if (!result.isCommitted &&
+          result.status != TaskCompletionStatus.failed &&
+          result.status != TaskCompletionStatus.alreadyCompleted) {
+        result = TaskCompletionResult.failed(
+          step: TaskCompletionStep.calendar,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      _log(
+        'Completion outcome=${result.status} step=${result.failedStep} '
+        'kind=${result.failureKind}: $error',
+      );
+      try {
+        if (mounted) {
+          _showSnack(
+            context.l10n.tr(
+              result.isCommitted
+                  ? 'Task saved, but daily tasks could not be refreshed.'
+                  : result.status == TaskCompletionStatus.failed &&
+                        result.failedStep != TaskCompletionStep.calendar
+                  ? 'Completion could not be fully saved. Some progress may already be recorded.'
+                  : 'Daily tasks could not be refreshed. Please try again.',
+            ),
+          );
+        }
+      } catch (feedbackError) {
+        _log('Completion error notice failed: $feedbackError');
+      }
+    }
+    if (result.isCommitted) {
+      await _enqueueCompletionFeedback(feedback, dateKey: dateKey);
+    }
+    if (result.status != TaskCompletionStatus.failed) {
+      unawaited(_calendar.check());
+    }
+    return result;
+  }
+
+  bool _canShowCompletionFeedback(String? dateKey) =>
+      mounted &&
+      _calendar.isCurrent &&
+      dateKey == _calendar.loadedPeriod?.dayKey;
+
+  Future<void> _enqueueCompletionFeedback(
+    List<Future<void> Function()> feedback, {
+    required String? dateKey,
+  }) {
+    // Separate from the calendar/write lock, and shared across completions so
+    // feedback from two successful tasks cannot open overlapping dialogs.
+    final next = _completionFeedbackTail.then<void>((_) async {
+      for (final show in feedback) {
+        if (!_canShowCompletionFeedback(dateKey)) break;
+        try {
+          await show();
+        } catch (error) {
+          // This task is already recorded. Skip only the failed feedback;
+          // never repeat its progress/XP writes to recover a UI failure.
+          _log('Completion feedback failed: $error');
+        }
+      }
+    });
+    _completionFeedbackTail = next;
+    return next;
+  }
 
   Future<
     ({
@@ -309,6 +574,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         .toList();
     if (pending.isEmpty) return false;
     pending.sort((a, b) {
+      final priority = _onboardingTaskPriority(a, b);
+      if (priority != 0) return priority;
       final durationCompare = a.totalDurationSeconds.compareTo(
         b.totalDurationSeconds,
       );
@@ -322,14 +589,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<bool> _completeFinishedTimerFromNudge() async {
     final task = _activeTimerTask;
     if (task == null || !_activeTimerFinished) return false;
-    if (_completed[task.id] == true) return false;
-    await _cancelTaskTimer(task);
-    if (!mounted) return false;
-    _updateState(() => _completed[task.id] = true);
-    await _repo.saveCompletedMap(_completed);
-    await _markTaskDone(task);
-    await _applyStreakIfAllDone();
-    return true;
+    final result = await _completeCalendarTask(
+      task,
+      dateKey: _activeTimerDateKey,
+    );
+    return result.isCommitted;
   }
 
   Future<bool> _openMorningIntentionCoach() async {
@@ -547,10 +811,13 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _bootstrap() async {
     _updateState(() => _loading = true);
     await _controller.preloadAds();
-    final queuedApplied = await _repo.applyQueuedWeeklyPlanIfReady(
-      weekKey: _repo.currentWeekKey(),
-    );
     final result = await _controller.bootstrap();
+    final focusSession = await _readResumableFocusSession(
+      result.today,
+      result.completed,
+      result.calendar.period.dayKey,
+    );
+    final queuedApplied = result.calendar.queuedPlanApplied;
     final funnelOpen = await _registerOpenForFunnelCompat();
     final profileName = await _repo.getProfileName();
     final profileAvatar = await _repo.getProfileAvatar();
@@ -583,20 +850,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final earnedBadgesCount = (await _repo.getEarnedBadges()).length;
     final totalSparksLit = await _repo.getTotalCompleted();
     final xpProgress = await _repo.getXpProgress();
-    final weekKey = _repo.currentWeekKey();
-    final weeklyPlan = await _repo.getWeeklyPlan(weekKey: weekKey);
-    final weeklyProgress = await _repo.getWeeklyProgress(weekKey: weekKey);
-    final weeklyTargets = weeklyPlan?.targets ?? const <String, int>{};
+    final weekKey = result.calendar.period.weekKey;
+    final weeklyTargets = result.calendar.weeklyTargets;
     final weeklyDone = _filterWeeklyDoneByTargets(
-      done: weeklyProgress.done,
+      done: result.calendar.weeklyDone,
       targets: weeklyTargets,
     );
-    if (weeklyTargets.isNotEmpty &&
-        !_intMapEquals(weeklyDone, weeklyProgress.done)) {
-      await _repo.saveWeeklyProgress(
-        WeeklyProgress(weekKey: weekKey, done: weeklyDone),
-      );
-    }
     if (!mounted) return;
     final todayIds = result.today.map((t) => t.id).toSet();
     final normalizedCompleted = <String, bool>{
@@ -608,6 +867,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _totalSparksLit = totalSparksLit;
       _reminderEnabled = result.reminderEnabled;
       _today = result.today;
+      _resumableFocusSession = focusSession;
+      _onboardingFirstSelection = result.calendar.onboardingFirstSelection;
       _completed = normalizedCompleted;
       _premiumActive = result.premiumActive;
       _premiumUntil = result.premiumUntil;
@@ -639,6 +900,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           : null;
       _loading = false;
     });
+    _calendar.start(result.calendar.period);
+    await _calendar.check();
+    _startFocusResumeTicker();
     unawaited(_updateAmbientAudio());
     await _restoreActiveTimerIfNeeded();
     unawaited(_syncHomeWidgetSnapshot());
@@ -735,14 +999,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     );
   }
 
-  Future<void> _syncChallengeProgressForToday({
-    required int completedToday,
+  void _applyChallengeCompletionFeedback(
+    ChallengeProgressUpdate? update, {
+    required List<Future<void> Function()> feedback,
     bool fromTaskCompletion = false,
-  }) async {
-    final update = await _repo.markActiveChallengeProgress(
-      dateKey: _todayKey(),
-      completedToday: completedToday,
-    );
+  }) {
     if (update == null) return;
     if (mounted) {
       _updateState(() => _activeChallenge = update.challenge);
@@ -753,13 +1014,22 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (!update.dayLogged) return;
 
     final challenge = update.challenge;
-    final l10n = context.l10n;
     _track('challenge_day_logged', {
       'challenge_id': challenge.templateId,
       'done_days': challenge.completedDaysCount,
       'duration_days': challenge.durationDays,
       'from_task_completion': fromTaskCompletion,
     });
+
+    feedback.add(() => _showChallengeProgressFeedback(update));
+  }
+
+  Future<void> _showChallengeProgressFeedback(
+    ChallengeProgressUpdate update,
+  ) async {
+    if (!mounted) return;
+    final challenge = update.challenge;
+    final l10n = context.l10n;
 
     if (update.completedNow) {
       await showDialog<void>(
@@ -801,17 +1071,19 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          l10n.trf('{title}: {done}/{total} days logged.', <String, Object>{
-            'title': challenge.localizedTitle(),
-            'done': challenge.completedDaysCount,
-            'total': challenge.durationDays,
-          }),
-        ),
-      ),
-    );
+    await ScaffoldMessenger.of(context)
+        .showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.trf('{title}: {done}/{total} days logged.', <String, Object>{
+                'title': challenge.localizedTitle(),
+                'done': challenge.completedDaysCount,
+                'total': challenge.durationDays,
+              }),
+            ),
+          ),
+        )
+        .closed;
   }
 
   DateTime? _parseDateKeyOrNull(String? value) {
@@ -838,7 +1110,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       difficulty: 'easy',
       durationMinutes: 2,
       isSpecial: true,
-    );
+    ).newAssignment();
   }
 
   Future<Task> _ensureStreakRescueTask() async {
@@ -930,7 +1202,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _startStreakRescuePlan(Task rescueTask) async {
-    if (_activeTimerTask != null && _activeTimerTask!.id != rescueTask.id) {
+    if (_activeTimerTask != null &&
+        !rescueTask.hasSameAssignment(_activeTimerTask)) {
       return;
     }
     _track('streak_rescue_started', {
@@ -1571,7 +1844,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (idx < 0) return;
 
     candidates.shuffle(Random('$dateKey-$mood'.hashCode));
-    final chosen = candidates.first;
+    final chosen = candidates.first.newAssignment();
 
     final updated = [..._today];
     updated[idx] = chosen;
@@ -1610,6 +1883,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         final theme = Theme.of(sheetContext);
         final scheme = theme.colorScheme;
         final l10n = sheetContext.l10n;
+        final isDark = scheme.brightness == Brightness.dark;
         final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.8;
         final active = _activeChallenge;
         final starterTemplate = kChallengeTemplates.firstWhere(
@@ -1678,7 +1952,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                 const SizedBox(height: 6),
                 Text(
                   active == null
-                      ? l10n.tr('Pick one and start today.')
+                      ? l10n.tr('Tap a challenge to start it.')
                       : l10n.trf(
                           '{title} - {done}/{total} days',
                           <String, Object>{
@@ -1694,6 +1968,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                 const SizedBox(height: 14),
                 Expanded(
                   child: ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 12),
                     itemCount: kChallengeTemplates.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
@@ -1746,24 +2021,32 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                 colors: [
                                   Color.alphaBlend(
                                     accent.withOpacity(isActive ? 0.28 : 0.16),
-                                    scheme.surfaceContainerHighest.withOpacity(
-                                      isLocked ? 0.22 : 0.36,
-                                    ),
+                                    isDark
+                                        ? scheme.surfaceContainerHighest.withOpacity(
+                                            isLocked ? 0.22 : 0.36,
+                                          )
+                                        : scheme.surface,
                                   ),
                                   Color.alphaBlend(
                                     accent.withOpacity(isActive ? 0.2 : 0.1),
-                                    scheme.surfaceContainerHighest.withOpacity(
-                                      isLocked ? 0.18 : 0.3,
-                                    ),
+                                    isDark
+                                        ? scheme.surfaceContainerHighest.withOpacity(
+                                            isLocked ? 0.18 : 0.3,
+                                          )
+                                        : scheme.surface,
                                   ),
                                 ],
                               ),
                               border: Border.all(
                                 color: isActive
-                                    ? accent.withOpacity(0.42)
-                                    : Colors.white.withOpacity(
+                                    ? (isDark ? accent : scheme.primary)
+                                          .withOpacity(isDark ? 0.42 : 0.8)
+                                    : isDark
+                                    ? Colors.white.withOpacity(
                                         isLocked ? 0.05 : 0.09,
-                                      ),
+                                      )
+                                    : scheme.outline.withOpacity(0.34),
+                                width: isActive && !isDark ? 1.5 : 1,
                               ),
                             ),
                             child: Row(
@@ -1795,7 +2078,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                               fontWeight: FontWeight.w700,
                                               color: isLocked
                                                   ? scheme.onSurfaceVariant
-                                                        .withOpacity(0.7)
+                                                        .withOpacity(isDark ? 0.7 : 0.95)
                                                   : scheme.onSurface
                                                         .withOpacity(0.96),
                                             ),
@@ -1807,9 +2090,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                             ?.copyWith(
                                               color: isLocked
                                                   ? scheme.onSurfaceVariant
-                                                        .withOpacity(0.68)
+                                                        .withOpacity(isDark ? 0.68 : 1)
                                                   : scheme.onSurfaceVariant
-                                                        .withOpacity(0.92),
+                                                        .withOpacity(isDark ? 0.92 : 1),
                                             ),
                                       ),
                                       const SizedBox(height: 8),
@@ -1838,7 +2121,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                               },
                                             ),
                                             color: accent.withOpacity(0.18),
-                                            textColor: accent,
+                                            textColor: isDark
+                                                ? accent
+                                                : Color.alphaBlend(
+                                                    Colors.black.withOpacity(0.62),
+                                                    accent,
+                                                  ),
                                           ),
                                           badge(
                                             label: tierLabel,
@@ -1849,9 +2137,13 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                                 : const Color(
                                                     0xFF22D3EE,
                                                   ).withOpacity(0.2),
-                                            textColor: isAdvanced
-                                                ? const Color(0xFFD8B4FE)
-                                                : const Color(0xFF67E8F9),
+                                            textColor: isDark
+                                                ? (isAdvanced
+                                                      ? const Color(0xFFD8B4FE)
+                                                      : const Color(0xFF67E8F9))
+                                                : (isAdvanced
+                                                      ? const Color(0xFF583390)
+                                                      : const Color(0xFF075B6B)),
                                           ),
                                         ],
                                       ),
@@ -1872,7 +2164,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                       l10n.tr('Active'),
                                       style: theme.textTheme.labelSmall
                                           ?.copyWith(
-                                            color: accent,
+                                            color: isDark ? accent : scheme.primary,
                                             fontWeight: FontWeight.w700,
                                           ),
                                     ),
@@ -1908,7 +2200,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Container(
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxHeight * 0.4),
+                    child: SingleChildScrollView(
+                      child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                   decoration: BoxDecoration(
@@ -1945,7 +2242,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                   sheetContext,
                                 ).pop(starterTemplate),
                                 icon: const Icon(Icons.play_arrow_rounded),
-                                label: Text(l10n.tr('Start one today')),
+                                label: Text(l10n.trf('Start {title}', {
+                                  'title': starterTemplate.localizedTitle(),
+                                })),
                               ),
                             ),
                           ],
@@ -2019,6 +2318,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2068,6 +2370,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     bool autoPrompt = false,
     String? forceForWeek,
   }) async {
+    await _calendar.check();
+    if (!mounted || !_calendar.isCurrent) return;
+    final originDay = _calendar.loadedPeriod?.dayKey;
     final weekKey = forceForWeek ?? _repo.currentWeekKey();
     final plan = await _repo.getWeeklyPlan(weekKey: weekKey);
     final initialTargets = {
@@ -2095,6 +2400,17 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     if (result == null) return;
 
+    await _runCalendarAction(
+      originDay,
+      (_) => _saveWeeklyPlanTargets(result, weekKey, plan),
+    );
+  }
+
+  Future<void> _saveWeeklyPlanTargets(
+    Map<String, int> result,
+    String weekKey,
+    WeeklyPlan? plan,
+  ) async {
     final cleaned = <String, int>{};
     for (final entry in result.entries) {
       if (entry.value > 0) {
@@ -2122,11 +2438,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       done: progress.done,
       targets: cleaned,
     );
-    if (!_intMapEquals(filteredDone, progress.done)) {
-      await _repo.saveWeeklyProgress(
-        WeeklyProgress(weekKey: weekKey, done: filteredDone),
-      );
-    }
     if (!mounted) return;
     _updateState(() {
       _weeklyWeekKey = weekKey;
@@ -2170,6 +2481,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     required Map<String, int> done,
     required Map<String, int> targets,
   }) {
+    // Filter only the active-plan view; keep all earned progress in storage.
     if (done.isEmpty || targets.isEmpty) return const <String, int>{};
     final filtered = <String, int>{};
     for (final entry in done.entries) {
@@ -2180,15 +2492,6 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       filtered[entry.key] = value;
     }
     return filtered;
-  }
-
-  bool _intMapEquals(Map<String, int> a, Map<String, int> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (final entry in a.entries) {
-      if (b[entry.key] != entry.value) return false;
-    }
-    return true;
   }
 
   void _applyAddTaskResult(AddTaskResult result) {
@@ -2359,6 +2662,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<_NextBestSparkSuggestion?> _resolveNextBestSparkSuggestion() async {
+    final l10n = context.l10n;
     final pool = await _loadEffectivePool();
     if (pool.isEmpty) return null;
 
@@ -2419,9 +2723,19 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     final best = ranked.first;
     final weeklyLeftForCategory = remainingByCategory[best.category] ?? 0;
+    final seconds = best.totalDurationSeconds;
+    final durationLabel = seconds < 60
+        ? l10n.secondsLabel(seconds)
+        : seconds % 60 == 0
+        ? l10n.minuteShortLabel(seconds ~/ 60)
+        : '${l10n.minuteShortLabel(seconds ~/ 60)} ${l10n.secondsLabel(seconds % 60)}';
     final reason = weeklyLeftForCategory > 0
-        ? 'Boosts your weekly ${_controller.categoryLabel(best.category)} goal.'
-        : 'Quick ${_shortDurationLabel(best)} spark based on your rhythm.';
+        ? l10n.trf('Supports your weekly {category} goal.', {
+            'category': l10n.categoryBadgeLabel(best.category),
+          })
+        : l10n.trf('A quick {duration} task at your pace.', {
+            'duration': durationLabel,
+          });
     return _NextBestSparkSuggestion(task: best, reason: reason);
   }
 
@@ -2429,7 +2743,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     _NextBestSparkSuggestion? suggestion,
   }) async {
     final resolved = suggestion ?? await _resolveNextBestSparkSuggestion();
-    final task = resolved?.task;
+    final task = resolved?.task.newAssignment();
     if (task == null) {
       if (mounted) _showSnack('No next spark suggestion right now.');
       return false;
@@ -2534,209 +2848,288 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     entry = OverlayEntry(
       builder: (context) {
         final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
         const accent = Color(0xFF8776FF);
-        return AnimatedBuilder(
-          animation: controller,
-          builder: (context, child) {
-            final t = controller.value;
-            final intro = Curves.easeOutCubic.transform(
-              (t / 0.36).clamp(0.0, 1.0),
-            );
-            final outroT = ((t - 0.84) / 0.16).clamp(0.0, 1.0);
-            final fadeOut = t < 0.86
-                ? 1.0
-                : 1 -
-                      Curves.easeIn.transform(
-                        ((t - 0.86) / 0.14).clamp(0.0, 1.0),
-                      );
-            final burst = Curves.easeOut.transform((t / 0.28).clamp(0.0, 1.0));
-            final ringProgress = ui.lerpDouble(
-              ((done - 1).clamp(0, dailyGoal) / dailyGoal),
-              done / dailyGoal,
-              Curves.easeOutCubic.transform((t / 0.54).clamp(0.0, 1.0)),
-            )!;
-            final breathePhase = (t / 0.78).clamp(0.0, 1.0);
-            final glowBreath = sin(breathePhase * pi * 2).abs();
-            final backdropGlow =
-                (0.05 + (glowBreath * 0.08)) * (1 - (outroT * 0.7));
-            final cardScale = ui.lerpDouble(
-              ui.lerpDouble(0.92, 1.0, intro)!,
-              0.965,
-              Curves.easeIn.transform(outroT),
-            )!;
-            final ctaOpacity = Curves.easeOut.transform(
-              ((t - 0.28) / 0.2).clamp(0.0, 1.0),
-            );
+        return BlockSemantics(
+          child: FocusScope(
+            autofocus: true,
+            child: AnimatedBuilder(
+              animation: controller,
+              builder: (context, child) {
+                final t = controller.value;
+                final intro = Curves.easeOutCubic.transform(
+                  (t / 0.36).clamp(0.0, 1.0),
+                );
+                final outroT = ((t - 0.84) / 0.16).clamp(0.0, 1.0);
+                final fadeOut = t < 0.86
+                    ? 1.0
+                    : 1 -
+                          Curves.easeIn.transform(
+                            ((t - 0.86) / 0.14).clamp(0.0, 1.0),
+                          );
+                final burst = Curves.easeOut.transform(
+                  (t / 0.28).clamp(0.0, 1.0),
+                );
+                final ringProgress = ui.lerpDouble(
+                  ((done - 1).clamp(0, dailyGoal) / dailyGoal),
+                  done / dailyGoal,
+                  Curves.easeOutCubic.transform((t / 0.54).clamp(0.0, 1.0)),
+                )!;
+                final breathePhase = (t / 0.78).clamp(0.0, 1.0);
+                final glowBreath = sin(breathePhase * pi * 2).abs();
+                final backdropGlow =
+                    (0.05 + (glowBreath * 0.08)) * (1 - (outroT * 0.7));
+                final cardScale = ui.lerpDouble(
+                  ui.lerpDouble(0.92, 1.0, intro)!,
+                  0.965,
+                  Curves.easeIn.transform(outroT),
+                )!;
+                final ctaOpacity = Curves.easeOut.transform(
+                  ((t - 0.28) / 0.2).clamp(0.0, 1.0),
+                );
 
-            return Opacity(
-              opacity: fadeOut,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(0, -0.25),
-                          radius: 1.08,
-                          colors: [
-                            accent.withOpacity(backdropGlow),
-                            Colors.transparent,
-                          ],
+                return Opacity(
+                  opacity: fadeOut,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ModalBarrier(
+                          color: Colors.black.withOpacity(0.28),
+                          dismissible: false,
+                          barrierSemanticsDismissible: false,
                         ),
                       ),
-                    ),
-                  ),
-                  Center(
-                    child: Transform.translate(
-                      offset: Offset(0, ui.lerpDouble(24, 0, intro)!),
-                      child: Transform.scale(
-                        scale: cardScale,
-                        child: Container(
-                          width: min(
-                            MediaQuery.of(context).size.width - 28,
-                            382,
-                          ),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF201D3D), Color(0xFF121D33)],
-                            ),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.08),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.withOpacity(0.2),
-                                blurRadius: 22,
-                                spreadRadius: -4,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      CustomPaint(
-                                        size: const Size(72, 72),
-                                        painter: _SoftBurstPainter(
-                                          progress: burst,
-                                          color: accent,
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 50,
-                                        height: 50,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              accent.withOpacity(0.42),
-                                              accent.withOpacity(0.22),
-                                            ],
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: _DrawnCheckIcon(
-                                            progress: burst,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Nice. You showed up.',
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            height: 1.24,
-                                          ),
-                                    ),
-                                  ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: const Alignment(0, -0.25),
+                                radius: 1.08,
+                                colors: [
+                                  accent.withOpacity(backdropGlow),
+                                  Colors.transparent,
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  _MomentumRing(
-                                    progress: ringProgress,
-                                    color: accent,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return Align(
+                                alignment: Alignment.bottomCenter,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: 382,
+                                    maxHeight: constraints.maxHeight,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      '$done/$dailyGoal sparks today',
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white.withOpacity(
-                                              0.94,
+                                  child: Transform.scale(
+                                    scale: cardScale,
+                                    alignment: Alignment.bottomCenter,
+                                    child: Container(
+                                      width: double.infinity,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(22),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Color.alphaBlend(
+                                              accent.withOpacity(0.12),
+                                              scheme.surface,
                                             ),
+                                            Color.alphaBlend(
+                                              scheme.primary.withOpacity(0.04),
+                                              scheme.surface,
+                                            ),
+                                          ],
+                                        ),
+                                        border: Border.all(
+                                          color: scheme.outline.withOpacity(
+                                            0.4,
                                           ),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: accent.withOpacity(0.2),
+                                            blurRadius: 22,
+                                            spreadRadius: -4,
+                                            offset: const Offset(0, 12),
+                                          ),
+                                        ],
+                                      ),
+                                      child: SingleChildScrollView(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          16,
+                                          16,
+                                          16,
+                                          16,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Stack(
+                                                  alignment: Alignment.center,
+                                                  children: [
+                                                    CustomPaint(
+                                                      size: const Size(72, 72),
+                                                      painter:
+                                                          _SoftBurstPainter(
+                                                            progress: burst,
+                                                            color: accent,
+                                                          ),
+                                                    ),
+                                                    Container(
+                                                      width: 50,
+                                                      height: 50,
+                                                      decoration: BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                        gradient: LinearGradient(
+                                                          colors: [
+                                                            accent.withOpacity(
+                                                              0.42,
+                                                            ),
+                                                            accent.withOpacity(
+                                                              0.22,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      child: Center(
+                                                        child: _DrawnCheckIcon(
+                                                          progress: burst,
+                                                          color:
+                                                              scheme.onSurface,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    l10n.niceYouShowedUp,
+                                                    style: theme
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          height: 1.24,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Row(
+                                              children: [
+                                                _MomentumRing(
+                                                  progress: ringProgress,
+                                                  color: accent,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    l10n.sparksToday(
+                                                      done,
+                                                      dailyGoal,
+                                                    ),
+                                                    style: theme
+                                                        .textTheme
+                                                        .titleSmall
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          color:
+                                                              scheme.onSurface,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Opacity(
+                                              opacity: ctaOpacity,
+                                              child: SizedBox(
+                                                width: double.infinity,
+                                                child: FilledButton(
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor: accent,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    minimumSize:
+                                                        const Size.fromHeight(
+                                                          48,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 14,
+                                                        ),
+                                                  ),
+                                                  onPressed: () {
+                                                    _track(
+                                                      'completion_reinforcement_cta',
+                                                      {
+                                                        'chain_id':
+                                                            completionChainId,
+                                                        'action': 'done',
+                                                        'remaining_actions':
+                                                            remainingActionCount,
+                                                        if (hasSecondStepSuggestion)
+                                                          'suggested_task_id':
+                                                              secondStepSuggestion
+                                                                  .id,
+                                                      },
+                                                    );
+                                                    unawaited(() async {
+                                                      await dismissOverlay();
+                                                      if (hasSecondStepSuggestion) {
+                                                        await _showSecondSparkDecision(
+                                                          completionChainId:
+                                                              completionChainId,
+                                                          remainingActionCount:
+                                                              remainingActionCount,
+                                                          secondStepSuggestion:
+                                                              secondStepSuggestion,
+                                                        );
+                                                      }
+                                                    }());
+                                                  },
+                                                  child: Text(
+                                                    l10n.done,
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Opacity(
-                                opacity: ctaOpacity,
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: accent,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size.fromHeight(46),
-                                    ),
-                                    onPressed: () {
-                                      _track('completion_reinforcement_cta', {
-                                        'chain_id': completionChainId,
-                                        'action': 'done',
-                                        'remaining_actions':
-                                            remainingActionCount,
-                                        if (hasSecondStepSuggestion)
-                                          'suggested_task_id':
-                                              secondStepSuggestion.id,
-                                      });
-                                      unawaited(() async {
-                                        await dismissOverlay();
-                                        if (hasSecondStepSuggestion) {
-                                          await _showSecondSparkDecision(
-                                            completionChainId:
-                                                completionChainId,
-                                            remainingActionCount:
-                                                remainingActionCount,
-                                            secondStepSuggestion:
-                                                secondStepSuggestion,
-                                          );
-                                        }
-                                      }());
-                                    },
-                                    child: Text(l10n.done),
                                   ),
                                 ),
-                              ),
-                            ],
+                              );
+                            },
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -3059,43 +3452,51 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   Future<void> _maybePromptForRating({required String trigger}) async {
     if (!mounted || _ratePromptOpen) return;
     if (await _repo.hasShownRatePromptFor(trigger)) return;
+    if (!mounted || _ratePromptOpen) return;
 
     _updateState(() => _ratePromptOpen = true);
-    final action = await showDialog<_RatePromptAction>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Enjoying Sparkio?'),
-          content: const Text(
-            'Your progress is great. Would you like to rate the app?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(_RatePromptAction.later),
-              child: const Text('Later'),
+    try {
+      final action = await showDialog<_RatePromptAction>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Enjoying Sparkio?'),
+            content: const Text(
+              'Your progress is great. Would you like to rate the app?',
             ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(_RatePromptAction.rateNow),
-              child: const Text('Rate now'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(_RatePromptAction.later),
+                child: const Text('Later'),
+              ),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(_RatePromptAction.rateNow),
+                child: const Text('Rate now'),
+              ),
+            ],
+          );
+        },
+      );
 
-    await _repo.markRatePromptShownFor(trigger);
-    if (!mounted) return;
-    _updateState(() => _ratePromptOpen = false);
+      await _repo.markRatePromptShownFor(trigger);
+      if (!mounted) return;
 
-    if (action == _RatePromptAction.rateNow) {
-      _track('rate_prompt_accepted', {'trigger': trigger});
-      await _openRateApp(source: trigger);
-      return;
+      if (action == _RatePromptAction.rateNow) {
+        _track('rate_prompt_accepted', {'trigger': trigger});
+        await _openRateApp(source: trigger);
+        return;
+      }
+
+      _track('rate_prompt_dismissed', {'trigger': trigger});
+    } finally {
+      if (mounted) {
+        _updateState(() => _ratePromptOpen = false);
+      } else {
+        _ratePromptOpen = false;
+      }
     }
-
-    _track('rate_prompt_dismissed', {'trigger': trigger});
   }
 
   Future<void> _openInstagramContact() async {
@@ -3157,7 +3558,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       aiSuggested: true,
       difficulty: 'medium',
       durationMinutes: 7,
-    );
+    ).newAssignment();
 
     final updated = [..._today, special];
     await _repo.saveSelectedTasks(updated);
@@ -3483,7 +3884,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       _poolErrorShown = false;
       _poolError = null;
     });
-    await _bootstrap();
+    await _calendar.check(force: true);
   }
 
   Future<void> _runRewardedAction({
@@ -3674,7 +4075,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (picked.isEmpty) return false;
 
     final updated = [..._today]..removeAt(idx);
-    updated.insert(idx, picked.first);
+    updated.insert(idx, picked.first.newAssignment());
     await _repo.saveSelectedTasks(updated);
     await _controller.updateLastSeen(
       dateKey: _todayKey(),
@@ -3714,7 +4115,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
     if (picked.isEmpty) return false;
 
-    final updated = [..._today, picked.first];
+    final updated = [..._today, picked.first.newAssignment()];
     await _repo.saveSelectedTasks(updated);
     await _controller.updateLastSeen(
       dateKey: _todayKey(),
@@ -4060,6 +4461,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         final scheme = theme.colorScheme;
+        final isDark = scheme.brightness == Brightness.dark;
 
         Widget optionTile({
           required String title,
@@ -4084,10 +4486,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                     color: Color.alphaBlend(
                       (selected ? const Color(0xFF8B7CFF) : Colors.white)
                           .withOpacity(selected ? 0.10 : 0.04),
-                      const Color(0xFF111827),
+                      isDark ? const Color(0xFF111827) : scheme.surface,
                     ),
                     border: Border.all(
-                      color: Colors.white.withOpacity(selected ? 0.10 : 0.05),
+                      color: isDark
+                          ? Colors.white.withOpacity(selected ? 0.10 : 0.05)
+                          : scheme.outline.withOpacity(selected ? 0.35 : 0.2),
                     ),
                   ),
                   child: Row(
@@ -4099,7 +4503,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             Text(
                               title,
                               style: theme.textTheme.titleSmall?.copyWith(
-                                color: Colors.white.withOpacity(
+                                color: scheme.onSurface.withOpacity(
                                   selected ? 0.96 : 0.88,
                                 ),
                                 fontWeight: FontWeight.w700,
@@ -4122,7 +4526,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             : Icons.circle_outlined,
                         color: selected
                             ? const Color(0xFF8B7CFF)
-                            : Colors.white.withOpacity(0.42),
+                            : scheme.onSurfaceVariant.withOpacity(0.72),
                         size: 18,
                       ),
                     ],
@@ -4145,8 +4549,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    color: const Color.fromRGBO(11, 15, 26, 0.94),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    color: isDark
+                        ? const Color.fromRGBO(11, 15, 26, 0.94)
+                        : scheme.surface,
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : scheme.outline.withOpacity(0.25),
+                    ),
                     boxShadow: const [
                       BoxShadow(
                         color: Color.fromRGBO(0, 0, 0, 0.28),
@@ -4165,7 +4575,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                           height: 4,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(999),
-                            color: Colors.white.withOpacity(0.16),
+                            color: scheme.onSurface.withOpacity(0.2),
                           ),
                         ),
                       ),
@@ -4173,7 +4583,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                       Text(
                         l10n.chooseLanguage,
                         style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white.withOpacity(0.94),
+                          color: scheme.onSurface.withOpacity(0.94),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -4234,6 +4644,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
+    final isDark = scheme.brightness == Brightness.dark;
     var laterExpanded = false;
 
     String durationLabel(Task task) {
@@ -4252,7 +4663,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       return Container(
         height: 1,
         margin: const EdgeInsets.only(left: 26),
-        color: Colors.white.withOpacity(0.06),
+        color: scheme.onSurface.withOpacity(isDark ? 0.06 : 0.12),
       );
     }
 
@@ -4268,6 +4679,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       String? helper,
     }) {
       final xpLabel = '+${task.xpReward} XP';
+      final effectiveTextOpacity = isDark ? textOpacity : max(textOpacity, 0.7);
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(
@@ -4309,7 +4721,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                         child: RichText(
                           text: TextSpan(
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: scheme.onSurface.withOpacity(textOpacity),
+                              color: scheme.onSurface.withOpacity(effectiveTextOpacity),
                               fontWeight: textWeight,
                               height: 1.2,
                             ),
@@ -4318,7 +4730,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                 text: '$section\n',
                                 style: theme.textTheme.labelMedium?.copyWith(
                                   color: scheme.onSurface.withOpacity(
-                                    showAccent ? 0.68 : textOpacity,
+                                    showAccent ? 0.68 : effectiveTextOpacity,
                                   ),
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -4342,7 +4754,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                             durationLabel(task),
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: scheme.onSurfaceVariant.withOpacity(
-                                showAccent ? 0.82 : textOpacity,
+                                showAccent ? 0.82 : effectiveTextOpacity,
                               ),
                               fontWeight: FontWeight.w600,
                             ),
@@ -4412,14 +4824,20 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                   decoration: BoxDecoration(
-                    color: Color.alphaBlend(
-                      const Color.fromRGBO(14, 18, 32, 0.92),
-                      scheme.surface,
-                    ),
+                    color: isDark
+                        ? Color.alphaBlend(
+                            const Color.fromRGBO(14, 18, 32, 0.92),
+                            scheme.surface,
+                          )
+                        : scheme.surface,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(24),
                     ),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : scheme.outline.withOpacity(0.25),
+                    ),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -4431,7 +4849,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                           height: 4,
                           margin: const EdgeInsets.only(bottom: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
+                            color: scheme.onSurface.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
@@ -4505,7 +4923,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                           style: theme.textTheme.labelLarge
                                               ?.copyWith(
                                                 color: scheme.onSurface
-                                                    .withOpacity(0.46),
+                                                    .withOpacity(isDark ? 0.46 : 0.75),
                                                 fontWeight: FontWeight.w600,
                                               ),
                                         ),
@@ -4521,7 +4939,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(
                                                 color: scheme.onSurfaceVariant
-                                                    .withOpacity(0.42),
+                                                    .withOpacity(isDark ? 0.42 : 0.9),
                                                 fontWeight: FontWeight.w600,
                                               ),
                                         ),
@@ -4533,7 +4951,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                                     .keyboard_arrow_down_rounded,
                                           size: 18,
                                           color: scheme.onSurfaceVariant
-                                              .withOpacity(0.38),
+                                              .withOpacity(isDark ? 0.38 : 0.75),
                                         ),
                                       ],
                                     ),
@@ -4671,103 +5089,51 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _toggle(Task t) async {
+    final dateKey = _calendar.loadedPeriod?.dayKey;
+    await _calendar.check();
+    if (!mounted ||
+        !_calendar.isCurrent ||
+        dateKey != _calendar.loadedPeriod?.dayKey) {
+      return;
+    }
     if (_completed[t.id] == true) {
       return;
     }
-    final newVal = !(_completed[t.id] ?? false);
-    if (newVal) {
-      if (kDebugMode && _debugInstantComplete) {
-        await _completeTaskImmediately(t);
-      } else {
-        await _startTaskTimer(t);
-        return;
-      }
-    }
-    _updateState(() => _completed[t.id] = newVal);
-    await _repo.saveCompletedMap(_completed);
-
-    if (newVal) {
-      await _markTaskDone(t);
+    if (kDebugMode && _debugInstantComplete) {
+      await _completeCalendarTask(t, dateKey: dateKey);
     } else {
-      final newDaily = await _repo.incrementDailyCompleted(
-        _todayKey(),
-        delta: -1,
-      );
-      if (mounted) _updateState(() => _todayCompleted = newDaily);
+      await _startTaskTimer(t);
     }
-
-    await _applyStreakIfAllDone();
-    unawaited(_syncHomeWidgetSnapshot());
   }
 
-  Future<void> _applyStreakIfAllDone() async {
-    final previousStreak = _streak;
-    final done = _today.where((x) => _completed[x.id] == true).length;
-    final allDone = _today.isNotEmpty && done == _today.length;
-    if (!allDone) return;
+  void _queueRecordedAllDoneFeedback(
+    TaskCompletionCommit commit, {
+    required int previousStreak,
+    required List<Future<void> Function()> feedback,
+  }) {
+    if (!commit.allDoneHandled) return;
+    feedback.add(() async {
+      final nextBestSuggestion = await _resolveNextBestSparkSuggestion();
+      if (!_canShowCompletionFeedback(commit.dateKey)) return;
+      await _showAllDoneCelebration(nextBestSuggestion: nextBestSuggestion);
+    });
 
-    final todayKey = _todayKey();
-    if (_allDoneShownKey == todayKey) return;
-    _allDoneShownKey = todayKey;
-
-    final lastDone = await _repo.getLastCompletedDate();
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-    DateTime? lastDoneDate;
-    if (lastDone != null && lastDone.isNotEmpty) {
-      try {
-        lastDoneDate = DateFormat('yyyy-MM-dd').parse(lastDone);
-      } catch (_) {
-        lastDoneDate = null;
-      }
-    }
-
-    final resolution = StreakService.resolveNextStreak(
-      currentStreak: _streak,
-      today: todayDate,
-      lastCompletedDate: lastDoneDate,
-    );
-    final diffDays = lastDoneDate == null
-        ? null
-        : todayDate.difference(lastDoneDate).inDays;
-    _log(
-      "STREAK: lastDone=$lastDone today=$todayKey diffDays=$diffDays current=$_streak next=${resolution.nextStreak} update=${resolution.shouldUpdate}",
-    );
-
-    final nextBestSuggestion = await _resolveNextBestSparkSuggestion();
-    unawaited(_showAllDoneCelebration(nextBestSuggestion: nextBestSuggestion));
-
-    if (!resolution.shouldUpdate) return;
-    final newStreak = resolution.nextStreak;
-
-    await _repo.setStreakCount(newStreak);
-    await _repo.setLastCompletedDate(todayKey);
-    await _repo.setBestStreakIfHigher(newStreak);
+    final newStreak = commit.streak;
+    if (newStreak == null) return;
     _track('streak_updated', {'new_streak': newStreak, 'was_all_done': true});
-    if (newStreak > _streak) {
+    if (newStreak > previousStreak) {
       _track('streak_incremented', {'new_streak': newStreak});
     }
-
-    final totalCompleted = await _repo.getTotalCompleted();
-    if (mounted) {
-      _updateState(() => _totalSparksLit = totalCompleted);
-    }
-    final categoryCounts = await _repo.getCategoryCounts();
-    final streakBadges = await _repo.awardBadges(
-      totalCompleted: totalCompleted,
-      bestStreak: newStreak,
-      categoryCounts: categoryCounts,
-    );
+    final streakBadges = commit.streakBadges;
     if (mounted && streakBadges.isNotEmpty) {
       _updateState(() => _earnedBadgesCount += streakBadges.length);
-      _showBadgeUnlocked(streakBadges.first);
-      unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
+      feedback.add(() => _showBadgeUnlocked(streakBadges.first));
+      feedback.add(() => _maybePromptForRating(trigger: 'badge_unlock'));
     }
-
     if (!mounted) return;
     _updateState(() => _streak = newStreak);
     if (newStreak >= 7 && previousStreak < 7) {
-      unawaited(_maybePromptForRating(trigger: 'streak_7'));
+      feedback.add(() => _maybePromptForRating(trigger: 'streak_7'));
     }
   }
 
@@ -4781,10 +5147,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }) async {
     if (!mounted) return;
     final scheme = Theme.of(context).colorScheme;
+    final streakCount = _streak;
     await showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'All done',
+      barrierLabel: context.l10n.tr('All done for today'),
       barrierColor: Colors.black.withOpacity(0.75),
       transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (_, _, _) => const SizedBox.shrink(),
@@ -4798,6 +5165,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
             scale: scale,
             child: _AllDoneOverlay(
               scheme: scheme,
+              streakCount: streakCount,
               nextBestSuggestion: nextBestSuggestion,
               onStartNextBestSpark: () async {
                 final started = await _addAndStartNextBestSpark(
@@ -4821,9 +5189,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     );
   }
 
-  void _showBadgeUnlocked(String badgeId) {
+  Future<void> _showBadgeUnlocked(String badgeId) async {
+    if (!mounted) return;
     final info = _badgeInfo(badgeId);
-    showGeneralDialog(
+    await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Badge unlocked',
@@ -4859,7 +5228,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (!mounted) return;
     final newLevel = progress.level;
     final levelTitle = _levelTitleForUi(newLevel);
-    final unlockedFeature = LevelUnlocks.unlockForLevel(newLevel);
+    final unlockedFeature = newLevel == LevelUnlocks.themeSwitcherLevel
+        ? null
+        : LevelUnlocks.unlockForLevel(newLevel);
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -4987,20 +5358,33 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _startTaskTimer(Task task) async {
+    final dayKey = _calendar.loadedPeriod?.dayKey;
+    await _runCalendarAction(dayKey, (_) async {
+      if (!mounted ||
+          task.assignmentId == null ||
+          !_today.any((item) => identical(item, task))) {
+        return;
+      }
+      await _startTaskTimerForDay(task, dayKey!);
+    });
+  }
+
+  Future<void> _startTaskTimerForDay(Task task, String dayKey) async {
     final duration = Duration(seconds: task.totalDurationSeconds);
     final notificationId = _taskTimerNotificationId(task.id);
-    if (_activeTimerTask != null && _activeTimerTask!.id != task.id) {
+    if (_activeTimerTask != null && !task.hasSameAssignment(_activeTimerTask)) {
       await _cancelTaskTimer(_activeTimerTask!);
     }
     _activeTimerTicker?.cancel();
     final endAt = DateTime.now().add(duration);
     _updateState(() {
       _activeTimerTask = task;
+      _activeTimerDateKey = dayKey;
       _activeTimerRemaining = duration;
       _activeTimerFinished = false;
       _activeTimerPaused = false;
       if (_flowModeEnabled) {
-        _flowTaskId = task.id;
+        _flowAssignmentId = task.assignmentId;
         _flowMomentumPrompt = false;
       }
     });
@@ -5033,8 +5417,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     });
     await _repo.saveActiveTaskTimer(
       taskId: task.id,
+      assignmentId: task.assignmentId,
       taskTitle: task.title,
       endAt: endAt,
+      dateKey: dayKey,
     );
 
     _startActiveTimerTicker(
@@ -5054,6 +5440,34 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     unawaited(_syncHomeWidgetSnapshot());
   }
 
+  // The writer has already removed the inline timer's persistent record.
+  // Keep platform cleanup best-effort and separate from its storage result.
+  Future<void> _finishRecordedTaskTimer(Task task) async {
+    _activeTimerTicker?.cancel();
+    if (mounted) {
+      _updateState(() {
+        _activeTimerTask = null;
+        _activeTimerDateKey = null;
+        _activeTimerRemaining = Duration.zero;
+        _activeTimerFinished = false;
+        _activeTimerPaused = false;
+      });
+    }
+    for (final cleanup in <Future<void> Function()>[
+      () => NotificationService.instance.cancelTaskTimer(
+        _taskTimerNotificationId(task.id),
+      ),
+      NotificationService.instance.cancelTaskTimerOngoing,
+      _syncHomeWidgetSnapshot,
+    ]) {
+      try {
+        await cleanup();
+      } catch (error) {
+        _log('Recorded timer cleanup failed: $error');
+      }
+    }
+  }
+
   Future<void> _cancelTaskTimer(Task task) async {
     final notificationId = _taskTimerNotificationId(task.id);
     await NotificationService.instance.cancelTaskTimer(notificationId);
@@ -5063,6 +5477,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (!mounted) return;
     _updateState(() {
       _activeTimerTask = null;
+      _activeTimerDateKey = null;
       _activeTimerRemaining = Duration.zero;
       _activeTimerFinished = false;
       _activeTimerPaused = false;
@@ -5071,7 +5486,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _pauseTaskTimer(Task task) async {
-    if (_activeTimerTask?.id != task.id) return;
+    await _runCalendarAction(
+      _activeTimerDateKey,
+      (_) => _pauseTaskTimerForDay(task),
+    );
+  }
+
+  Future<void> _pauseTaskTimerForDay(Task task) async {
+    if (!task.hasSameAssignment(_activeTimerTask)) return;
     if (_activeTimerFinished || _activeTimerPaused) return;
     final notificationId = _taskTimerNotificationId(task.id);
     _activeTimerTicker?.cancel();
@@ -5085,7 +5507,14 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _resumeTaskTimer(Task task) async {
-    if (_activeTimerTask?.id != task.id) return;
+    await _runCalendarAction(
+      _activeTimerDateKey,
+      (_) => _resumeTaskTimerForDay(task),
+    );
+  }
+
+  Future<void> _resumeTaskTimerForDay(Task task) async {
+    if (!task.hasSameAssignment(_activeTimerTask)) return;
     if (_activeTimerFinished || !_activeTimerPaused) return;
     final remaining = _activeTimerRemaining;
     if (remaining <= Duration.zero) return;
@@ -5098,8 +5527,10 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     }
     await _repo.saveActiveTaskTimer(
       taskId: task.id,
+      assignmentId: task.assignmentId,
       taskTitle: task.title,
       endAt: endAt,
+      dateKey: _activeTimerDateKey,
     );
     _startActiveTimerTicker(
       task: task,
@@ -5117,28 +5548,25 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     unawaited(_syncHomeWidgetSnapshot());
   }
 
-  Future<void> _markTaskDone(Task task) async {
-    final completedFromTimer = _activeTimerTask?.id == task.id;
-    final weekKey = _repo.currentWeekKey();
+  List<Future<void> Function()> _applyRecordedTask(
+    Task task,
+    TaskCompletionCommit commit, {
+    required bool completedFromTimer,
+    required int xpReward,
+  }) {
+    final feedback = <Future<void> Function()>[];
+    final weekKey = commit.weekKey;
+    final previousStreak = _streak;
     final beforeWeekDone = _weeklyDoneTotal();
     final weekTarget = _weeklyTargetTotal();
     final categoryTarget = _weeklyTargets[task.category] ?? 0;
     final weeklyDoneForOverlay = (weekTarget > 0 && categoryTarget > 0)
         ? beforeWeekDone + 1
         : null;
-    final xpReward = _taskXpReward(task);
     final previousLevel = _level;
-    await HapticFeedback.lightImpact();
-    if (_activeTimerTask?.id == task.id) {
-      await _cancelTaskTimer(task);
-    }
-    await _repo.incrementCompleted(
-      task.category,
-      task: task,
-      completedAt: DateTime.now(),
-    );
-    final xpProgress = await _repo.addXp(xpReward);
-    final newDaily = await _repo.incrementDailyCompleted(_todayKey());
+    feedback.add(HapticFeedback.lightImpact);
+    final xpProgress = commit.xp;
+    final newDaily = commit.dailyCompleted;
     final remainingActionCount = _today
         .where((item) => _completed[item.id] != true)
         .length;
@@ -5161,30 +5589,28 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         _pendingCompletionDoneCount = newDaily;
       });
     }
-    await _showTaskCompletionMomentum(
-      task: task,
-      completedToday: newDaily,
-      completionChainId: completionChainId,
-      remainingActionCount: remainingActionCount,
-      secondStepSuggestion: secondStepSuggestion,
-      weeklyDoneTotal: weeklyDoneForOverlay,
-      weeklyTargetTotal: weekTarget > 0 ? weekTarget : null,
+    feedback.add(
+      () => _showTaskCompletionMomentum(
+        task: task,
+        completedToday: newDaily,
+        completionChainId: completionChainId,
+        remainingActionCount: remainingActionCount,
+        secondStepSuggestion: secondStepSuggestion,
+        weeklyDoneTotal: weeklyDoneForOverlay,
+        weeklyTargetTotal: weekTarget > 0 ? weekTarget : null,
+      ),
     );
-    await _syncChallengeProgressForToday(
-      completedToday: newDaily,
+    _applyChallengeCompletionFeedback(
+      commit.challenge,
+      feedback: feedback,
       fromTaskCompletion: true,
-    );
-    await _repo.setLastCompletedTask(
-      title: task.title,
-      category: task.category,
-      dateKey: _todayKey(),
     );
     if (mounted) {
       _updateState(() => _lastCompletedTaskTitle = task.title);
     } else {
       _lastCompletedTaskTitle = task.title;
     }
-    final total = await _repo.getTotalCompleted();
+    final total = commit.totalCompleted;
     if (mounted) {
       _updateState(() => _totalSparksLit = total);
     }
@@ -5198,25 +5624,23 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         },
       );
     }
-    final best = await _repo.getBestStreak();
-    final counts = await _repo.getCategoryCounts();
-    final newBadges = await _repo.awardBadges(
-      totalCompleted: total,
-      bestStreak: best,
-      categoryCounts: counts,
-    );
-    if (categoryTarget > 0) {
-      final progress = await _repo.incrementWeeklyProgress(
-        weekKey: weekKey,
-        category: task.category,
+    final newBadges = commit.badges;
+    final progress = commit.weeklyProgress;
+    if (progress != null) {
+      final visibleDone = _filterWeeklyDoneByTargets(
+        done: progress.done,
+        targets: _weeklyTargets,
       );
       if (mounted) {
         _updateState(() {
           _weeklyWeekKey = weekKey;
-          _weeklyDone = progress.done;
+          _weeklyDone = visibleDone;
         });
       }
-      final afterWeekDone = progress.totalDone;
+      final afterWeekDone = visibleDone.values.fold<int>(
+        0,
+        (sum, value) => sum + value,
+      );
       _track('weekly_progress_updated', {
         'week_key': weekKey,
         'category': task.category,
@@ -5267,9 +5691,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       });
     }
     if (xpProgress.level == previousLevel && newBadges.isEmpty) {
-      await _controller.showInterstitialAfterTaskCompletion(
-        dateKey: _todayKey(),
-        completedToday: newDaily,
+      feedback.add(
+        () => _controller.showInterstitialAfterTaskCompletion(
+          dateKey: _todayKey(),
+          completedToday: newDaily,
+        ),
       );
     }
     if (xpProgress.level > previousLevel) {
@@ -5279,69 +5705,121 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         'total_xp': xpProgress.totalXp,
       });
       if (mounted) {
-        await _showLevelUpOverlay(
-          previousLevel: previousLevel,
-          progress: xpProgress,
+        feedback.add(
+          () => _showLevelUpOverlay(
+            previousLevel: previousLevel,
+            progress: xpProgress,
+          ),
         );
       }
     }
     if (mounted && newBadges.isNotEmpty) {
       _updateState(() => _earnedBadgesCount += newBadges.length);
-      _showBadgeUnlocked(newBadges.first);
-      unawaited(_maybePromptForRating(trigger: 'badge_unlock'));
+      feedback.add(() => _showBadgeUnlocked(newBadges.first));
+      feedback.add(() => _maybePromptForRating(trigger: 'badge_unlock'));
     }
-    final lastCatDateStr = await _repo.getCategoryLastCompletedDate(
-      task.category,
-    );
-    DateTime? lastCatDate;
-    if (lastCatDateStr != null && lastCatDateStr.isNotEmpty) {
-      try {
-        lastCatDate = DateFormat('yyyy-MM-dd').parse(lastCatDateStr);
-      } catch (_) {}
-    }
-
-    final currentCatStreak = await _repo.getCategoryStreak(task.category);
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-
-    final catResolution = StreakService.resolveNextStreak(
-      currentStreak: currentCatStreak,
-      today: todayDate,
-      lastCompletedDate: lastCatDate,
-    );
-
-    if (catResolution.shouldUpdate) {
-      await _repo.setCategoryStreak(task.category, catResolution.nextStreak);
-      await _repo.setCategoryLastCompletedDate(task.category, _todayKey());
-
-      final ms = catResolution.nextStreak;
+    final ms = commit.categoryStreak;
+    if (ms != null) {
       final isMilestone =
           ms == 3 || ms == 5 || ms == 10 || ms == 15 || ms == 30;
 
       if (isMilestone && mounted) {
-        task.category.toUpperCase();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "✨ \$catUpper MASTER ✨ You've hit a \$ms-day streak in \$catUpper tasks!",
+        feedback.add(() async {
+          final l10n = context.l10n;
+          final notice = ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.trf('Category streak milestone: {category}, {count}', {
+                  'category': l10n.categoryBadgeLabel(task.category),
+                  'count': ms,
+                }),
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
             ),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-        _track('category_streak_milestone', {
-          'category': task.category,
-          'streak': ms,
+          );
+          _track('category_streak_milestone', {
+            'category': task.category,
+            'streak': ms,
+          });
+          await notice.closed;
         });
       }
     }
+    _queueRecordedAllDoneFeedback(
+      commit,
+      previousStreak: previousStreak,
+      feedback: feedback,
+    );
+    return feedback;
   }
 
   int _taskTimerNotificationId(String taskId) {
     // Avoid collisions with fixed notification IDs (e.g. daily reminder, ongoing timer).
     final h = taskId.hashCode & 0x7fffffff;
     return 300000 + (h % 100000);
+  }
+
+  Future<FocusSession?> _readResumableFocusSession(
+    List<Task> tasks,
+    Map<String, bool> completed,
+    String dayKey,
+  ) async {
+    // Only restore an exact current-day assignment. Legacy sessions remain
+    // stored, but neither a matching task ID nor a deadline can bind them.
+    FocusSession? pausedSession;
+    for (final task in tasks) {
+      final assignmentId = task.assignmentId;
+      if (assignmentId == null ||
+          completed[task.id] == true ||
+          tasks.where((item) => item.assignmentId == assignmentId).length != 1) {
+        continue;
+      }
+      final saved = await _repo.getFocusSession(
+        taskId: task.id,
+        assignmentId: assignmentId,
+        dateKey: dayKey,
+      );
+      if (saved == null) continue;
+      if (!saved.isPaused) return saved;
+      pausedSession ??= saved;
+    }
+    return pausedSession;
+  }
+
+  Future<void> _refreshResumableFocusSession() async {
+    final dayKey = _calendar.loadedPeriod?.dayKey;
+    if (dayKey == null || !_calendar.isCurrent) return;
+    final session = await _readResumableFocusSession(_today, _completed, dayKey);
+    if (!mounted ||
+        !_calendar.isCurrent ||
+        dayKey != _calendar.loadedPeriod?.dayKey) {
+      return;
+    }
+    _updateState(() => _resumableFocusSession = session);
+    _startFocusResumeTicker();
+  }
+
+  void _startFocusResumeTicker() {
+    _focusResumeTicker?.cancel();
+    final session = _resumableFocusSession;
+    if (session == null ||
+        session.isPaused ||
+        session.remainingAt(DateTime.now()) == 0) {
+      return;
+    }
+    // Presentation only: expiry never completes a task or grants rewards.
+    _focusResumeTicker = Timer.periodic(const Duration(seconds: 1), (ticker) {
+      if (!mounted ||
+          !_calendar.isCurrent ||
+          session.dateKey != _calendar.loadedPeriod?.dayKey) {
+        ticker.cancel();
+        return;
+      }
+      _updateState(() {});
+      if (session.remainingAt(DateTime.now()) == 0) ticker.cancel();
+    });
   }
 
   Future<void> _restoreActiveTimerIfNeeded() async {
@@ -5352,21 +5830,31 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         return;
       }
 
-      Task? matchedTask;
-      for (final task in _today) {
-        if (task.id == saved.taskId) {
-          matchedTask = task;
-          break;
-        }
+      // Legacy timers have no trustworthy start day; never infer it from endAt.
+      if (!_calendar.isCurrent ||
+          !saved.belongsToDay(_calendar.loadedPeriod?.dayKey ?? '')) {
+        _log('Timer retained without restoring: missing or different start day.');
+        await _notifications.cancelTaskTimer(
+          _taskTimerNotificationId(saved.taskId),
+        );
+        await _notifications.cancelTaskTimerOngoing();
+        return;
       }
-
-      if (matchedTask == null) {
-        await _repo.clearActiveTaskTimer();
+      final matches = _today.where((task) =>
+          saved.assignmentId != null &&
+          task.assignmentId == saved.assignmentId &&
+          task.id == saved.taskId).toList();
+      if (matches.length != 1) {
+        _log('Timer retained without restoring: assignment is not uniquely matched.');
+        await NotificationService.instance.cancelTaskTimer(
+          _taskTimerNotificationId(saved.taskId),
+        );
         await NotificationService.instance.cancelTaskTimerOngoing();
         await _syncHomeWidgetSnapshot();
         return;
       }
-
+      final matchedTask = matches.single;
+      _activeTimerDateKey = saved.dateKey;
       final notificationId = _taskTimerNotificationId(matchedTask.id);
       final remaining = saved.endAt.difference(DateTime.now());
       _activeTimerTicker?.cancel();
@@ -5419,7 +5907,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
 
   bool _isAppResumedForLocalNotifications() {
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    return lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    return lifecycleState == null ||
+        lifecycleState == AppLifecycleState.resumed;
   }
 
   void _scheduleTaskTimerFinishNotificationBestEffort({
@@ -5463,6 +5952,12 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     // Keep UI timer in sync and fire completion notification when app is active.
     _activeTimerTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      if (!_calendar.isCurrent ||
+          _activeTimerDateKey != _calendar.loadedPeriod?.dayKey) {
+        _activeTimerTicker?.cancel();
+        unawaited(_calendar.check());
+        return;
+      }
       final remaining = endAt.difference(DateTime.now());
       if (remaining <= Duration.zero) {
         _updateState(() {
@@ -5474,7 +5969,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
             _isAppResumedForLocalNotifications() && !_flowModeEnabled;
         unawaited(NotificationService.instance.cancelTaskTimerOngoing());
         if (shouldShowImmediateCompletionNotification || _flowModeEnabled) {
-          unawaited(NotificationService.instance.cancelTaskTimer(notificationId));
+          unawaited(
+            NotificationService.instance.cancelTaskTimer(notificationId),
+          );
         }
         if (_flowModeEnabled) {
           _activeTimerTicker?.cancel();
@@ -5532,6 +6029,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
   }
 
   Future<void> _refreshTasks() async {
+    await _calendar.check();
+    if (!mounted || !_calendar.isCurrent) return;
     final scheme = Theme.of(context).colorScheme;
     final dateKey = _todayKey();
     final refreshCount = await _repo.getRefreshCount(dateKey);
@@ -5573,6 +6072,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       builder: (context) {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
+        final isDark = scheme.brightness == Brightness.dark;
         return TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
           duration: const Duration(milliseconds: 320),
@@ -5599,16 +6099,18 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                           colors: [
                             Color.alphaBlend(
                               const Color(0xFF8B7CFF).withOpacity(0.07),
-                              const Color(0xFF101726),
+                              isDark ? const Color(0xFF101726) : scheme.surface,
                             ),
                             Color.alphaBlend(
                               const Color(0xFF5DE1FF).withOpacity(0.035),
-                              const Color(0xFF0E1523),
+                              isDark ? const Color(0xFF0E1523) : scheme.surface,
                             ),
                           ],
                         ),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.06),
+                          color: isDark
+                              ? Colors.white.withOpacity(0.06)
+                              : scheme.outline.withOpacity(0.25),
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -5668,7 +6170,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   height: 1.22,
-                                  color: Colors.white.withOpacity(0.95),
+                                  color: scheme.onSurface.withOpacity(0.95),
                                 ),
                               ),
                             ),
@@ -5845,6 +6347,24 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     required bool premiumActive,
     required int refreshCount,
   }) async {
+    await _runCalendarAction(
+      dateKey,
+      (_) => _performRefreshForDay(
+        scheme: scheme,
+        dateKey: dateKey,
+        premiumActive: premiumActive,
+        refreshCount: refreshCount,
+      ),
+    );
+    if (mounted) _updateState(() => _refreshing = false);
+  }
+
+  Future<void> _performRefreshForDay({
+    required ColorScheme scheme,
+    required String dateKey,
+    required bool premiumActive,
+    required int refreshCount,
+  }) async {
     _log(" REFRESH: Loading new tasks...");
     final pool = await _repo.loadPool();
     final poolError = _repo.lastPoolError;
@@ -5943,7 +6463,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       durationMinutes: 7,
     );
 
-    final pickedWithSpecial = [...adapted, special];
+    final pickedWithSpecial = [...adapted, special]
+        .map((task) => task.newAssignment()).toList();
 
     _log(
       " REFRESH: Picked task IDs = ${pickedWithSpecial.map((t) => t.id).toList()}",
@@ -6063,7 +6584,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
         return;
       }
 
-      final updated = [..._today, ...picked];
+      final updated = [..._today, ...picked.map((task) => task.newAssignment())];
       await _repo.saveSelectedTasks(updated);
       await _controller.updateLastSeen(dateKey: _todayKey(), tasks: picked);
 
@@ -6657,7 +7178,7 @@ class _RefreshChoiceButtonState extends State<_RefreshChoiceButton> {
         ? const Color(0xFF8B7CFF)
         : const Color(0xFF5DE1FF);
     final fg = widget.emphasized
-        ? Colors.white.withOpacity(0.96)
+        ? const Color(0xFF151B30)
         : scheme.onSurface.withOpacity(0.86);
     final borderOpacity = widget.emphasized ? 0.0 : 0.06;
     final grainOpacity = widget.emphasized ? 0.0 : 0.012;
@@ -6696,7 +7217,9 @@ class _RefreshChoiceButtonState extends State<_RefreshChoiceButton> {
                   : LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: const [Color(0xFF101726), Color(0xFF101726)],
+                      colors: scheme.brightness == Brightness.dark
+                          ? const [Color(0xFF101726), Color(0xFF101726)]
+                          : [scheme.surfaceContainerHighest, scheme.surfaceContainerHighest],
                     ),
               boxShadow: [
                 BoxShadow(
@@ -7037,6 +7560,29 @@ class _LevelUpOverlayCard extends StatelessWidget {
                 ),
               ),
             ],
+            if (previousLevel < LevelUnlocks.themeSwitcherLevel &&
+                newLevel >= LevelUnlocks.themeSwitcherLevel) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: scheme.primary.withOpacity(0.1),
+                  border: Border.all(color: scheme.primary.withOpacity(0.28)),
+                ),
+                child: Text(
+                  context.l10n.darkThemeUnlockedMessage,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(2),
@@ -7074,12 +7620,14 @@ class _LevelUpOverlayCard extends StatelessWidget {
 class _AllDoneOverlay extends StatelessWidget {
   const _AllDoneOverlay({
     required this.scheme,
+    required this.streakCount,
     required this.onViewStats,
     this.nextBestSuggestion,
     this.onStartNextBestSpark,
   });
 
   final ColorScheme scheme;
+  final int streakCount;
   final VoidCallback onViewStats;
   final _NextBestSparkSuggestion? nextBestSuggestion;
   final Future<void> Function()? onStartNextBestSpark;
@@ -7088,6 +7636,7 @@ class _AllDoneOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return _AllDoneOverlayBody(
       scheme: scheme,
+      streakCount: streakCount,
       onViewStats: onViewStats,
       nextBestSuggestion: nextBestSuggestion,
       onStartNextBestSpark: onStartNextBestSpark,
@@ -7098,12 +7647,14 @@ class _AllDoneOverlay extends StatelessWidget {
 class _AllDoneOverlayBody extends StatefulWidget {
   const _AllDoneOverlayBody({
     required this.scheme,
+    required this.streakCount,
     required this.onViewStats,
     this.nextBestSuggestion,
     this.onStartNextBestSpark,
   });
 
   final ColorScheme scheme;
+  final int streakCount;
   final VoidCallback onViewStats;
   final _NextBestSparkSuggestion? nextBestSuggestion;
   final Future<void> Function()? onStartNextBestSpark;
@@ -7159,6 +7710,7 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
   @override
   Widget build(BuildContext context) {
     final scheme = widget.scheme;
+    final l10n = context.l10n;
     return Center(
       child: Stack(
         alignment: Alignment.center,
@@ -7289,7 +7841,7 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    "You're set for today",
+                    l10n.tr("You're set for today."),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
@@ -7298,7 +7850,9 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Streak +1. See you tomorrow.',
+                    widget.streakCount > 0
+                        ? '${l10n.currentStreak(widget.streakCount)}. ${l10n.tr('See you tomorrow.')}'
+                        : l10n.tr('See you tomorrow.'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -7314,14 +7868,16 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
                     ),
                   ],
                   const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       FilledButton.icon(
                         onPressed: () => Navigator.of(context).maybePop(),
                         icon: const Icon(Icons.check_rounded, size: 18),
                         label: Text(
-                          'Close',
+                          l10n.tr('Close'),
                           style: Theme.of(context).textTheme.labelLarge
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
@@ -7337,11 +7893,10 @@ class _AllDoneOverlayBodyState extends State<_AllDoneOverlayBody>
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
                       OutlinedButton.icon(
                         onPressed: widget.onViewStats,
                         icon: const Icon(Icons.insights_rounded, size: 17),
-                        label: const Text('View progress'),
+                        label: Text(l10n.tr('View progress')),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: scheme.onSurface.withOpacity(0.88),
                           padding: const EdgeInsets.symmetric(
@@ -7397,6 +7952,7 @@ class _NextBestSparkCard extends StatelessWidget {
         : l10n.secondsLabel(durationSec);
     final localizedTitle = TaskLocalizer.localizeTitle(
       suggestion.task.title,
+      localeCode: Localizations.localeOf(context).languageCode,
       category: suggestion.task.category,
       taskId: suggestion.task.id,
     );
@@ -7457,7 +8013,7 @@ class _NextBestSparkCard extends StatelessWidget {
                   border: Border.all(color: scheme.primary.withOpacity(0.14)),
                 ),
                 child: Text(
-                  suggestion.task.category.toUpperCase(),
+                  l10n.categoryBadgeLabel(suggestion.task.category),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: scheme.primary,

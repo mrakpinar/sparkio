@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../app_strings.dart';
 import '../services/task_localizer.dart';
+import '../theme/reward_colors.dart';
 
 class HomeFlowModeSliver extends StatelessWidget {
   const HomeFlowModeSliver({
@@ -24,6 +25,7 @@ class HomeFlowModeSliver extends StatelessWidget {
     this.onDoneForToday,
     this.onPauseAction,
     this.onEndAction,
+    this.focusSessionAvailable = false,
   });
 
   final Task? task;
@@ -41,6 +43,7 @@ class HomeFlowModeSliver extends StatelessWidget {
   final VoidCallback? onDoneForToday;
   final VoidCallback? onPauseAction;
   final VoidCallback? onEndAction;
+  final bool focusSessionAvailable;
 
   _CategoryVisual _categoryVisual(Task? task, AppLocalizations l10n) {
     final category = task?.category.toLowerCase() ?? 'mind';
@@ -50,28 +53,24 @@ class HomeFlowModeSliver extends StatelessWidget {
           label: l10n.categoryBadgeLabel('health'),
           icon: Icons.favorite_rounded,
           tone: Color(0xFF2FD0B2),
-          toneSoft: Color(0xFF1E8E84),
         );
       case 'growth':
         return _CategoryVisual(
           label: l10n.categoryBadgeLabel('growth'),
           icon: Icons.trending_up_rounded,
           tone: Color(0xFF6E8EFF),
-          toneSoft: Color(0xFF395BC9),
         );
       case 'body':
         return _CategoryVisual(
           label: l10n.categoryBadgeLabel('body'),
           icon: Icons.fitness_center_rounded,
           tone: Color(0xFF62B3FF),
-          toneSoft: Color(0xFF2E6FBD),
         );
       case 'calm':
         return _CategoryVisual(
           label: l10n.categoryBadgeLabel('calm'),
           icon: Icons.spa_rounded,
           tone: Color(0xFF9A84FF),
-          toneSoft: Color(0xFF5C4ABB),
         );
       case 'mind':
       default:
@@ -79,7 +78,6 @@ class HomeFlowModeSliver extends StatelessWidget {
           label: l10n.categoryBadgeLabel('mind'),
           icon: Icons.psychology_rounded,
           tone: Color(0xFFB08CFF),
-          toneSoft: Color(0xFF684EBD),
         );
     }
   }
@@ -91,7 +89,7 @@ class HomeFlowModeSliver extends StatelessWidget {
     if (totalSeconds % 60 == 0) return l10n.minutesLabel(totalSeconds ~/ 60);
     final minutes = totalSeconds ~/ 60;
     final seconds = totalSeconds % 60;
-    return '${l10n.minuteShortLabel(minutes)} $seconds ${l10n.tr('seconds')}';
+    return '${l10n.minuteShortLabel(minutes)} ${l10n.secondsLabel(seconds)}';
   }
 
   String _formatCountdown(Duration remaining) {
@@ -111,25 +109,17 @@ class HomeFlowModeSliver extends StatelessWidget {
     final visual = _categoryVisual(activeTask, l10n);
     final timerActive = timerRunning || timerPaused || timerFinished;
     final ctaEnabled = showMomentumPrompt || activeTask != null;
-    final title = showMomentumPrompt ? l10n.nice : l10n.yourNextTinyStep;
     final localizedTaskTitle = activeTask == null
         ? null
         : TaskLocalizer.localizeTitle(
             activeTask.title,
+            localeCode: Localizations.localeOf(context).languageCode,
             category: activeTask.category,
             taskId: activeTask.id,
           );
-    final stepLine = showMomentumPrompt
-        ? l10n.youDidIt
-        : (localizedTaskTitle ?? l10n.takeOneEasyBreath);
+    final stepLine = localizedTaskTitle ?? l10n.takeOneEasyBreath;
     final safeDailyGoal = dailyGoalCount <= 0 ? 1 : dailyGoalCount;
     final safeDoneToday = completedTodayCount.clamp(0, safeDailyGoal);
-    final safeWeeklyTarget = weeklyTargetCount <= 0 ? 1 : weeklyTargetCount;
-    final safeWeeklyDone = weeklyDoneCount.clamp(0, safeWeeklyTarget);
-    final weeklyProgress = (safeWeeklyDone / safeWeeklyTarget)
-        .clamp(0.0, 1.0)
-        .toDouble();
-
     final totalSeconds = activeTask?.totalDurationSeconds ?? 60;
     final remainingSeconds = (timerRemaining ?? Duration.zero).inSeconds.clamp(
       0,
@@ -142,385 +132,246 @@ class HomeFlowModeSliver extends StatelessWidget {
       _formatCountdown(timerRemaining ?? Duration.zero),
     );
 
-    final subtitle = showMomentumPrompt
-        ? 'Want another?'
-        : timerFinished
-        ? l10n.tr('Ready to finish')
-        : timerActive
-        ? l10n.keepYourRhythm
-        : l10n.approxNoPressure(_localizedDurationLabel(l10n, activeTask));
     final xpLabel = activeTask == null ? null : '+${activeTask.xpReward} XP';
-    final ctaLabel = showMomentumPrompt
+    final ctaLabel = focusSessionAvailable
+        ? l10n.tr('Continue')
+        : showMomentumPrompt
         ? l10n.startSparkNumber((safeDoneToday + 1).clamp(2, 99))
         : timerFinished
         ? l10n.tr('Mark complete')
         : timerPaused
-        ? 'Resume'
+        ? l10n.tr('Resume timer')
         : l10n.beginNow;
     final showPrimaryAction = ctaEnabled;
     final showInlineCta =
         !showMomentumPrompt &&
         showPrimaryAction &&
-        (timerFinished || !timerActive);
+        (focusSessionAvailable || timerFinished || !timerActive);
+    final taskSummary = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.yourNextTinyStep,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: scheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          stepLine,
+          softWrap: true,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: scheme.onSurface,
+            fontWeight: FontWeight.w800,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _FlowMetaPill(icon: visual.icon, label: visual.label),
+            _FlowMetaPill(
+              icon: Icons.schedule_rounded,
+              label: _localizedDurationLabel(l10n, activeTask),
+            ),
+            if (activeTask != null)
+              _FlowMetaPill(
+                icon: Icons.signal_cellular_alt_rounded,
+                label: l10n.tr(switch (activeTask.difficulty) {
+                  'hard' => 'Hard',
+                  'medium' => 'Medium',
+                  _ => 'Easy',
+                }),
+              ),
+            if (xpLabel != null) _FlowXpBadge(label: xpLabel),
+          ],
+        ),
+      ],
+    );
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
-        child: Material(
-          color: Colors.transparent,
-          elevation: isDark ? 10 : 4,
-          shadowColor: Colors.black.withOpacity(isDark ? 0.26 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          clipBehavior: Clip.antiAlias,
-          child: Container(
-            constraints: BoxConstraints(
-              minHeight: showMomentumPrompt ? 236 : (timerActive ? 198 : 172),
-            ),
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? [
-                        Color.alphaBlend(
-                          scheme.onSurface.withOpacity(0.06),
-                          scheme.surface,
-                        ),
-                        scheme.surface,
-                        Color.alphaBlend(
-                          scheme.onSurface.withOpacity(0.03),
-                          scheme.surface,
-                        ),
-                      ]
-                    : [
-                        Color.alphaBlend(
-                          scheme.onSurface.withOpacity(0.08),
-                          scheme.surface,
-                        ),
-                        scheme.surface,
-                        Color.alphaBlend(
-                          scheme.onSurface.withOpacity(0.04),
-                          scheme.surface,
-                        ),
-                      ],
-                stops: const [0.0, 0.52, 1.0],
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: _HomeFlowCardShell(
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14.5),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              constraints: BoxConstraints(
+                minHeight: showMomentumPrompt ? 192 : (timerActive ? 184 : 152),
               ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: -24,
-                  top: 22,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            scheme.onSurface.withOpacity(isDark ? 0.08 : 0.04),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 1.0],
-                        ),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14.5),
+                color: scheme.surface,
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: -14,
+                    top: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 3,
+                        color: visual.tone.withOpacity(isDark ? 0.7 : 0.6),
                       ),
                     ),
                   ),
-                ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(0.0, 0.02),
-                          radius: 0.88,
-                          colors: [
-                            scheme.onSurface.withOpacity(isDark ? 0.04 : 0.02),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (showMomentumPrompt)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          l10n.niceYouShowedUp,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: scheme.onSurface.withOpacity(0.94),
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            _MomentumMiniRing(
-                              progress: (safeDoneToday / safeDailyGoal)
-                                  .clamp(0.0, 1.0)
-                                  .toDouble(),
-                              color: scheme.onSurface,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                l10n.sparksToday(safeDoneToday, safeDailyGoal),
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: scheme.onSurface.withOpacity(0.9),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(11),
-                            color: scheme.surface.withOpacity(
-                              isDark ? 0.26 : 0.6,
-                            ),
-                          ),
-                          child: Row(
+                  if (showMomentumPrompt)
+                    Padding(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 16,
-                                color: scheme.onSurface,
+                              _MomentumMiniRing(
+                                progress: (safeDoneToday / safeDailyGoal)
+                                    .clamp(0.0, 1.0)
+                                    .toDouble(),
+                                color: RewardColors.accent(scheme),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
-                                  latestWinTitle ?? l10n.oneSmallWinAdded,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: scheme.onSurface.withOpacity(0.88),
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      l10n.niceYouShowedUp,
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            color: scheme.onSurface.withOpacity(
+                                              0.94,
+                                            ),
+                                            fontWeight: FontWeight.w800,
+                                            height: 1.1,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      l10n.sparksToday(
+                                        safeDoneToday,
+                                        safeDailyGoal,
+                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: RewardColors.foreground(
+                                              scheme,
+                                            ),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                l10n.weeklyConsistency(
-                                  safeWeeklyDone,
-                                  safeWeeklyTarget,
-                                ),
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: scheme.onSurfaceVariant.withOpacity(
-                                    0.9,
-                                  ),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                          const SizedBox(height: 14),
+                          taskSummary,
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _GradientActionButton(
+                              label: ctaLabel,
+                              onTap: onPrimaryAction,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(999),
-                          child: LinearProgressIndicator(
-                            minHeight: 3,
-                            value: weeklyProgress,
-                            color: scheme.onSurface,
-                            backgroundColor: scheme.onSurfaceVariant
-                                .withOpacity(0.2),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _GradientActionButton(
-                            label: ctaLabel,
-                            onTap: onPrimaryAction,
+                          TextButton(
+                            onPressed: onDoneForToday,
+                            child: Text(l10n.iAmDoneForToday),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: onDoneForToday,
-                          child: Text(l10n.iAmDoneForToday),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: scheme.onSurfaceVariant.withOpacity(0.86),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.15,
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _CategoryChip(visual: visual),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        stepLine,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleLarge
-                                            ?.copyWith(
-                                              color: Colors.white.withOpacity(
-                                                0.97,
-                                              ),
-                                              fontWeight: FontWeight.w800,
-                                              height: 1.04,
-                                              fontSize: 18,
-                                              shadows: [
-                                                Shadow(
-                                                  color: visual.tone
-                                                      .withOpacity(0.18),
-                                                  blurRadius: 10,
-                                                ),
-                                              ],
-                                            ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _localizedDurationLabel(
-                                          l10n,
-                                          activeTask,
-                                        ),
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                              color: Colors.white.withOpacity(
-                                                0.76,
-                                              ),
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                      if (xpLabel != null) ...[
-                                        const SizedBox(height: 8),
-                                        _FlowXpBadge(label: xpLabel),
-                                      ],
-                                    ],
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              taskSummary,
+                              if (showInlineCta) ...[
+                                const SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: _GradientActionButton(
+                                    label: ctaLabel,
+                                    onTap: onPrimaryAction,
+                                    useLightPrimary: !timerFinished,
+                                    icon: timerFinished && !focusSessionAvailable
+                                        ? Icons.check_rounded
+                                        : Icons.play_arrow_rounded,
                                   ),
                                 ),
                               ],
-                            ),
-                            if (showInlineCta) ...[
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: _GradientActionButton(
-                                  label: ctaLabel,
-                                  onTap: onPrimaryAction,
-                                  icon: Icons.bolt_rounded,
+                              if (!showInlineCta) const SizedBox(height: 10),
+                              if (focusSessionAvailable && !timerFinished) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  timerLabel,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: scheme.onSurface,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: Text(
-                                  l10n.noPressureJustMomentum,
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: scheme.onSurfaceVariant.withOpacity(
-                                      0.74,
+                                const SizedBox(height: 10),
+                                _SparkProgressBar(
+                                  value: timerProgress,
+                                  color: scheme.onSurface,
+                                  backgroundColor: scheme.onSurfaceVariant
+                                      .withOpacity(0.2),
+                                ),
+                              ],
+                              if (!focusSessionAvailable &&
+                                  (timerRunning || timerPaused)) ...[
+                                _ActiveTimerControlBar(
+                                  timerLabel: timerLabel,
+                                  running: timerRunning,
+                                  paused: timerPaused,
+                                  onPauseTap: onPauseAction,
+                                  onEndTap: onEndAction,
+                                ),
+                                const SizedBox(height: 10),
+                                _SparkProgressBar(
+                                  value: timerProgress,
+                                  color: scheme.onSurface,
+                                  backgroundColor: scheme.onSurfaceVariant
+                                      .withOpacity(0.2),
+                                ),
+                              ],
+                              if (timerFinished) ...[
+                                if (focusSessionAvailable) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    l10n.tr('Timer finished'),
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: scheme.onSurface,
                                     ),
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.08,
                                   ),
+                                  const SizedBox(height: 10),
+                                ],
+                                _SparkProgressBar(
+                                  value: 1,
+                                  color: scheme.onSurface,
+                                  backgroundColor: scheme.onSurfaceVariant
+                                      .withOpacity(0.2),
                                 ),
-                              ),
+                              ],
                             ],
-                            if (!showInlineCta) const SizedBox(height: 10),
-                            if (!timerActive && !showInlineCta)
-                              Text(
-                                l10n.approxNoPressure(
-                                  _localizedDurationLabel(l10n, activeTask),
-                                ),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: scheme.onSurfaceVariant.withOpacity(
-                                    0.84,
-                                  ),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            if (timerRunning || timerPaused) ...[
-                              _ActiveTimerControlBar(
-                                timerLabel: timerLabel,
-                                running: timerRunning,
-                                paused: timerPaused,
-                                onPauseTap: onPauseAction,
-                                onEndTap: onEndAction,
-                              ),
-                              const SizedBox(height: 10),
-                              _SparkProgressBar(
-                                value: timerProgress,
-                                color: scheme.onSurface,
-                                backgroundColor: scheme.onSurfaceVariant
-                                    .withOpacity(0.2),
-                              ),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: Text(
-                                  timerPaused ? l10n.paused : subtitle,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: scheme.onSurface.withOpacity(0.66),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if (timerFinished) ...[
-                              _SparkProgressBar(
-                                value: 1,
-                                color: scheme.onSurface,
-                                backgroundColor: scheme.onSurfaceVariant
-                                    .withOpacity(0.2),
-                              ),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: Text(
-                                  subtitle,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: scheme.onSurface.withOpacity(0.66),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-              ],
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -537,30 +388,65 @@ class _FlowXpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final rewardAccent = RewardColors.accent(scheme);
+    final rewardForeground = RewardColors.foreground(scheme);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        gradient: LinearGradient(
-          colors: [
-            scheme.onSurface.withOpacity(0.12),
-            scheme.onSurface.withOpacity(0.06),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        color: RewardColors.background(scheme),
+        border: Border.all(color: rewardAccent.withOpacity(0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bolt_rounded, size: 12, color: scheme.onSurface),
+          Icon(Icons.bolt_rounded, size: 12, color: rewardAccent),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.onSurface.withOpacity(0.88),
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.12,
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: rewardForeground,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlowMetaPill extends StatelessWidget {
+  const _FlowMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: scheme.onSurface.withOpacity(0.04),
+        border: Border.all(color: scheme.outline.withOpacity(0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -574,74 +460,11 @@ class _CategoryVisual {
     required this.label,
     required this.icon,
     required this.tone,
-    required this.toneSoft,
   });
 
   final String label;
   final IconData icon;
   final Color tone;
-  final Color toneSoft;
-}
-
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.visual});
-
-  final _CategoryVisual visual;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 66,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.alphaBlend(
-              visual.tone.withOpacity(0.28),
-              const Color(0xFF24304A),
-            ),
-            Color.alphaBlend(
-              visual.toneSoft.withOpacity(0.2),
-              const Color(0xFF182236),
-            ),
-          ],
-        ),
-        border: Border.all(color: visual.tone.withOpacity(0.14)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            visual.icon,
-            size: 14,
-            color: Color.alphaBlend(Colors.white.withOpacity(0.9), visual.tone),
-            shadows: [
-              Shadow(color: visual.tone.withOpacity(0.72), blurRadius: 14),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            visual.label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Color.alphaBlend(
-                Colors.white.withOpacity(0.88),
-                visual.tone,
-              ),
-              fontWeight: FontWeight.w800,
-              fontSize: 10,
-              letterSpacing: 0.42,
-              shadows: [
-                Shadow(color: visual.tone.withOpacity(0.72), blurRadius: 12),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _MomentumMiniRing extends StatelessWidget {
@@ -671,65 +494,92 @@ class _MomentumMiniRing extends StatelessWidget {
   }
 }
 
-class _GradientActionButton extends StatelessWidget {
+class _GradientActionButton extends StatefulWidget {
   const _GradientActionButton({
     required this.label,
     required this.onTap,
     this.icon,
+    this.useLightPrimary = false,
   });
 
   final String label;
   final VoidCallback? onTap;
   final IconData? icon;
+  final bool useLightPrimary;
+
+  @override
+  State<_GradientActionButton> createState() => _GradientActionButtonState();
+}
+
+class _GradientActionButtonState extends State<_GradientActionButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final enabled = onTap != null;
+    final enabled = widget.onTap != null;
+    final lightPrimary = widget.useLightPrimary &&
+        scheme.brightness == Brightness.light;
+    final primaryColor = Color.alphaBlend(
+      Colors.black.withOpacity(0.15),
+      scheme.primary,
+    );
+    final foregroundColor = lightPrimary
+        ? (enabled ? scheme.onPrimary : scheme.onSurfaceVariant)
+        : scheme.surface;
     return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: Material(
-        color: Colors.transparent,
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(13),
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [scheme.onSurface.withOpacity(0.9), scheme.onSurface],
+      opacity: enabled || lightPrimary ? 1 : 0.5,
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: Material(
+          color: Colors.transparent,
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              color: lightPrimary
+                  ? (enabled ? primaryColor : scheme.surfaceContainerHighest)
+                  : scheme.onSurface,
             ),
-            boxShadow: enabled
-                ? [
-                    BoxShadow(
-                      color: scheme.onSurface.withOpacity(0.25),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+            child: InkWell(
+              onTap: widget.onTap,
+              onTapDown: enabled
+                  ? (_) => setState(() => _pressed = true)
+                  : null,
+              onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+              onTapCancel: enabled
+                  ? () => setState(() => _pressed = false)
+                  : null,
+              borderRadius: BorderRadius.circular(13),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 56),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.icon != null) ...[
+                      Icon(widget.icon, size: 20, color: foregroundColor),
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(
+                      child: Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: foregroundColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
                     ),
-                  ]
-                : null,
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(13),
-            child: Container(
-              height: 40,
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 15, color: scheme.surface),
-                    const SizedBox(width: 6),
                   ],
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: scheme.surface,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -757,6 +607,7 @@ class _ActiveTimerControlBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(11),
@@ -773,20 +624,27 @@ class _ActiveTimerControlBar extends StatelessWidget {
             children: [
               _AnimatedPulseDot(active: running),
               const SizedBox(width: 8),
-              Text(
-                timerLabel,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.onSurface.withOpacity(0.9),
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  timerLabel,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: scheme.onSurface.withOpacity(0.9),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               _MiniIconButton(
                 icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                label: l10n.tr(paused ? 'Resume timer' : 'Pause timer'),
                 onTap: onPauseTap,
               ),
               const SizedBox(width: 6),
-              _MiniIconButton(icon: Icons.stop_rounded, onTap: onEndTap),
+              _MiniIconButton(
+                icon: Icons.stop_rounded,
+                label: l10n.tr('Stop timer'),
+                onTap: onEndTap,
+              ),
             ],
           ),
         ),
@@ -847,26 +705,34 @@ class _SparkProgressBar extends StatelessWidget {
 }
 
 class _MiniIconButton extends StatelessWidget {
-  const _MiniIconButton({required this.icon, required this.onTap});
+  const _MiniIconButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
+  final String label;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: scheme.onSurface.withOpacity(0.08),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+    return SizedBox.square(
+      dimension: 48,
+      child: IconButton(
+        onPressed: onTap,
+        tooltip: label,
+        iconSize: 17,
+        padding: const EdgeInsets.all(10),
+        visualDensity: VisualDensity.standard,
+        icon: Ink(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: scheme.onSurface.withOpacity(0.08),
+          ),
           child: Icon(
             icon,
             size: 17,
@@ -931,6 +797,28 @@ class _AnimatedPulseDotState extends State<_AnimatedPulseDot>
           ),
         );
       },
+    );
+  }
+}
+
+class _HomeFlowCardShell extends StatelessWidget {
+  const _HomeFlowCardShell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outline.withOpacity(0.65)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(1.5),
+        child: child,
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
+import 'services/task_repository.dart';
 import 'services/iap_service.dart';
 import 'services/ad_service.dart';
 import 'services/analytics_service.dart';
@@ -37,7 +38,8 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   await NotificationService.instance.init();
-  await ThemeService.instance.load();
+  final xpProgress = await TaskRepository().getXpProgress();
+  await ThemeService.instance.load(level: xpProgress.level);
   await LocaleService.instance.load();
   if (!AdService.hideAdsForScreenshots) {
     await MobileAds.instance.initialize();
@@ -153,6 +155,21 @@ class SparkioApp extends StatelessWidget {
             return MaterialApp(
               title: 'SPARKIO',
               debugShowCheckedModeBanner: false,
+              builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+                value: (mode == ThemeMode.dark
+                        ? SystemUiOverlayStyle.light
+                        : SystemUiOverlayStyle.dark)
+                    .copyWith(
+                      statusBarColor: Colors.transparent,
+                      systemNavigationBarColor: mode == ThemeMode.dark
+                          ? darkBackground
+                          : lightBackground,
+                      systemNavigationBarIconBrightness: mode == ThemeMode.dark
+                          ? Brightness.light
+                          : Brightness.dark,
+                    ),
+                child: child ?? const SizedBox.shrink(),
+              ),
               locale: locale,
               supportedLocales: AppLocalizations.supportedLocales,
               localizationsDelegates: const [
@@ -163,7 +180,7 @@ class SparkioApp extends StatelessWidget {
               ],
               theme: ThemeData(
                 useMaterial3: true,
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 colorScheme: lightScheme,
                 scaffoldBackgroundColor: lightBackground,
                 appBarTheme: const AppBarTheme(
@@ -189,7 +206,8 @@ class SparkioApp extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                       bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
-                    ),
+                    )
+                    .apply(fontFamily: 'PlusJakartaSans'),
                 dividerTheme: const DividerThemeData(color: lightDivider),
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
@@ -266,7 +284,7 @@ class SparkioApp extends StatelessWidget {
               ),
               darkTheme: ThemeData(
                 useMaterial3: true,
-                fontFamily: 'Inter',
+                fontFamily: 'PlusJakartaSans',
                 colorScheme: darkScheme,
                 scaffoldBackgroundColor: darkBackground,
                 appBarTheme: const AppBarTheme(
@@ -292,7 +310,8 @@ class SparkioApp extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                       bodyMedium: const TextStyle(fontSize: 14, height: 1.35),
-                    ),
+                    )
+                    .apply(fontFamily: 'PlusJakartaSans'),
                 dividerTheme: const DividerThemeData(color: darkDivider),
                 inputDecorationTheme: InputDecorationTheme(
                   filled: true,
@@ -406,7 +425,19 @@ class _LaunchGateState extends State<_LaunchGate> {
 
   Future<void> _completeOnboarding() async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setBool(_kOnboardingCompletedKey, true);
+    try {
+      final saved = await sp.setBool(_kOnboardingCompletedKey, true);
+      if (!saved) throw StateError('Could not save onboarding completion');
+    } catch (_) {
+      // SharedPreferences updates its cache before the platform write finishes.
+      // Clear a failed completion so a retry cannot read a cached success.
+      try {
+        await sp.remove(_kOnboardingCompletedKey);
+      } catch (_) {
+        // Keep the launch gate incomplete even if cleanup also fails.
+      }
+      rethrow;
+    }
     unawaited(AnalyticsService.instance.logEvent('onboarding_completed'));
     unawaited(AnalyticsService.instance.logEvent('tutorial_complete'));
     if (!mounted) return;

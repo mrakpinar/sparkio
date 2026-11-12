@@ -4,11 +4,27 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/task.dart';
+import '../models/focus_session.dart';
+import '../models/onboarding_goal.dart';
 import '../models/challenge_mode.dart';
 import '../models/weekly_plan.dart';
 import 'task_localizer.dart';
 
+/// A storage API returned false rather than throwing. Keep this distinct from
+/// platform/read exceptions so the completion writer can report the cause.
+class CompletionWriteRejected implements Exception {
+  const CompletionWriteRejected(this.key);
+
+  final String key;
+
+  @override
+  String toString() => 'Completion write returned false: $key';
+}
+
 class TaskRepository {
+  // Concurrent legacy loads must observe the same persisted assignment IDs.
+  static Future<void> _selectedTasksLoadTail = Future<void>.value();
+
   FirebaseFirestore get _db =>
       FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'default');
   static const _kSelectedTasks = 'selected_tasks_v1';
@@ -44,10 +60,17 @@ class TaskRepository {
   static const _kActiveTimerTaskId = 'active_timer_task_id_v1';
   static const _kActiveTimerTaskTitle = 'active_timer_task_title_v1';
   static const _kActiveTimerEndAtMs = 'active_timer_end_at_ms_v1';
+  static const _kActiveTimerDate = 'active_timer_date_v1';
+  static const _kActiveTimerAssignmentId = 'active_timer_assignment_id_v1';
+  static const _kRetainedTimerPrefix = 'retained_timer_v1_';
+  static const _kFocusSessionPrefix = 'focus_session_v1_';
+  static const _kAssignedFocusSessionPrefix = 'assigned_focus_session_v1_';
   static const _kWeeklyPlan = 'weekly_plan_v1';
   static const _kWeeklyProgress = 'weekly_progress_v1';
   static const _kQueuedWeeklyPlan = 'queued_weekly_plan_v1';
   static const _kProfileName = 'profile_name_v1';
+  static const _kOnboardingGoal = 'onboarding_goal_v1';
+  static const _kOnboardingFirstSelection = 'onboarding_first_selection_v1';
   static const _kProfileAvatar = 'profile_avatar_v1';
   static const _kAddTaskCtaVariant = 'add_task_cta_variant_v1';
   static const _kRatePromptShownTriggers = 'rate_prompt_shown_triggers_v1';
@@ -492,24 +515,115 @@ class TaskRepository {
     return sp.getString(_kSelectedDate);
   }
 
+  Future<bool> setOnboardingGoal(OnboardingGoal goal) async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.setString(_kOnboardingGoal, goal.id);
+  }
+
+  Future<OnboardingGoal?> getPendingOnboardingGoal() async {
+    final sp = await SharedPreferences.getInstance();
+    // Never change rotations for someone who has already received tasks or
+    // made progress, even if a goal was added later or a cache was cleared.
+    if (sp.containsKey(_kOnboardingFirstSelection) ||
+        sp.containsKey(_kSelectedDate) ||
+        sp.containsKey(_kSelectedTasks) ||
+        (sp.getInt(_kTotalCompleted) ?? 0) > 0 ||
+        (sp.getInt(_kTotalXp) ?? 0) > 0 ||
+        sp.containsKey(_kLastCompletedDate)) {
+      return null;
+    }
+    return OnboardingGoal.fromId(sp.getString(_kOnboardingGoal));
+  }
+
+  Future<bool> saveOnboardingFirstSelection(
+    OnboardingFirstSelection selection,
+  ) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      return await sp.setString(
+        _kOnboardingFirstSelection,
+        jsonEncode(selection.toMap()),
+      );
+    } catch (_) {
+      // Optional ordering metadata must not prevent opening the daily tasks.
+      return false;
+    }
+  }
+
+  Future<OnboardingFirstSelection?> getOnboardingFirstSelection() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kOnboardingFirstSelection);
+    if (raw == null) return null;
+    try {
+      return OnboardingFirstSelection.fromMap(
+        Map<String, dynamic>.from(jsonDecode(raw) as Map),
+      );
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
   Future<void> setSelectedDate(String dateKey) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kSelectedDate, dateKey);
   }
 
-  Future<List<Task>> getSelectedTasks(List<Task> pool) async {
+  Future<List<Task>> getSelectedTasks(List<Task> pool) {
+    final load = _selectedTasksLoadTail.then<List<Task>>(
+      (_) => _loadSelectedTasksWithAssignmentIds(),
+    );
+    // A failed load rejects its caller without blocking a later retry.
+    _selectedTasksLoadTail = load.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return load;
+  }
+
+  Future<List<Task>> _loadSelectedTasksWithAssignmentIds() async {
     final sp = await SharedPreferences.getInstance();
+    // A failed setString can leave its value in SharedPreferences' cache.
+    // Reload before reading so an unpersisted identity cannot be accepted.
+    await sp.reload();
     final raw = sp.getString(_kSelectedTasks);
     if (raw == null) return [];
     final decoded = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-    return TaskLocalizer.localizeTasks(decoded.map(Task.fromMap).toList());
+    final tasks = decoded.map(Task.fromMap).toList();
+    var needsSave = false;
+    final identified = <Map<String, dynamic>>[];
+    for (var i = 0; i < tasks.length; i++) {
+      final task = tasks[i];
+      if (task.assignmentId == null) {
+        final assignmentId = const Uuid().v4();
+        tasks[i] = task.withAssignmentId(assignmentId);
+        identified.add({...decoded[i], 'assignmentId': assignmentId});
+        needsSave = true;
+      } else {
+        identified.add(decoded[i]);
+      }
+    }
+    if (needsSave) {
+      // Backfill only this selected list. Preserve every other stored field,
+      // including completed state, and never bind or modify Focus/timer data.
+      _requireCompletionWrite(
+        await sp.setString(_kSelectedTasks, jsonEncode(identified)),
+        _kSelectedTasks,
+      );
+    }
+    // Expose identities only after the complete selected list is persisted.
+    return TaskLocalizer.localizeTasks(tasks);
   }
 
   Future<void> saveSelectedTasks(List<Task> tasks) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(
+    _requireCompletionWrite(
+      await sp.setString(
+        _kSelectedTasks,
+        jsonEncode(tasks.map((t) => t.toMap()).toList()),
+      ),
       _kSelectedTasks,
-      jsonEncode(tasks.map((t) => t.toMap()).toList()),
     );
   }
 
@@ -537,9 +651,19 @@ class TaskRepository {
     return m;
   }
 
+  // Completion writes must fail explicitly on both platform exceptions and
+  // false results. Earlier writes may already exist: callers must not retry
+  // additive rewards automatically or treat this as an atomic transaction.
+  void _requireCompletionWrite(bool saved, String key) {
+    if (!saved) throw CompletionWriteRejected(key);
+  }
+
   Future<void> saveCompletedMap(Map<dynamic, bool> completed) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kCompletedMap, jsonEncode(completed));
+    _requireCompletionWrite(
+      await sp.setString(_kCompletedMap, jsonEncode(completed)),
+      _kCompletedMap,
+    );
   }
 
   Future<void> clearCompleted() async {
@@ -559,12 +683,18 @@ class TaskRepository {
 
   Future<void> setStreakCount(int value) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setInt(_kStreakCount, value);
+    _requireCompletionWrite(
+      await sp.setInt(_kStreakCount, value),
+      _kStreakCount,
+    );
   }
 
   Future<void> setLastCompletedDate(String dateKey) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kLastCompletedDate, dateKey);
+    _requireCompletionWrite(
+      await sp.setString(_kLastCompletedDate, dateKey),
+      _kLastCompletedDate,
+    );
   }
 
   Future<int> getCategoryStreak(String category) async {
@@ -574,7 +704,10 @@ class TaskRepository {
 
   Future<void> setCategoryStreak(String category, int value) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setInt('$_kCategoryStreakPrefix$category', value);
+    _requireCompletionWrite(
+      await sp.setInt('$_kCategoryStreakPrefix$category', value),
+      '$_kCategoryStreakPrefix$category',
+    );
   }
 
   Future<String?> getCategoryLastCompletedDate(String category) async {
@@ -584,7 +717,10 @@ class TaskRepository {
 
   Future<void> setCategoryLastCompletedDate(String category, String dateKey) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString('$_kCategoryLastDatePrefix$category', dateKey);
+    _requireCompletionWrite(
+      await sp.setString('$_kCategoryLastDatePrefix$category', dateKey),
+      '$_kCategoryLastDatePrefix$category',
+    );
   }
 
   Future<Map<String, int>> getMoodHistory() async {
@@ -869,22 +1005,25 @@ class TaskRepository {
     try {
       final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
       final challenge = ActiveChallenge.fromMap(map);
-      if (challenge.templateId.isEmpty ||
-          challenge.startDateKey.isEmpty ||
-          challenge.durationDays <= 0) {
-        await sp.remove(_kActiveChallenge);
-        return null;
+      if (challenge.templateId.isNotEmpty &&
+          challenge.startDateKey.isNotEmpty &&
+          challenge.durationDays > 0) {
+        return challenge;
       }
-      return challenge;
     } catch (_) {
-      await sp.remove(_kActiveChallenge);
-      return null;
+      // Invalid stored challenges are removed below. Keep the write outside
+      // this parsing catch so a storage failure is not swallowed or retried.
     }
+    _requireCompletionWrite(await sp.remove(_kActiveChallenge), _kActiveChallenge);
+    return null;
   }
 
   Future<void> saveActiveChallenge(ActiveChallenge challenge) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kActiveChallenge, jsonEncode(challenge.toMap()));
+    _requireCompletionWrite(
+      await sp.setString(_kActiveChallenge, jsonEncode(challenge.toMap())),
+      _kActiveChallenge,
+    );
   }
 
   Future<void> clearActiveChallenge() async {
@@ -944,14 +1083,13 @@ class TaskRepository {
     return value;
   }
 
-  Future<void> setProfileName(String name) async {
+  Future<bool> setProfileName(String name) async {
     final sp = await SharedPreferences.getInstance();
     final value = sanitizeProfileName(name);
     if (value.isEmpty) {
-      await sp.remove(_kProfileName);
-      return;
+      return sp.remove(_kProfileName);
     }
-    await sp.setString(_kProfileName, value);
+    return sp.setString(_kProfileName, value);
   }
 
   Future<String?> getProfileAvatar() async {
@@ -1003,7 +1141,10 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     final shown = await getRatePromptShownTriggers();
     shown.add(trigger);
-    await sp.setString(_kRatePromptShownTriggers, jsonEncode(shown.toList()));
+    _requireCompletionWrite(
+      await sp.setString(_kRatePromptShownTriggers, jsonEncode(shown.toList())),
+      _kRatePromptShownTriggers,
+    );
   }
 
   Future<String?> getLastSeenDate() async {
@@ -1078,7 +1219,9 @@ class TaskRepository {
   Future<int> getDailyCompleted(String dateKey) async {
     final sp = await SharedPreferences.getInstance();
     final savedDate = sp.getString(_kDailyCompletedDate);
-    if (savedDate != dateKey) return 0;
+    if (savedDate != dateKey) {
+      return (await getDailyHistory(days: 0))[dateKey] ?? 0;
+    }
     return sp.getInt(_kDailyCompletedCount) ?? 0;
   }
 
@@ -1089,11 +1232,17 @@ class TaskRepository {
     if (savedDate == dateKey) {
       nextCount = (sp.getInt(_kDailyCompletedCount) ?? 0) + delta;
     } else {
-      nextCount = delta;
-      await sp.setString(_kDailyCompletedDate, dateKey);
+      nextCount = (await getDailyCompleted(dateKey)) + delta;
+      _requireCompletionWrite(
+        await sp.setString(_kDailyCompletedDate, dateKey),
+        _kDailyCompletedDate,
+      );
     }
     if (nextCount < 0) nextCount = 0;
-    await sp.setInt(_kDailyCompletedCount, nextCount);
+    _requireCompletionWrite(
+      await sp.setInt(_kDailyCompletedCount, nextCount),
+      _kDailyCompletedCount,
+    );
     await _updateDailyHistory(sp, dateKey, nextCount);
     return nextCount;
   }
@@ -1120,11 +1269,17 @@ class TaskRepository {
   }) async {
     final sp = await SharedPreferences.getInstance();
     final total = (sp.getInt(_kTotalCompleted) ?? 0) + 1;
-    await sp.setInt(_kTotalCompleted, total);
+    _requireCompletionWrite(
+      await sp.setInt(_kTotalCompleted, total),
+      _kTotalCompleted,
+    );
 
     final counts = await getCategoryCounts();
     counts[category] = (counts[category] ?? 0) + 1;
-    await sp.setString(_kCategoryCounts, jsonEncode(counts));
+    _requireCompletionWrite(
+      await sp.setString(_kCategoryCounts, jsonEncode(counts)),
+      _kCategoryCounts,
+    );
 
     if (task != null) {
       final timestamp = completedAt ?? DateTime.now();
@@ -1142,7 +1297,10 @@ class TaskRepository {
         if (entry.key >= 0 && entry.key <= 23)
           entry.key.toString(): entry.value,
     };
-    await sp.setString(_kCompletionHourCounts, jsonEncode(rawMap));
+    _requireCompletionWrite(
+      await sp.setString(_kCompletionHourCounts, jsonEncode(rawMap)),
+      _kCompletionHourCounts,
+    );
   }
 
   Future<void> _incrementTaskInsight(
@@ -1177,11 +1335,17 @@ class TaskRepository {
       final pruned = <String, dynamic>{
         for (final entry in keep) entry.key: entry.value,
       };
-      await sp.setString(_kTaskInsightCounts, jsonEncode(pruned));
+      _requireCompletionWrite(
+        await sp.setString(_kTaskInsightCounts, jsonEncode(pruned)),
+        _kTaskInsightCounts,
+      );
       return;
     }
 
-    await sp.setString(_kTaskInsightCounts, jsonEncode(decoded));
+    _requireCompletionWrite(
+      await sp.setString(_kTaskInsightCounts, jsonEncode(decoded)),
+      _kTaskInsightCounts,
+    );
   }
 
   String _taskInsightKey(Task task) {
@@ -1287,8 +1451,14 @@ class TaskRepository {
     if (alreadyBackfilled) return 0;
     final historicalCompleted = sp.getInt(_kTotalCompleted) ?? 0;
     final seeded = historicalCompleted * 5;
-    await sp.setInt(_kTotalXp, seeded);
-    await sp.setBool(_kXpBackfillDone, true);
+    _requireCompletionWrite(
+      await sp.setInt(_kTotalXp, seeded),
+      _kTotalXp,
+    );
+    _requireCompletionWrite(
+      await sp.setBool(_kXpBackfillDone, true),
+      _kXpBackfillDone,
+    );
     return seeded;
   }
 
@@ -1308,8 +1478,14 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     final current = await getTotalXp();
     final next = (current + delta).clamp(0, 1 << 31).toInt();
-    await sp.setInt(_kTotalXp, next);
-    await sp.setBool(_kXpBackfillDone, true);
+    _requireCompletionWrite(
+      await sp.setInt(_kTotalXp, next),
+      _kTotalXp,
+    );
+    _requireCompletionWrite(
+      await sp.setBool(_kXpBackfillDone, true),
+      _kXpBackfillDone,
+    );
     return computeXpProgress(next);
   }
 
@@ -1317,7 +1493,10 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     final best = sp.getInt(_kBestStreak) ?? 0;
     if (value > best) {
-      await sp.setInt(_kBestStreak, value);
+      _requireCompletionWrite(
+        await sp.setInt(_kBestStreak, value),
+        _kBestStreak,
+      );
     }
   }
 
@@ -1333,7 +1512,7 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(
       _kCustomTasks,
-      jsonEncode(tasks.map((t) => t.toMap()).toList()),
+      jsonEncode(tasks.map((t) => t.withAssignmentId(null).toMap()).toList()),
     );
   }
 
@@ -1373,7 +1552,10 @@ class TaskRepository {
         ? <String, dynamic>{}
         : (jsonDecode(raw) as Map<String, dynamic>);
     history[dateKey] = count;
-    await sp.setString(_kDailyHistory, jsonEncode(history));
+    _requireCompletionWrite(
+      await sp.setString(_kDailyHistory, jsonEncode(history)),
+      _kDailyHistory,
+    );
   }
 
   Future<Map<String, int>> getDailyHistory({int days = 14}) async {
@@ -1423,9 +1605,18 @@ class TaskRepository {
     required String dateKey,
   }) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kLastCompletedTitle, title);
-    await sp.setString(_kLastCompletedCategory, category);
-    await sp.setString(_kLastCompletedAt, dateKey);
+    _requireCompletionWrite(
+      await sp.setString(_kLastCompletedTitle, title),
+      _kLastCompletedTitle,
+    );
+    _requireCompletionWrite(
+      await sp.setString(_kLastCompletedCategory, category),
+      _kLastCompletedCategory,
+    );
+    _requireCompletionWrite(
+      await sp.setString(_kLastCompletedAt, dateKey),
+      _kLastCompletedAt,
+    );
   }
 
   Future<LastCompletedTask?> getLastCompletedTask() async {
@@ -1476,7 +1667,10 @@ class TaskRepository {
 
     final updated = {...current, ...newlyAdded};
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kBadges, jsonEncode(updated.toList()));
+    _requireCompletionWrite(
+      await sp.setString(_kBadges, jsonEncode(updated.toList())),
+      _kBadges,
+    );
     return newlyAdded.toList();
   }
 
@@ -1499,7 +1693,9 @@ class TaskRepository {
   String currentWeekKey([DateTime? now]) {
     final base = now ?? DateTime.now();
     final day = DateTime(base.year, base.month, base.day);
-    final monday = day.subtract(Duration(days: day.weekday - DateTime.monday));
+    final monday = DateTime(
+      day.year, day.month, day.day - (day.weekday - DateTime.monday),
+    );
     return _formatDateKey(monday);
   }
 
@@ -1525,7 +1721,7 @@ class TaskRepository {
   Future<void> clearWeeklyPlan() async {
     final sp = await SharedPreferences.getInstance();
     await sp.remove(_kWeeklyPlan);
-    await sp.remove(_kWeeklyProgress);
+    // Removing targets must not erase progress earned during the same week.
   }
 
   Future<void> queueWeeklyPlan(WeeklyPlan plan) async {
@@ -1574,7 +1770,10 @@ class TaskRepository {
 
   Future<void> saveWeeklyProgress(WeeklyProgress progress) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kWeeklyProgress, jsonEncode(progress.toMap()));
+    _requireCompletionWrite(
+      await sp.setString(_kWeeklyProgress, jsonEncode(progress.toMap())),
+      _kWeeklyProgress,
+    );
   }
 
   Future<WeeklyProgress> incrementWeeklyProgress({
@@ -1595,15 +1794,117 @@ class TaskRepository {
     return updated;
   }
 
+  Future<void> saveFocusSession(FocusSession session) async {
+    final sp = await SharedPreferences.getInstance();
+    final saved = await sp.setString(
+      session.assignmentId == null
+          ? '$_kFocusSessionPrefix${session.dateKey}_${session.taskId}'
+          : '$_kAssignedFocusSessionPrefix${session.dateKey}_${session.assignmentId}',
+      jsonEncode(session.toMap()),
+    );
+    if (!saved) throw StateError('Could not save focus session');
+  }
+
+  Future<FocusSession?> getFocusSession({
+    required String taskId,
+    required String dateKey,
+    String? assignmentId,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = (assignmentId == null
+            ? null
+            : sp.getString('$_kAssignedFocusSessionPrefix${dateKey}_$assignmentId')) ??
+        sp.getString('$_kFocusSessionPrefix${dateKey}_$taskId');
+    if (raw == null) return null;
+    try {
+      final session = FocusSession.fromMap(
+        Map<String, dynamic>.from(jsonDecode(raw) as Map),
+      );
+      return session.taskId == taskId && session.dateKey == dateKey &&
+              (assignmentId == null || session.assignmentId == assignmentId)
+          ? session
+          : null;
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  Future<void> clearFocusSession({
+    required String taskId,
+    required String dateKey,
+    String? assignmentId,
+  }) async {
+    final sp = await SharedPreferences.getInstance();
+    final legacyKey = '$_kFocusSessionPrefix${dateKey}_$taskId';
+    if (assignmentId != null) {
+      final key = '$_kAssignedFocusSessionPrefix${dateKey}_$assignmentId';
+      if (!await sp.remove(key)) {
+        throw StateError('Could not clear focus session');
+      }
+      final legacy = await getFocusSession(taskId: taskId, dateKey: dateKey);
+      if (legacy?.assignmentId != assignmentId) return;
+    }
+    final cleared = await sp.remove(legacyKey);
+    if (!cleared) throw StateError('Could not clear focus session');
+  }
+
   Future<void> saveActiveTaskTimer({
     required String taskId,
     required String taskTitle,
     required DateTime endAt,
+    String? dateKey,
+    String? assignmentId,
   }) async {
     final sp = await SharedPreferences.getInstance();
-    await sp.setString(_kActiveTimerTaskId, taskId);
-    await sp.setString(_kActiveTimerTaskTitle, taskTitle);
-    await sp.setInt(_kActiveTimerEndAtMs, endAt.millisecondsSinceEpoch);
+    final resolvedDate = dateKey ?? _formatDateKey(DateTime.now());
+    // A legacy/unmatched timer must not disappear when a new assignment starts.
+    // Retain its raw fields; this is session preservation, not a reward receipt.
+    if (sp.containsKey(_kActiveTimerTaskId) &&
+        (sp.getString(_kActiveTimerAssignmentId) != assignmentId ||
+         sp.getString(_kActiveTimerTaskId) != taskId ||
+         sp.getString(_kActiveTimerDate) != resolvedDate)) {
+      final key = '$_kRetainedTimerPrefix${const Uuid().v4()}';
+      _requireCompletionWrite(
+        await sp.setString(key, jsonEncode({
+          'taskId': sp.getString(_kActiveTimerTaskId),
+          'taskTitle': sp.getString(_kActiveTimerTaskTitle),
+          'endAtMs': sp.getInt(_kActiveTimerEndAtMs),
+          'dateKey': sp.getString(_kActiveTimerDate),
+          'assignmentId': sp.getString(_kActiveTimerAssignmentId),
+        })),
+        key,
+      );
+    }
+    // Invalidate the old binding before replacing its fields. An interrupted
+    // multi-key write must not restore a different task as the old assignment.
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerAssignmentId),
+      _kActiveTimerAssignmentId,
+    );
+    _requireCompletionWrite(
+      await sp.setString(_kActiveTimerTaskId, taskId),
+      _kActiveTimerTaskId,
+    );
+    _requireCompletionWrite(
+      await sp.setString(_kActiveTimerTaskTitle, taskTitle),
+      _kActiveTimerTaskTitle,
+    );
+    _requireCompletionWrite(
+      await sp.setInt(_kActiveTimerEndAtMs, endAt.millisecondsSinceEpoch),
+      _kActiveTimerEndAtMs,
+    );
+    _requireCompletionWrite(
+      await sp.setString(_kActiveTimerDate, resolvedDate),
+      _kActiveTimerDate,
+    );
+    if (assignmentId != null) {
+      _requireCompletionWrite(
+        await sp.setString(_kActiveTimerAssignmentId, assignmentId),
+        _kActiveTimerAssignmentId,
+      );
+    }
   }
 
   Future<ActiveTaskTimer?> getActiveTaskTimer() async {
@@ -1616,14 +1917,33 @@ class TaskRepository {
       taskId: taskId,
       taskTitle: taskTitle,
       endAt: DateTime.fromMillisecondsSinceEpoch(endAtMs),
+      dateKey: sp.getString(_kActiveTimerDate),
+      assignmentId: sp.getString(_kActiveTimerAssignmentId),
     );
   }
 
   Future<void> clearActiveTaskTimer() async {
     final sp = await SharedPreferences.getInstance();
-    await sp.remove(_kActiveTimerTaskId);
-    await sp.remove(_kActiveTimerTaskTitle);
-    await sp.remove(_kActiveTimerEndAtMs);
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerAssignmentId),
+      _kActiveTimerAssignmentId,
+    );
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerTaskId),
+      _kActiveTimerTaskId,
+    );
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerTaskTitle),
+      _kActiveTimerTaskTitle,
+    );
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerEndAtMs),
+      _kActiveTimerEndAtMs,
+    );
+    _requireCompletionWrite(
+      await sp.remove(_kActiveTimerDate),
+      _kActiveTimerDate,
+    );
   }
 
   Future<void> applyStatsScreenshotPreset({bool force = false}) async {
@@ -1742,14 +2062,20 @@ class LastCompletedTask {
 
 class ActiveTaskTimer {
   final String taskId;
+  final String? assignmentId;
   final String taskTitle;
   final DateTime endAt;
+  final String? dateKey;
 
   const ActiveTaskTimer({
     required this.taskId,
+    this.assignmentId,
     required this.taskTitle,
     required this.endAt,
+    this.dateKey,
   });
+
+  bool belongsToDay(String dayKey) => dateKey != null && dateKey == dayKey;
 }
 
 class FunnelOpenState {

@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -5,19 +6,25 @@ import 'package:flutter/services.dart';
 import '../app_strings.dart';
 import '../services/task_repository.dart';
 
-const Color _kDrawerDarkBackgroundTop = Color(0xFF0B0F1A);
-const Color _kDrawerDarkPrimarySurface = Color(0xFF131A2A);
-const Color _kDrawerDarkSecondarySurface = Color(0xFF101726);
+const Color _kDrawerDarkBackgroundTop = Color(0xFF090C16);
+const Color _kDrawerDarkBackgroundBottom = Color(0xFF131B2D);
+const Color _kDrawerDarkPrimarySurface = Color(0xFF171F33);
+const Color _kDrawerDarkSecondarySurface = Color(0xFF11192A);
 const Color _kDrawerDarkTertiarySurface = Color(0xFF0D1422);
-const Color _kDrawerLightBackgroundTop = Color(0xFFF6F3FB);
+const Color _kDrawerLightBackgroundTop = Color(0xFFF3F0FA);
+const Color _kDrawerLightBackgroundBottom = Color(0xFFE9E5F2);
 const Color _kDrawerLightPrimarySurface = Color(0xFFFFFFFF);
-const Color _kDrawerLightSecondarySurface = Color(0xFFF6F1FB);
-const Color _kDrawerLightTertiarySurface = Color(0xFFEEE8F7);
+const Color _kDrawerLightSecondarySurface = Color(0xFFF7F3FB);
+const Color _kDrawerLightTertiarySurface = Color(0xFFF0EAF8);
 
 enum _DrawerSurfaceLevel { primary, secondary, tertiary }
 
 Color _drawerBackgroundColor(bool isDark) {
   return isDark ? _kDrawerDarkBackgroundTop : _kDrawerLightBackgroundTop;
+}
+
+Color _drawerBackgroundBottomColor(bool isDark) {
+  return isDark ? _kDrawerDarkBackgroundBottom : _kDrawerLightBackgroundBottom;
 }
 
 Color _drawerSurfaceColorFor(
@@ -36,6 +43,20 @@ Color _drawerSurfaceColorFor(
           ? _kDrawerDarkTertiarySurface
           : _kDrawerLightTertiarySurface;
   }
+}
+
+Color _drawerStrokeColor(bool isDark, {double strength = 1}) {
+  return isDark
+      ? Colors.white.withOpacity(0.055 * strength)
+      : Colors.black.withOpacity(0.055 * strength);
+}
+
+Color _drawerShadowColor(bool isDark) {
+  return isDark ? Colors.black : const Color(0xFF7A8499);
+}
+
+Color _drawerSectionLabelColor(bool isDark) {
+  return isDark ? const Color(0xFF8A93AD) : const Color(0xFF6F7690);
 }
 
 const Color _kCreateSparkIconBg = Color(0x1F5DA9FF);
@@ -68,29 +89,56 @@ BoxDecoration _drawerNeoGlassDecoration({
   required bool isDark,
 }) {
   final baseSurface = _drawerSurfaceColorFor(level, isDark: isDark);
-  final surface = pressed
-      ? Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.08), baseSurface)
-      : baseSurface;
-  final overlay = isDark
-      ? Colors.white.withOpacity(0.03)
-      : Colors.white.withOpacity(0.7);
+  final accent = Color.alphaBlend(
+    const Color(0xFF8B7CFF).withOpacity(pressed ? 0.16 : 0.08),
+    baseSurface,
+  );
+  final highlight = isDark
+      ? Colors.white.withOpacity(pressed ? 0.08 : 0.04)
+      : Colors.white.withOpacity(pressed ? 0.82 : 0.7);
+  final lowlight = isDark
+      ? const Color(0xFF0B1323)
+      : Color.alphaBlend(
+          const Color(0xFF1F2A40).withOpacity(pressed ? 0.08 : 0.04),
+          baseSurface,
+        );
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
-    color: Color.alphaBlend(overlay, surface),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(highlight, accent),
+        Color.alphaBlend(
+          const Color(0xFF8B7CFF).withOpacity(pressed ? 0.08 : 0.03),
+          accent,
+        ),
+        lowlight,
+      ],
+      stops: const [0.0, 0.55, 1.0],
+    ),
     boxShadow: withDepth
         ? [
             BoxShadow(
-              color: (isDark ? Colors.black : const Color(0xFF8B92A8))
-                  .withOpacity(isDark ? 0.18 : 0.14),
+              color: _drawerShadowColor(isDark).withOpacity(
+                isDark ? 0.26 : 0.14,
+              ),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+              spreadRadius: -12,
+            ),
+            BoxShadow(
+              color: const Color(0xFF8B7CFF).withOpacity(
+                isDark ? 0.1 : 0.05,
+              ),
               blurRadius: 18,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, 4),
+              spreadRadius: -10,
             ),
           ]
         : const [],
     border: Border.all(
-      color: isDark
-          ? Colors.white.withOpacity(showBorder ? 0.08 : 0.05)
-          : Colors.black.withOpacity(showBorder ? 0.08 : 0.04),
+      color: _drawerStrokeColor(isDark, strength: showBorder ? 1.25 : 1),
       width: 1,
     ),
   );
@@ -107,16 +155,22 @@ BoxDecoration _drawerIconPodDecoration({
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.alphaBlend(Colors.white.withOpacity(0.04), backgroundColor),
+        Color.alphaBlend(Colors.white.withOpacity(isDark ? 0.06 : 0.24), backgroundColor),
         backgroundColor,
       ],
     ),
     border: Border.all(
-      color: isDark
-          ? Colors.white.withOpacity(0.05)
-          : Colors.black.withOpacity(0.05),
+      color: _drawerStrokeColor(isDark),
       width: 1,
     ),
+    boxShadow: [
+      BoxShadow(
+        color: backgroundColor.withOpacity(isDark ? 0.18 : 0.08),
+        blurRadius: 14,
+        offset: const Offset(0, 6),
+        spreadRadius: -8,
+      ),
+    ],
   );
 }
 
@@ -251,6 +305,11 @@ class _ModernDrawerState extends State<ModernDrawer>
         ? '${l10n.followSystem} · ${l10n.languageDisplayName(activeLocale.languageCode)}'
         : l10n.languageDisplayName(widget.selectedLocale!.languageCode);
 
+    final resolvedLanguageSubtitle = languageSubtitle.replaceAll(
+      '\u00C2\u00B7',
+      '-',
+    ).replaceAll('\u00B7', '-');
+
     Future<void> closeDrawer() async {
       final scaffold = Scaffold.maybeOf(context);
       if (scaffold != null && scaffold.isEndDrawerOpen) {
@@ -316,7 +375,7 @@ class _ModernDrawerState extends State<ModernDrawer>
             iconColor: _kLanguageIconColor,
             iconBackgroundColor: _kLanguageIconBg,
             title: l10n.appLanguage,
-            subtitle: languageSubtitle,
+            subtitle: resolvedLanguageSubtitle,
             isSubtle: true,
             surfaceLevel: _DrawerSurfaceLevel.primary,
             onTap: () => runAsyncMenuAction(widget.onOpenLanguagePicker),
@@ -342,6 +401,7 @@ class _ModernDrawerState extends State<ModernDrawer>
             meta: _CardMetaPreview(
               text: '$badgeDots  ${widget.earnedBadgeCount}/$safeBadgeGoal',
             ),
+            stackMeta: true,
             isMuted: true,
             onTap: () => runMenuAction(widget.onOpenBadges),
           ),
@@ -449,84 +509,154 @@ class _ModernDrawerState extends State<ModernDrawer>
     ];
 
     return Drawer(
-      width: 326,
+      width: 330,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(left: Radius.circular(30)),
+        borderRadius: BorderRadius.horizontal(left: Radius.circular(34)),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _drawerBackgroundColor(effectiveDark),
-          borderRadius: const BorderRadius.horizontal(
-            left: Radius.circular(30),
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Positioned(
-                top: -120,
-                right: -100,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 260,
-                    height: 260,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Color.fromRGBO(120, 90, 255, 0.14),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.horizontal(left: Radius.circular(34)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  _drawerBackgroundColor(effectiveDark),
+                  _drawerBackgroundBottomColor(effectiveDark),
+                ],
               ),
-              Column(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(34),
+              ),
+              border: Border.all(
+                color: _drawerStrokeColor(effectiveDark, strength: 0.95),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _drawerShadowColor(effectiveDark),
+                  blurRadius: effectiveDark ? 36 : 28,
+                  spreadRadius: -10,
+                  offset: const Offset(-10, 16),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Stack(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: _DrawerEntryReveal(
-                      animation: _interval(0.0, span: 0.36),
-                      beginOffsetY: 10,
-                      child: _DrawerHero(
-                        isDark: effectiveDark,
-                        profileName: widget.profileName,
-                        profileAvatar: widget.profileAvatar,
-                        currentStreak: widget.currentStreak,
-                        totalSparksLit: widget.totalSparksLit,
-                        currentLevel: widget.currentLevel,
-                        totalXp: widget.totalXp,
-                        xpInLevel: widget.xpInLevel,
-                        xpToNextLevel: widget.xpToNextLevel,
-                        onOpenProfile: () =>
-                            runMenuAction(widget.onOpenProfile),
-                        onQuickEdit: () =>
-                            runAsyncMenuAction(widget.onEditProfile),
-                        onClose: () => Navigator.of(context).maybePop(),
+                  Positioned(
+                    top: -96,
+                    right: -82,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 250,
+                        height: 250,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Color.fromRGBO(120, 90, 255, 0.2),
+                              Color.fromRGBO(93, 225, 255, 0.06),
+                              Colors.transparent,
+                            ],
+                            stops: [0.0, 0.5, 1.0],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      children: [
-                        for (var i = 0; i < drawerItems.length; i++)
-                          _buildStaggeredItem(index: i, child: drawerItems[i]),
-                      ],
+                  Positioned(
+                    left: -86,
+                    bottom: 88,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 210,
+                        height: 210,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Color.fromRGBO(93, 225, 255, 0.12),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  _DrawerEntryReveal(
-                    animation: _interval(0.72, span: 0.2),
-                    beginOffsetY: 8,
-                    child: const _QuickSettingsCaption(),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(
+                                effectiveDark ? 0.03 : 0.12,
+                              ),
+                              Colors.transparent,
+                              Colors.white.withOpacity(
+                                effectiveDark ? 0.015 : 0.05,
+                              ),
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      Expanded(
+                        child: ClipRect(
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                            children: [
+                              _DrawerEntryReveal(
+                                animation: _interval(0.0, span: 0.36),
+                                beginOffsetY: 10,
+                                child: _DrawerHero(
+                                  isDark: effectiveDark,
+                                  profileName: widget.profileName,
+                                  profileAvatar: widget.profileAvatar,
+                                  currentStreak: widget.currentStreak,
+                                  totalSparksLit: widget.totalSparksLit,
+                                  currentLevel: widget.currentLevel,
+                                  totalXp: widget.totalXp,
+                                  xpInLevel: widget.xpInLevel,
+                                  xpToNextLevel: widget.xpToNextLevel,
+                                  onOpenProfile: () =>
+                                      runMenuAction(widget.onOpenProfile),
+                                  onQuickEdit: () =>
+                                      runAsyncMenuAction(widget.onEditProfile),
+                                  onClose: closeDrawer,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              for (var i = 0; i < drawerItems.length; i++)
+                                _buildStaggeredItem(
+                                  index: i,
+                                  child: drawerItems[i],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _DrawerEntryReveal(
+                        animation: _interval(0.72, span: 0.2),
+                        beginOffsetY: 8,
+                        child: const _QuickSettingsCaption(),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -564,10 +694,12 @@ class _DrawerEntryReveal extends StatelessWidget {
   }
 }
 
-class _DrawerHero extends StatelessWidget {
-  const _DrawerHero({
+// ignore: unused_element
+class _LegacyDrawerHero extends StatelessWidget {
+  const _LegacyDrawerHero({
     required this.isDark,
     required this.profileName,
+    // ignore: unused_element_parameter
     this.profileAvatar,
     required this.currentStreak,
     required this.totalSparksLit,
@@ -793,6 +925,483 @@ class _DrawerHero extends StatelessWidget {
   }
 }
 
+class _DrawerHero extends StatelessWidget {
+  const _DrawerHero({
+    required this.isDark,
+    required this.profileName,
+    this.profileAvatar,
+    required this.currentStreak,
+    required this.totalSparksLit,
+    required this.currentLevel,
+    required this.totalXp,
+    required this.xpInLevel,
+    required this.xpToNextLevel,
+    required this.onOpenProfile,
+    required this.onQuickEdit,
+    required this.onClose,
+  });
+
+  final bool isDark;
+  final String profileName;
+  final String? profileAvatar;
+  final int currentStreak;
+  final int totalSparksLit;
+  final int currentLevel;
+  final int totalXp;
+  final int xpInLevel;
+  final int xpToNextLevel;
+  final VoidCallback onOpenProfile;
+  final Future<void> Function() onQuickEdit;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = context.l10n;
+    final cleanedName = TaskRepository.sanitizeProfileName(profileName);
+    final name = cleanedName.isEmpty ? l10n.friend : cleanedName;
+    final initials = name.characters.first.toUpperCase();
+    final avatar = profileAvatar?.trim();
+    final isAssetAvatar =
+        avatar != null && avatar.isNotEmpty && avatar.startsWith('assets/');
+    final isFileAvatar =
+        avatar != null &&
+        avatar.isNotEmpty &&
+        !avatar.startsWith('assets/') &&
+        (avatar.contains('/') || avatar.contains('\\'));
+    final streakLabel = currentStreak > 0
+        ? l10n.dayStreak(currentStreak)
+        : l10n.startYourStreakToday;
+    final safeLevel = currentLevel <= 0 ? 1 : currentLevel;
+    final safeXpToNext = xpToNextLevel <= 0 ? 1 : xpToNextLevel;
+    final clampedXpInLevel = xpInLevel.clamp(0, safeXpToNext);
+    final xpProgress = (clampedXpInLevel / safeXpToNext).clamp(0.0, 1.0);
+    final levelTitle = l10n.levelTitle(safeLevel);
+    final titleColor = isDark
+        ? Colors.white.withOpacity(0.94)
+        : const Color(0xFF182033);
+    final subtitleColor = isDark
+        ? Colors.white.withOpacity(0.66)
+        : const Color(0xFF55607B);
+    final cardStart = isDark
+        ? const Color(0xFF1A2236)
+        : Color.alphaBlend(
+            const Color(0xFF25344D).withOpacity(0.1),
+            scheme.surface,
+          );
+    final cardEnd = isDark
+        ? const Color(0xFF131B2D)
+        : Color.alphaBlend(
+            const Color(0xFF1E2B40).withOpacity(0.08),
+            scheme.surface,
+          );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onOpenProfile();
+      },
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        onQuickEdit();
+      },
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              cardStart,
+              Color.alphaBlend(
+                const Color(0xFF202944).withOpacity(isDark ? 0.24 : 0.08),
+                cardStart,
+              ),
+              cardEnd,
+            ],
+            stops: const [0.0, 0.56, 1.0],
+          ),
+          border: Border.all(color: _drawerStrokeColor(isDark, strength: 1.1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.1),
+              blurRadius: 24,
+              spreadRadius: -8,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -44,
+              right: -40,
+              child: IgnorePointer(
+                child: Container(
+                  width: 148,
+                  height: 148,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Color.fromRGBO(120, 90, 255, 0.18),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -40,
+              bottom: -56,
+              child: IgnorePointer(
+                child: Container(
+                  width: 138,
+                  height: 138,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Color.fromRGBO(93, 225, 255, 0.08),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF5B6CFF), Color(0xFF8FD3FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color.fromRGBO(91, 108, 255, 0.24),
+                            blurRadius: 16,
+                            spreadRadius: -6,
+                            offset: Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: isDark
+                              ? const Color(0xFF11192A)
+                              : Colors.white.withOpacity(0.92),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Center(
+                            child: (avatar == null || avatar.isEmpty)
+                                ? Text(
+                                    initials,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: const Color(0xFF5366FF),
+                                    ),
+                                  )
+                                : isAssetAvatar
+                                ? Image.asset(
+                                    avatar,
+                                    width: 58,
+                                    height: 58,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) {
+                                      return Text(
+                                        initials,
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                              color: const Color(0xFF5366FF),
+                                            ),
+                                      );
+                                    },
+                                  )
+                                : isFileAvatar
+                                ? Image.file(
+                                    File(avatar),
+                                    width: 58,
+                                    height: 58,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) {
+                                      return Text(
+                                        initials,
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                              color: const Color(0xFF5366FF),
+                                            ),
+                                      );
+                                    },
+                                  )
+                                : Text(
+                                    avatar,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF5366FF),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.yourSpace.toUpperCase(),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: titleColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 23,
+                              height: 1.0,
+                              letterSpacing: -0.25,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            streakLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _DrawerHeaderIconButton(
+                          icon: Icons.edit_outlined,
+                          tooltip: l10n.tr('Edit profile'),
+                          isDark: isDark,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            onQuickEdit();
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _DrawerHeaderIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: l10n.tr('Close'),
+                          isDark: isDark,
+                          onTap: onClose,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _DrawerMetricPill(
+                      icon: Icons.local_fire_department_rounded,
+                      text: l10n.dayCount(currentStreak),
+                      tint: const Color(0xFFF0A23A),
+                      backgroundTint: const Color(0x26F0A23A),
+                      isDark: isDark,
+                    ),
+                    _DrawerMetricPill(
+                      icon: Icons.bolt_rounded,
+                      text: l10n.sparksLitCount(totalSparksLit),
+                      tint: const Color(0xFF67C8FF),
+                      backgroundTint: const Color(0x2267C8FF),
+                      isDark: isDark,
+                    ),
+                    _DrawerMetricPill(
+                      icon: Icons.auto_graph_rounded,
+                      text: '$totalXp XP',
+                      tint: const Color(0xFFA78BFA),
+                      backgroundTint: const Color(0x22A78BFA),
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.levelLabel(safeLevel, levelTitle),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: titleColor.withOpacity(0.9),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$clampedXpInLevel / $safeXpToNext XP',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: subtitleColor,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 6,
+                    value: xpProgress,
+                    backgroundColor: Colors.white.withOpacity(
+                      isDark ? 0.12 : 0.42,
+                    ),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF8B7CFF),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerMetricPill extends StatelessWidget {
+  const _DrawerMetricPill({
+    required this.icon,
+    required this.text,
+    required this.tint,
+    required this.backgroundTint,
+    required this.isDark,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color tint;
+  final Color backgroundTint;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = isDark
+        ? Colors.white.withOpacity(0.8)
+        : const Color(0xFF32405D);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Color.alphaBlend(
+          backgroundTint,
+          isDark ? Colors.white.withOpacity(0.04) : Colors.white.withOpacity(0.8),
+        ),
+        border: Border.all(color: _drawerStrokeColor(isDark, strength: 0.7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: tint),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: labelColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DrawerHeaderIconButton extends StatelessWidget {
+  const _DrawerHeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Ink(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: Color.alphaBlend(
+                Colors.white.withOpacity(isDark ? 0.04 : 0.58),
+                isDark
+                    ? const Color(0xFF111A2B)
+                    : const Color(0xFFF2F5FB),
+              ),
+              border: Border.all(
+                color: _drawerStrokeColor(isDark, strength: 0.8),
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 18,
+                color: scheme.onSurface.withOpacity(isDark ? 0.84 : 0.72),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, required this.icon});
 
@@ -802,20 +1411,34 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const sectionLabelColor = Color(0xFF8A93AD);
+    final isDark = theme.brightness == Brightness.dark;
+    final sectionLabelColor = _drawerSectionLabelColor(isDark);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 8),
       child: Row(
         children: [
-          Icon(icon, size: 13, color: sectionLabelColor),
-          const SizedBox(width: 6),
+          Container(
+            width: 24,
+            height: 24,
+            decoration: _drawerIconPodDecoration(
+              backgroundColor: isDark
+                  ? Colors.white.withOpacity(0.04)
+                  : Colors.white.withOpacity(0.74),
+              radius: 8,
+              isDark: isDark,
+            ),
+            child: Center(
+              child: Icon(icon, size: 13, color: sectionLabelColor),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
-            title,
+            title.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
-              fontSize: 11.5,
-              letterSpacing: 0.18,
+              fontSize: 11,
+              letterSpacing: 1.0,
               color: sectionLabelColor,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -846,10 +1469,10 @@ class _SectionCard extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.zero,
       child: Container(
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.all(10),
         decoration: _drawerNeoGlassDecoration(
-          radius: 16,
-          withDepth: false,
+          radius: 20,
+          withDepth: true,
           level: surfaceLevel,
           isDark: Theme.of(context).brightness == Brightness.dark,
         ),
@@ -897,9 +1520,9 @@ class _DrawerPressableCardState extends State<_DrawerPressableCard> {
         highlightColor: Colors.transparent,
         splashColor: Colors.transparent,
         overlayColor: WidgetStateProperty.all(Colors.transparent),
-        onTapDown: (_) => _setPressed(true),
-        onTapCancel: () => _setPressed(false),
-        onTapUp: (_) => _setPressed(false),
+        onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
+        onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
+        onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
         child: AnimatedScale(
           duration: const Duration(milliseconds: 120),
           curve: Curves.ease,
@@ -935,7 +1558,7 @@ class _ThemeQuickAccessCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
-    final lockMessage = l10n.unlocksAtLevel(themeUnlockLevel);
+    final lockMessage = l10n.darkThemeLocked(themeUnlockLevel);
     const secondaryText = Color(0xFF7C86A2);
     final moonSunColor = isDark
         ? const Color(0xFFA78BFA)
@@ -943,25 +1566,17 @@ class _ThemeQuickAccessCard extends StatelessWidget {
     final moonSunBg = isDark
         ? const Color(0x1FA78BFA)
         : const Color(0x1F7DD3FC);
-    void handleToggleRequest() {
-      if (!themeUnlocked) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(lockMessage)));
-        return;
-      }
-      onToggleTheme();
-    }
-
     return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity.abs() < 420) return;
-        HapticFeedback.selectionClick();
-        handleToggleRequest();
-      },
+      onHorizontalDragEnd: themeUnlocked
+          ? (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity.abs() < 420) return;
+              HapticFeedback.selectionClick();
+              onToggleTheme();
+            }
+          : null,
       child: _DrawerPressableCard(
-        onTap: handleToggleRequest,
+        onTap: themeUnlocked ? onToggleTheme : null,
         borderRadius: BorderRadius.circular(16),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decorationBuilder: (pressed) => _drawerNeoGlassDecoration(
@@ -1031,8 +1646,6 @@ class _ThemeQuickAccessCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             lockMessage,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: secondaryText,
                               fontSize: 11,
@@ -1047,24 +1660,37 @@ class _ThemeQuickAccessCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            SizedBox(
-              width: 46,
-              child: Transform.scale(
-                scale: 0.88,
-                child: Switch(
-                  value: isDark,
-                  onChanged: themeUnlocked ? (_) => onToggleTheme() : null,
-                  activeColor: Color.alphaBlend(
-                    scheme.primary.withOpacity(0.68),
-                    scheme.surface,
+            if (themeUnlocked)
+              SizedBox(
+                width: 46,
+                child: Transform.scale(
+                  scale: 0.88,
+                  child: Switch(
+                    value: isDark,
+                    onChanged: (_) => onToggleTheme(),
+                    activeColor: Color.alphaBlend(
+                      scheme.primary.withOpacity(0.68),
+                      scheme.surface,
+                    ),
+                    activeTrackColor: scheme.primary.withOpacity(0.24),
+                    inactiveTrackColor: scheme.surfaceContainerHighest
+                        .withOpacity(0.42),
+                    inactiveThumbColor: scheme.onSurfaceVariant.withOpacity(
+                      0.72,
+                    ),
                   ),
-                  activeTrackColor: scheme.primary.withOpacity(0.24),
-                  inactiveTrackColor: scheme.surfaceContainerHighest
-                      .withOpacity(0.42),
-                  inactiveThumbColor: scheme.onSurfaceVariant.withOpacity(0.72),
+                ),
+              )
+            else
+              SizedBox(
+                width: 46,
+                child: Icon(
+                  Icons.lock_outline_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 20,
+                  semanticLabel: lockMessage,
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -1247,6 +1873,7 @@ class _ModernMenuCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.meta,
+    this.stackMeta = false,
     this.isSubtle = false,
     this.isMuted = false,
     this.surfaceLevel = _DrawerSurfaceLevel.secondary,
@@ -1260,6 +1887,7 @@ class _ModernMenuCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget? meta;
+  final bool stackMeta;
   final bool isSubtle;
   final bool isMuted;
   final _DrawerSurfaceLevel surfaceLevel;
@@ -1285,14 +1913,14 @@ class _ModernMenuCard extends StatelessWidget {
     final resolvedTrailingOpacity = isMuted
         ? trailingOpacity * 0.56
         : trailingOpacity;
-    final subtitleYOffset = meta != null ? -2.5 : 0.0;
+    final subtitleYOffset = meta != null && !stackMeta ? -2.5 : 0.0;
 
     return _DrawerPressableCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decorationBuilder: (pressed) => _drawerNeoGlassDecoration(
-        radius: 16,
+        radius: 18,
         pressed: pressed,
         level: surfaceLevel,
         isDark: isDark,
@@ -1300,73 +1928,89 @@ class _ModernMenuCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 42,
+            height: 42,
             decoration: _drawerIconPodDecoration(
               backgroundColor: resolvedIconBackgroundColor,
-              radius: 10,
+              radius: 12,
               isDark: isDark,
             ),
             child: iconAsset != null
                 ? Center(
                     child: Image.asset(
                       iconAsset!,
-                      width: 20,
-                      height: 20,
+                      width: 21,
+                      height: 21,
                       fit: BoxFit.contain,
                       color: neonIconColor,
                       colorBlendMode: BlendMode.srcIn,
                     ),
                   )
-                : Icon(icon, color: neonIconColor, size: 20),
+                : Icon(icon, color: neonIconColor, size: 21),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style:
-                      (isSubtle
-                              ? theme.textTheme.bodyMedium
-                              : theme.textTheme.titleSmall)
-                          ?.copyWith(
-                            fontWeight: isSubtle
-                                ? FontWeight.w600
-                                : FontWeight.w600,
-                            color: scheme.onSurface.withOpacity(
-                              isSubtle
-                                  ? titleOpacity * 0.92
-                                  : titleOpacity * 0.9,
-                            ),
-                          ),
+                  maxLines: stackMeta ? null : 1,
+                  overflow: stackMeta ? null : TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: isSubtle ? FontWeight.w700 : FontWeight.w800,
+                    letterSpacing: -0.12,
+                    color: scheme.onSurface.withOpacity(
+                      isSubtle ? titleOpacity * 0.94 : titleOpacity * 0.92,
+                    ),
+                  ),
                 ),
-                SizedBox(height: meta != null ? 0 : 2),
+                SizedBox(height: meta != null ? 1 : 4),
                 Transform.translate(
                   offset: Offset(0, subtitleYOffset),
                   child: Text(
                     subtitle,
+                    maxLines: stackMeta ? null : 2,
+                    overflow: stackMeta ? null : TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant.withOpacity(
-                        resolvedSubtitleOpacity * 0.88,
+                        resolvedSubtitleOpacity * 0.86,
                       ),
+                      height: 1.2,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
+                if (meta != null && stackMeta) ...[
+                  const SizedBox(height: 6),
+                  Opacity(opacity: isMuted ? 0.78 : 1, child: meta!),
+                ],
               ],
             ),
           ),
-          if (meta != null) ...[
+          if (meta != null && !stackMeta) ...[
             const SizedBox(width: 8),
             Opacity(opacity: isMuted ? 0.78 : 1, child: meta!),
           ],
-          Icon(
-            Icons.chevron_right_rounded,
-            color: scheme.onSurfaceVariant.withOpacity(
-              resolvedTrailingOpacity * 0.78,
+          Container(
+            width: 30,
+            height: 30,
+            decoration: _drawerIconPodDecoration(
+              backgroundColor: isDark
+                  ? Colors.white.withOpacity(0.035)
+                  : Colors.white.withOpacity(0.72),
+              radius: 10,
+              isDark: isDark,
             ),
-            size: 20,
+            child: Center(
+              child: Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.onSurfaceVariant.withOpacity(
+                  resolvedTrailingOpacity * 0.78,
+                ),
+                size: 18,
+              ),
+            ),
           ),
         ],
       ),

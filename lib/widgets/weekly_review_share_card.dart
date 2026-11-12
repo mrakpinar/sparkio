@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'sparkio_logo.dart';
 
 class WeeklyReviewShareCard extends StatelessWidget {
   const WeeklyReviewShareCard({
@@ -83,13 +84,21 @@ class WeeklyReviewShareCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'SPARKIO WEEKLY REVIEW',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: Colors.white.withOpacity(0.62),
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
+                  Row(
+                    children: [
+                      const SparkioLogo(size: 24),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'SPARKIO WEEKLY REVIEW',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: Colors.white.withOpacity(0.62),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   Text(

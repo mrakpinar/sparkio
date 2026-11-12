@@ -1,7 +1,11 @@
 import '../services/task_quality_engine.dart';
+import 'package:uuid/uuid.dart';
 
 class Task {
   final String id;
+  // Identifies one daily assignment; null means an unassigned/catalog task or
+  // a legacy record whose assignment identity is unknown. Never infer on read.
+  final String? assignmentId;
   final String title;
   final String category; // mind, body, growth, calm, health
   final bool isCustom;
@@ -14,6 +18,7 @@ class Task {
 
   const Task({
     required this.id,
+    this.assignmentId,
     required this.title,
     required this.category,
     this.isCustom = false,
@@ -30,6 +35,29 @@ class Task {
     return raw.clamp(1, 360000);
   }
 
+  Task withAssignmentId(String? value) => Task(
+    id: id,
+    assignmentId: value,
+    title: title,
+    category: category,
+    isCustom: isCustom,
+    difficulty: difficulty,
+    durationMinutes: durationMinutes,
+    durationSeconds: durationSeconds,
+    aiSuggested: aiSuggested,
+    premiumOnly: premiumOnly,
+    isSpecial: isSpecial,
+  );
+
+  // Only call at a new selection/append/replacement boundary, never on save.
+  Task newAssignment() => withAssignmentId(const Uuid().v4());
+
+  bool hasSameAssignment(Task? other) =>
+      assignmentId != null &&
+      other != null &&
+      assignmentId == other.assignmentId &&
+      id == other.id;
+
   int get xpReward {
     final base = switch (difficulty) {
       'hard' => 8,
@@ -40,6 +68,7 @@ class Task {
   }
 
   factory Task.fromMap(Map<String, dynamic> m) {
+    final rawAssignmentId = m['assignmentId'];
     final difficulty = _normalizeDifficulty(m['difficulty'] as String?);
     final category = m['category'] as String? ?? 'mind';
     final rawTitle = (m['title'] as String?) ?? '';
@@ -61,6 +90,10 @@ class Task {
     );
     return Task(
       id: m['id'] as String,
+      assignmentId: rawAssignmentId is String &&
+              rawAssignmentId.trim().isNotEmpty
+          ? rawAssignmentId
+          : null,
       title: titleQuality.title,
       category: category,
       isCustom: (m['isCustom'] as bool?) ?? false,
@@ -75,6 +108,7 @@ class Task {
 
   Map<String, dynamic> toMap() => {
     'id': id,
+    if (assignmentId != null) 'assignmentId': assignmentId,
     'title': title,
     'category': category,
     'isCustom': isCustom,

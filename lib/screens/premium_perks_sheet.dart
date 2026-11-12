@@ -160,6 +160,7 @@ class PremiumPerksSheet extends StatelessWidget {
                 ),
               ),
               Column(
+                mainAxisSize: isDark ? MainAxisSize.max : MainAxisSize.min,
                 children: [
                   Center(
                     child: Container(
@@ -174,7 +175,8 @@ class PremiumPerksSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Expanded(
+                  Flexible(
+                    fit: isDark ? FlexFit.tight : FlexFit.loose,
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
                       child: Column(
@@ -236,8 +238,10 @@ class PremiumPerksSheet extends StatelessWidget {
                                         ),
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
-                                              color: scheme.onSurfaceVariant
-                                                  .withOpacity(0.74),
+                                              color: isDark
+                                                  ? scheme.onSurfaceVariant
+                                                        .withOpacity(0.74)
+                                                  : scheme.onSurfaceVariant,
                                               fontWeight: FontWeight.w500,
                                             ),
                                       ),
@@ -380,7 +384,7 @@ class _SectionHeader extends StatelessWidget {
           style: theme.textTheme.bodySmall?.copyWith(
             color: isDark
                 ? Colors.white.withOpacity(subdued ? 0.62 : 0.74)
-                : scheme.onSurfaceVariant.withOpacity(subdued ? 0.78 : 0.9),
+                : scheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -414,7 +418,7 @@ class _PremiumPlanCard extends StatelessWidget {
         : scheme.onSurface.withOpacity(0.78);
     final secondaryColor = isDark
         ? Colors.white.withOpacity(0.58)
-        : scheme.onSurfaceVariant.withOpacity(0.82);
+        : scheme.onSurfaceVariant;
 
     return Container(
       decoration: _premiumNeoGlassDecoration(
@@ -607,7 +611,7 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
         : scheme.onSurface.withOpacity(0.95);
     final subtitleColor = isDark
         ? Colors.white.withOpacity(0.72)
-        : scheme.onSurfaceVariant.withOpacity(0.94);
+        : scheme.onSurfaceVariant;
 
     return MouseRegion(
       onEnter: (_) {
@@ -690,8 +694,12 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
                               : Icons.check_circle_rounded,
                           size: 14,
                           color: widget.onPressed != null
-                              ? Colors.white.withOpacity(0.76)
-                              : scheme.onSurfaceVariant.withOpacity(0.52),
+                              ? (isDark
+                                    ? Colors.white.withOpacity(0.76)
+                                    : scheme.primary)
+                              : scheme.onSurfaceVariant.withOpacity(
+                                  isDark ? 0.52 : 0.8,
+                                ),
                         ),
                         const SizedBox(width: 7),
                         Expanded(
@@ -703,7 +711,9 @@ class _TodayBoostCardState extends State<_TodayBoostCard> {
                                   ? (isDark
                                         ? Colors.white.withOpacity(0.9)
                                         : scheme.onSurface.withOpacity(0.88))
-                                  : scheme.onSurfaceVariant.withOpacity(0.72),
+                                  : scheme.onSurfaceVariant.withOpacity(
+                                      isDark ? 0.72 : 1,
+                                    ),
                             ),
                           ),
                         ),

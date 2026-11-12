@@ -61,7 +61,9 @@ class _BadgesScreenState extends State<BadgesScreen>
               final data = snapshot.data!;
               final earned = data.earned;
               final totalBadges = _allBadges.length;
-              final earnedCount = earned.length;
+              final earnedCount = _allBadges
+                  .where((badge) => earned.contains(badge.id))
+                  .length;
               final progress = totalBadges == 0
                   ? 0.0
                   : earnedCount / totalBadges;
@@ -87,14 +89,20 @@ class _BadgesScreenState extends State<BadgesScreen>
                           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: const Color.fromRGBO(11, 15, 26, 0.82),
+                              color: isDark
+                                  ? const Color.fromRGBO(11, 15, 26, 0.82)
+                                  : scheme.surface.withOpacity(0.94),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.05),
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.05)
+                                    : scheme.outline.withOpacity(0.3),
                               ),
-                              boxShadow: const [
+                              boxShadow: [
                                 BoxShadow(
-                                  color: Color.fromRGBO(0, 0, 0, 0.25),
+                                  color: Colors.black.withOpacity(
+                                    isDark ? 0.25 : 0.06,
+                                  ),
                                   blurRadius: 22,
                                   offset: Offset(0, 6),
                                 ),
@@ -250,7 +258,7 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    l10n.trf('{earned} of {total} milestones', {
+                    l10n.trf('{earned} of {total} milestones unlocked', {
                       'earned': earnedCount,
                       'total': totalBadges,
                     }),
@@ -264,7 +272,9 @@ class _SummaryCard extends StatelessWidget {
                 Text(
                   '${(progress * 100).round()}%',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurface.withOpacity(0.52),
+                    color: scheme.brightness == Brightness.dark
+                        ? scheme.onSurface.withOpacity(0.52)
+                        : scheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -349,11 +359,13 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Icon(icon, size: 17, color: scheme.primary.withOpacity(0.84)),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w500,
-            color: scheme.onSurface.withOpacity(0.76),
+        Flexible(
+          child: Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: scheme.onSurface.withOpacity(0.76),
+            ),
           ),
         ),
         if (count != null) ...[
@@ -361,7 +373,9 @@ class _SectionHeader extends StatelessWidget {
           Text(
             '$count',
             style: theme.textTheme.labelSmall?.copyWith(
-              color: scheme.onSurface.withOpacity(0.45),
+              color: scheme.brightness == Brightness.dark
+                  ? scheme.onSurface.withOpacity(0.45)
+                  : scheme.onSurfaceVariant,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -408,18 +422,16 @@ class _BadgeGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 20,
-            childAspectRatio: 0.82,
-          ),
-          itemCount: badges.length,
-          itemBuilder: (context, index) {
-            final rowIndex = index ~/ 2;
+        final columns = constraints.maxWidth >= 520 &&
+                MediaQuery.textScalerOf(context).scale(14) <= 18
+            ? 2
+            : 1;
+        final cardWidth = (constraints.maxWidth - (columns - 1) * 12) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 16,
+          children: List.generate(badges.length, (index) {
+            final rowIndex = index ~/ columns;
             final rowStep =
                 _BadgesScreenState._rowStaggerMs /
                 _BadgesScreenState._timelineMs;
@@ -428,19 +440,22 @@ class _BadgeGrid extends StatelessWidget {
                 _BadgesScreenState._timelineMs;
             final start = (revealStart + (rowIndex * rowStep)).clamp(0.0, 0.9);
             final end = (start + duration).clamp(start + 0.05, 1.0);
-            return _StaggeredFadeInUp(
-              animation: revealAnimation,
-              start: start,
-              end: end,
-              offsetY: 6,
-              child: _BadgeCard(
-                badge: badges[index],
-                locked: locked,
-                progress: progress,
-                progressAnimation: progressAnimation,
+            return SizedBox(
+              width: cardWidth,
+              child: _StaggeredFadeInUp(
+                animation: revealAnimation,
+                start: start,
+                end: end,
+                offsetY: 6,
+                child: _BadgeCard(
+                  badge: badges[index],
+                  locked: locked,
+                  progress: progress,
+                  progressAnimation: progressAnimation,
+                ),
               ),
             );
-          },
+          }),
         );
       },
     );
@@ -464,6 +479,7 @@ class _BadgeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
     final current = progress == null ? 0 : _progressForBadge(badge, progress!);
     final target = badge.target;
     final ratio = target == 0 ? 0.0 : (current / target).clamp(0.0, 1.0);
@@ -488,7 +504,7 @@ class _BadgeCard extends StatelessWidget {
             Row(
               children: [
                 Opacity(
-                  opacity: locked ? 0.4 : 1,
+                  opacity: locked && isDark ? 0.4 : 1,
                   child: Container(
                     width: 36,
                     height: 36,
@@ -500,7 +516,9 @@ class _BadgeCard extends StatelessWidget {
                     ),
                     child: Icon(
                       badge.icon,
-                      color: scheme.primary.withOpacity(locked ? 0.6 : 0.9),
+                      color: scheme.primary.withOpacity(
+                        locked && isDark ? 0.6 : 0.9,
+                      ),
                       size: 20,
                     ),
                   ),
@@ -510,27 +528,27 @@ class _BadgeCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               context.l10n.tr(badge.label),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: scheme.onSurface.withOpacity(locked ? 0.62 : 0.9),
+                color: scheme.onSurface.withOpacity(
+                  isDark ? (locked ? 0.62 : 0.9) : 0.95,
+                ),
               ),
             ),
             const SizedBox(height: 4),
             Text(
               context.l10n.tr(badge.description),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w400,
                 fontSize: 12,
-                color: scheme.onSurface.withOpacity(locked ? 0.52 : 0.64),
+                color: isDark
+                    ? scheme.onSurface.withOpacity(locked ? 0.52 : 0.64)
+                    : scheme.onSurfaceVariant,
                 height: 16 / 12,
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 16),
             Row(
               children: [
                 const Spacer(),
@@ -538,7 +556,9 @@ class _BadgeCard extends StatelessWidget {
                   locked ? '$current / $target' : '$target / $target',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontSize: 11,
-                    color: scheme.onSurface.withOpacity(0.48),
+                    color: isDark
+                        ? scheme.onSurface.withOpacity(0.48)
+                        : scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -634,6 +654,7 @@ class _SoftProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
     final clamped = value.clamp(0.0, 1.0);
 
     return SizedBox(
@@ -643,7 +664,11 @@ class _SoftProgressBar extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: scheme.onSurface.withOpacity(trackOpacity)),
+            ColoredBox(
+              color: scheme.onSurface.withOpacity(
+                isDark ? trackOpacity : 0.18,
+              ),
+            ),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: clamped.toDouble(),
@@ -654,9 +679,15 @@ class _SoftProgressBar extends StatelessWidget {
                     end: Alignment.centerRight,
                     stops: const [0.0, 0.28, 1.0],
                     colors: [
-                      const Color(0xFF8B7CFF).withOpacity(fillOpacity * 0.56),
-                      const Color(0xFF8B7CFF).withOpacity(fillOpacity),
-                      const Color(0xFF5DE1FF).withOpacity(fillOpacity * 0.96),
+                      isDark
+                          ? const Color(0xFF8B7CFF).withOpacity(fillOpacity * 0.56)
+                          : const Color(0xFF6D46C8),
+                      isDark
+                          ? const Color(0xFF8B7CFF).withOpacity(fillOpacity)
+                          : const Color(0xFF7653D1),
+                      isDark
+                          ? const Color(0xFF5DE1FF).withOpacity(fillOpacity * 0.96)
+                          : const Color(0xFF3269B5),
                     ],
                   ),
                 ),
@@ -805,7 +836,10 @@ BoxDecoration _milestonesGlassDecoration(
 }) {
   final base = Color.alphaBlend(
     Colors.white.withOpacity(0.02),
-    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
+    (scheme.brightness == Brightness.dark
+            ? const Color(0xFF0E1523)
+            : scheme.surface)
+        .withOpacity(surfaceOpacity),
   );
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
@@ -815,14 +849,26 @@ BoxDecoration _milestonesGlassDecoration(
       colors: [
         Color.alphaBlend(tint.withOpacity(tintOpacity * 0.72), base),
         Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.045), base),
-        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
+        Color.alphaBlend(
+          (scheme.brightness == Brightness.dark
+                  ? const Color(0xFF101726)
+                  : scheme.primary)
+              .withOpacity(scheme.brightness == Brightness.dark ? 0.18 : 0.02),
+          base,
+        ),
       ],
       stops: const [0.0, 0.52, 1.0],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.05)),
+    border: Border.all(
+      color: scheme.brightness == Brightness.dark
+          ? Colors.white.withOpacity(0.05)
+          : scheme.outline.withOpacity(0.3),
+    ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.16),
+        color: Colors.black.withOpacity(
+          scheme.brightness == Brightness.dark ? 0.16 : 0.06,
+        ),
         blurRadius: 18,
         spreadRadius: -6,
         offset: const Offset(0, 10),
@@ -860,9 +906,11 @@ class _MilestonesAmbientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: Color(0xFF0B0F1A),
-      child: Stack(
+    return ColoredBox(
+      color: scheme.brightness == Brightness.dark
+          ? const Color(0xFF0B0F1A)
+          : scheme.background,
+      child: const Stack(
         children: [
           Positioned(
             top: -120,

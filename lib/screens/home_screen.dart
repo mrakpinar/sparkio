@@ -14,22 +14,25 @@ import 'package:sparkio/widgets/modern_drawer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/task.dart';
+import '../models/focus_session.dart';
+import '../models/onboarding_goal.dart';
 import '../models/challenge_mode.dart';
 import '../models/weekly_plan.dart';
 import '../models/level_unlocks.dart';
 import '../services/task_engine.dart';
 import '../services/task_repository.dart';
+import '../services/task_completion_writer.dart';
 import '../services/notification_service.dart';
 import '../services/ad_service.dart';
 import '../services/premium_service.dart';
 import '../services/theme_service.dart';
 import '../services/analytics_service.dart';
-import '../services/streak_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/referral_service.dart';
 import '../services/locale_service.dart';
 import '../services/task_localizer.dart';
 import '../controllers/home_controller.dart';
+import '../controllers/home_calendar_controller.dart';
 import '../app_strings.dart';
 import 'task_add_sheet.dart';
 import 'premium_perks_sheet.dart';
@@ -78,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     'https://www.instagram.com/sparkio.app/',
   );
   final _repo = TaskRepository();
+  late final _completionWriter = TaskCompletionWriter(_repo);
   final _engine = TaskEngine();
   final _premium = PremiumService.instance;
   final _referral = ReferralService.instance;
@@ -94,6 +98,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final GlobalKey _sharePreviewKey = GlobalKey();
 
   bool _loading = true;
+  bool _calendarLoading = false;
+  DateTime? _completionStartedAt;
+  Future<void> _completionFeedbackTail = Future<void>.value();
+  String? _activeTimerDateKey;
+  late final HomeCalendarController<VoidCallback> _calendar =
+      HomeCalendarController<VoidCallback>(
+        load: _loadCalendarState,
+        apply: (commit) => commit(),
+        onLoading: (loading) {
+          if (mounted) _updateState(() => _calendarLoading = loading);
+        },
+        onError: (_) {
+          if (mounted) {
+            _showSnack(
+              context.l10n.tr(
+                'Daily tasks could not be refreshed. Please try again.',
+              ),
+            );
+          }
+        },
+      );
   bool _refreshing = false;
   bool _dailyMoodPrompting = false;
   bool _survivalModeActive = false;
@@ -108,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _poolError;
 
   List<Task> _today = [];
+  OnboardingFirstSelection? _onboardingFirstSelection;
   Map<String, bool> _completed = {};
   String? _allDoneShownKey;
 
@@ -146,6 +172,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Duration _activeTimerRemaining = Duration.zero;
   bool _activeTimerFinished = false;
   bool _activeTimerPaused = false;
+  FocusSession? _resumableFocusSession;
+  Timer? _focusResumeTicker;
   bool _awaitingSecondAction = false;
   String? _pendingCompletionChainId;
   String? _pendingCompletionTaskId;
@@ -154,26 +182,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Timer? _activeTimerTicker;
   Timer? _premiumTicker;
   bool _flowModeEnabled = false;
-  String? _flowTaskId;
+  String? _flowAssignmentId;
   bool _flowMomentumPrompt = false;
   AudioPlayer? _ambientPlayer;
+  late AnimationController _ambientBlob1Ctrl;
+  late AnimationController _ambientBlob2Ctrl;
   late final VoidCallback _localeListener = _handleLocaleChanged;
 
   @override
   void initState() {
     super.initState();
     LocaleService.instance.locale.addListener(_localeListener);
+    _ambientBlob1Ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat(reverse: true);
+    _ambientBlob2Ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat(reverse: true);
     _startPremiumTicker();
     _bootstrap();
   }
 
   @override
   void dispose() {
+    _calendar.dispose();
     LocaleService.instance.locale.removeListener(_localeListener);
     _homeScrollController.dispose();
     _activeTimerTicker?.cancel();
+    _focusResumeTicker?.cancel();
     _premiumTicker?.cancel();
     _ambientPlayer?.dispose();
+    _ambientBlob1Ctrl.dispose();
+    _ambientBlob2Ctrl.dispose();
     super.dispose();
   }
 
@@ -200,9 +242,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await _repo.saveSelectedTasks(localizedToday);
   }
 
+  int _onboardingTaskPriority(Task a, Task b) {
+    final preferredId = _onboardingFirstSelection?.preferredTaskFor(
+      _today,
+      _calendar.loadedPeriod?.dayKey,
+    );
+    if (preferredId == null) return 0;
+    return (a.id == preferredId ? 0 : 1).compareTo(b.id == preferredId ? 0 : 1);
+  }
+
   Task? _resolveNextPendingTask() {
     final pending = _today.where((task) => _completed[task.id] != true).toList()
       ..sort((a, b) {
+        final priority = _onboardingTaskPriority(a, b);
+        if (priority != 0) return priority;
         final durationCompare = a.totalDurationSeconds.compareTo(
           b.totalDurationSeconds,
         );
@@ -216,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _enterFlowMode(Task task) {
     _updateState(() {
       _flowModeEnabled = true;
-      _flowTaskId = task.id;
+      _flowAssignmentId = task.assignmentId;
       _flowMomentumPrompt = false;
     });
   }
@@ -225,12 +278,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_flowMomentumPrompt) {
       _updateState(() {
         _flowMomentumPrompt = false;
-        _flowTaskId = task.id;
+        _flowAssignmentId = task.assignmentId;
       });
       await _toggle(task);
       return;
     }
-    final isActiveTask = _activeTimerTask?.id == task.id;
+    final isActiveTask = task.hasSameAssignment(_activeTimerTask);
     if (isActiveTask && _activeTimerFinished) {
       final completed = await _completeFinishedTimerFromNudge();
       if (!mounted || !completed) return;
@@ -238,10 +291,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _updateState(() {
         if (nextTask == null) {
           _flowModeEnabled = false;
-          _flowTaskId = null;
+          _flowAssignmentId = null;
           _flowMomentumPrompt = false;
         } else {
-          _flowTaskId = nextTask.id;
+          _flowAssignmentId = nextTask.assignmentId;
           _flowMomentumPrompt = true;
         }
       });
@@ -252,12 +305,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
     if (isActiveTask) return;
-    _updateState(() => _flowTaskId = task.id);
+    _updateState(() => _flowAssignmentId = task.assignmentId);
     await _toggle(task);
   }
 
   Future<void> _toggleFlowTimerPause(Task task) async {
-    if (_activeTimerTask?.id != task.id || _activeTimerFinished) return;
+    if (!task.hasSameAssignment(_activeTimerTask) || _activeTimerFinished) return;
     if (_activeTimerPaused) {
       await _resumeTaskTimer(task);
     } else {
@@ -266,16 +319,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _endFlowTimer(Task task) async {
-    if (_activeTimerTask?.id != task.id) return;
-    await _cancelTaskTimer(task);
-    if (!mounted) return;
-    _updateState(() => _flowMomentumPrompt = false);
+    await _runCalendarAction(_activeTimerDateKey, (_) async {
+      if (!task.hasSameAssignment(_activeTimerTask)) return;
+      await _cancelTaskTimer(task);
+      if (mounted) _updateState(() => _flowMomentumPrompt = false);
+    });
   }
 
   void _finishFlowForToday() {
     _updateState(() {
       _flowModeEnabled = false;
-      _flowTaskId = null;
+      _flowAssignmentId = null;
       _flowMomentumPrompt = false;
       _awaitingSecondAction = false;
       _pendingCompletionChainId = null;
@@ -286,38 +340,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _startFlowFromHome(Task task) async {
-    final completed = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => FocusScreen(task: task)),
-    );
-    if (completed == true && mounted) {
-      if (_completed[task.id] == true) return;
-
-      _updateState(() => _completed[task.id] = true);
-      await _repo.saveCompletedMap(_completed);
-      await _markTaskDone(task);
-      await _applyStreakIfAllDone();
+    final dayKey = _calendar.loadedPeriod?.dayKey;
+    await _calendar.check();
+    if (!mounted ||
+        !_calendar.isCurrent ||
+        dayKey != _calendar.loadedPeriod?.dayKey ||
+        task.assignmentId == null ||
+        !_today.any((item) => identical(item, task))) {
+      return;
     }
+    _focusResumeTicker?.cancel();
+    final result = await Navigator.push<FocusSessionResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FocusScreen(task: task, sessionDateKey: dayKey),
+      ),
+    );
+    if (!mounted) return;
+    if (result != null &&
+        result.completed && result.assignmentId == task.assignmentId) {
+      await _completeCalendarTask(task, dateKey: result.dateKey);
+    } else {
+      await _calendar.check();
+    }
+    if (mounted) await _refreshResumableFocusSession();
   }
 
   Future<void> _completeFlowTaskAfterTimer(Task task) async {
     if (!_flowModeEnabled) return;
-    if (_completed[task.id] == true) return;
-    await _cancelTaskTimer(task);
-    if (!mounted) return;
-    _updateState(() => _completed[task.id] = true);
-    await _repo.saveCompletedMap(_completed);
-    await _markTaskDone(task);
-    await _applyStreakIfAllDone();
+    final completed = await _completeCalendarTask(
+      task,
+      dateKey: _activeTimerDateKey,
+    );
+    if (!completed.isCommitted || !_calendar.isCurrent) return;
     if (!mounted) return;
     final nextTask = _resolveNextPendingTask();
     _updateState(() {
       if (nextTask == null) {
         _flowModeEnabled = false;
-        _flowTaskId = null;
+        _flowAssignmentId = null;
         _flowMomentumPrompt = false;
       } else {
-        _flowTaskId = nextTask.id;
+        _flowAssignmentId = nextTask.assignmentId;
         _flowMomentumPrompt = true;
       }
     });
@@ -368,7 +432,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     final pendingTasks =
         _today.where((task) => _completed[task.id] != true).toList()
-          ..sort(byShortDuration);
+          ..sort((a, b) {
+            final priority = _onboardingTaskPriority(a, b);
+            return priority != 0 ? priority : byShortDuration(a, b);
+          });
     final completedTasks =
         _today.where((task) => _completed[task.id] == true).toList()
           ..sort(byShortDuration);
@@ -383,16 +450,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     Task? heroTask;
     if (_activeTimerTask != null && _completed[_activeTimerTask!.id] != true) {
       for (final task in orderedTodayTasks) {
-        if (task.id == _activeTimerTask!.id) {
+        if (task.hasSameAssignment(_activeTimerTask)) {
+          heroTask = task;
+          break;
+        }
+      }
+    }
+    final focusSession = _resumableFocusSession;
+    if (heroTask == null &&
+        focusSession != null &&
+        focusSession.dateKey == _calendar.loadedPeriod?.dayKey &&
+        _calendar.isCurrent) {
+      for (final task in pendingTasks) {
+        if (task.assignmentId != null &&
+            task.assignmentId == focusSession.assignmentId &&
+            task.id == focusSession.taskId) {
           heroTask = task;
           break;
         }
       }
     }
     if (heroTask == null && _flowModeEnabled) {
-      if (_flowTaskId != null) {
+      if (_flowAssignmentId != null) {
         for (final task in orderedTodayTasks) {
-          if (task.id == _flowTaskId && _completed[task.id] != true) {
+          if (task.assignmentId == _flowAssignmentId && _completed[task.id] != true) {
             heroTask = task;
             break;
           }
@@ -403,17 +484,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     heroTask ??= nextSparkTask;
     final heroTaskHasTimer =
         heroTask != null &&
-        _activeTimerTask?.id == heroTask.id &&
+        heroTask.hasSameAssignment(_activeTimerTask) &&
         _completed[heroTask.id] != true;
-    final heroTaskTimerFinished = heroTaskHasTimer && _activeTimerFinished;
-    final heroTaskIsActive =
-        heroTaskHasTimer && !_activeTimerPaused && !_activeTimerFinished;
-    final heroTaskIsPaused =
-        heroTaskHasTimer && _activeTimerPaused && !_activeTimerFinished;
-    final heroTimerProgress = heroTaskHasTimer
+    final heroTaskHasFocusSession =
+        !heroTaskHasTimer &&
+        heroTask != null &&
+        focusSession != null &&
+        focusSession.assignmentId != null &&
+        heroTask.assignmentId == focusSession.assignmentId &&
+        heroTask.id == focusSession.taskId &&
+        focusSession.dateKey == _calendar.loadedPeriod?.dayKey &&
+        _calendar.isCurrent;
+    final focusRemaining = heroTaskHasFocusSession
+        ? Duration(seconds: focusSession.remainingAt(DateTime.now()))
+        : Duration.zero;
+    final heroRemaining = heroTaskHasFocusSession
+        ? focusRemaining
+        : _activeTimerRemaining;
+    final heroTaskTimerFinished = heroTaskHasFocusSession
+        ? focusRemaining == Duration.zero
+        : heroTaskHasTimer && _activeTimerFinished;
+    final heroTaskIsActive = heroTaskHasFocusSession
+        ? !focusSession.isPaused && !heroTaskTimerFinished
+        : heroTaskHasTimer && !_activeTimerPaused && !_activeTimerFinished;
+    final heroTaskIsPaused = heroTaskHasFocusSession
+        ? focusSession.isPaused && !heroTaskTimerFinished
+        : heroTaskHasTimer && _activeTimerPaused && !_activeTimerFinished;
+    final heroTimerProgress = (heroTaskHasTimer || heroTaskHasFocusSession)
         ? (() {
             final total = heroTask!.totalDurationSeconds.clamp(1, 360000);
-            final remaining = _activeTimerRemaining.inSeconds.clamp(0, total);
+            final remaining = heroRemaining.inSeconds.clamp(0, total);
             return (1 - (remaining / total)).clamp(0.0, 1.0).toDouble();
           })()
         : null;
@@ -424,6 +524,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final bottomRightAmbient = isDark
         ? Colors.white.withOpacity(0.02)
         : scheme.onSurface.withOpacity(0.04);
+    // Spread the existing cards on taller screens, retaining compact spacing
+    // on short screens and keeping the task's primary action near the top.
+    final sectionSpacing = ((MediaQuery.sizeOf(context).height - 640) * 0.16)
+        .clamp(0.0, 32.0)
+        .toDouble();
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: homeBaseBackground,
@@ -438,6 +543,53 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(color: homeBaseBackground),
+              ),
+            ),
+          ),
+          // Animated ambient glow blobs — sinematik derinlik
+          Positioned(
+            left: -90,
+            top: -70,
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _ambientBlob1Ctrl,
+                builder: (context, _) => Opacity(
+                  opacity: 0.07 + 0.05 * _ambientBlob1Ctrl.value,
+                  child: Container(
+                    width: 340,
+                    height: 340,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [Color(0xFF7B6FFF), Colors.transparent],
+                        stops: [0.0, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -100,
+            top: 260,
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _ambientBlob2Ctrl,
+                builder: (context, _) => Opacity(
+                  opacity: 0.05 + 0.04 * _ambientBlob2Ctrl.value,
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [Color(0xFF2FD0B2), Colors.transparent],
+                        stops: [0.0, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -484,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-          _loading
+          (_loading || _calendarLoading)
               ? const HomeSkeleton()
               : CustomScrollView(
                   controller: _homeScrollController,
@@ -492,6 +644,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     HomeAppBar(
                       userName: _profileName.isEmpty ? 'Friend' : _profileName,
                       isDark: isDark,
+                      streak: _streak,
                       onOpenProfile: _openProfileScreen,
                       onOpenStats: () => Navigator.push(
                         context,
@@ -509,25 +662,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           onDecline: _declineSurvivalMode,
                         ),
                       ),
-                    HomeHeaderSliver(
-                      doneCount: completedTodayCount,
-                      totalCount: _today.length,
-                      streakCount: _streak,
-                      weeklyDoneCount: weeklyDoneTotal,
-                      weeklyTotalCount: weeklyTargetTotal,
-                      syncedProgress: heroTaskHasTimer
-                          ? heroTimerProgress
-                          : null,
-                      onShare: _openShareSheet,
-                      onOpenWeekly: () => unawaited(_openWeeklyPlanSheet()),
-                      onStartFirstSpark: nextSparkTask == null
-                          ? null
-                          : () => _enterFlowMode(nextSparkTask!),
-                      hasPendingSpark: nextSparkTask != null,
-                      showAction: false,
-                    ),
+                    if (!allDone)
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: sectionSpacing / 2),
+                      ),
                     if (allDone)
-                      const HomeAllDoneSliver()
+                      HomeAllDoneSliver(streakCount: _streak)
                     else
                       HomeFlowModeSliver(
                         task: heroTask,
@@ -541,14 +681,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         timerRunning: heroTaskIsActive,
                         timerPaused: heroTaskIsPaused,
                         timerFinished: heroTaskTimerFinished,
-                        timerRemaining: heroTaskHasTimer
-                            ? _activeTimerRemaining
+                        focusSessionAvailable: heroTaskHasFocusSession,
+                        timerRemaining: heroTaskHasTimer || heroTaskHasFocusSession
+                            ? heroRemaining
                             : null,
                         showMomentumPrompt:
+                            !heroTaskHasFocusSession &&
                             _flowModeEnabled &&
                             _flowMomentumPrompt &&
                             heroTask != null &&
-                            heroTask.id == _flowTaskId,
+                            heroTask.assignmentId == _flowAssignmentId,
                         onPauseAction:
                             heroTaskHasTimer && !heroTaskTimerFinished
                             ? () => _toggleFlowTimerPause(heroTask!)
@@ -559,7 +701,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         onDoneForToday: _flowModeEnabled && _flowMomentumPrompt
                             ? _finishFlowForToday
                             : null,
-                        onPrimaryAction: _flowModeEnabled
+                        onPrimaryAction: heroTaskHasFocusSession
+                            ? () => _startFlowFromHome(heroTask!)
+                            : _flowModeEnabled
                             ? (heroTask == null
                                   ? null
                                   : heroTaskTimerFinished
@@ -583,17 +727,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ? null
                                   : () => _startFlowFromHome(nextSparkTask!)),
                       ),
+                    if (!allDone)
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: sectionSpacing),
+                      ),
+                    HomeHeaderSliver(
+                      doneCount: completedTodayCount,
+                      totalCount: _today.length,
+                      streakCount: _streak,
+                      weeklyDoneCount: weeklyDoneTotal,
+                      weeklyTotalCount: weeklyTargetTotal,
+                      syncedProgress: heroTaskHasTimer || heroTaskHasFocusSession
+                          ? heroTimerProgress
+                          : null,
+                      onShare: _openShareSheet,
+                      onOpenWeekly: () => unawaited(_openWeeklyPlanSheet()),
+                      onStartFirstSpark: nextSparkTask == null
+                          ? null
+                          : () => _enterFlowMode(nextSparkTask!),
+                      hasPendingSpark: nextSparkTask != null,
+                      showAction: false,
+                    ),
+                    if (!allDone && _today.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: sectionSpacing / 2),
+                      ),
                     if (!allDone && _today.isNotEmpty)
                       HomePlanPreviewSliver(
-                        doneCount: completedTodayCount,
-                        nowLabel: heroTask == null
-                            ? null
-                            : _repo.localizeTaskTitleForCurrentLocale(
-                                heroTask.title,
-                                category: heroTask.category,
-                                taskId: heroTask.id,
-                              ),
-                        nowXp: heroTask?.xpReward,
                         laterCount: max(
                           pendingTasks.length - (heroTask == null ? 0 : 1),
                           0,
@@ -605,7 +765,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             laterTasks: heroTask == null
                                 ? pendingTasks
                                 : pendingTasks
-                                      .where((task) => task.id != heroTask!.id)
+                                      .where((task) => !task.hasSameAssignment(heroTask))
                                       .toList(),
                           ),
                         ),

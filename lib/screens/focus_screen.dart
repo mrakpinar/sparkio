@@ -1,23 +1,43 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:sparkio/app_strings.dart';
+import 'package:sparkio/models/focus_session.dart';
 import 'package:sparkio/models/task.dart';
 import 'package:sparkio/services/notification_service.dart';
 import 'package:sparkio/services/task_localizer.dart';
+import 'package:sparkio/services/task_repository.dart';
 
 class FocusScreen extends StatefulWidget {
   final Task task;
 
-  const FocusScreen({super.key, required this.task});
+  const FocusScreen({
+    super.key,
+    required this.task,
+    this.audioPlayer,
+    this.notifications,
+    this.now,
+    this.sessionDateKey,
+  });
+
+  final AudioPlayer? audioPlayer;
+  final NotificationService? notifications;
+  final DateTime Function()? now;
+  final String? sessionDateKey;
 
   @override
   State<FocusScreen> createState() => _FocusScreenState();
 }
 
-class _FocusScreenState extends State<FocusScreen>
-    with WidgetsBindingObserver {
+class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   late AudioPlayer _audioPlayer;
-  final NotificationService _notifications = NotificationService.instance;
+  late final NotificationService _notifications;
+  final TaskRepository _repo = TaskRepository();
+  late final String _sessionDateKey;
+  bool _loading = true;
+  bool _exitPromptOpen = false;
+  bool _sessionCompleted = false;
+  Future<void> _sessionWrite = Future<void>.value();
   late int _totalSeconds;
   late int _remainingSeconds;
   Timer? _timer;
@@ -38,18 +58,105 @@ class _FocusScreenState extends State<FocusScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _audioPlayer = AudioPlayer();
+    _audioPlayer = widget.audioPlayer ?? AudioPlayer();
+    _notifications = widget.notifications ?? NotificationService.instance;
+    _sessionDateKey = widget.sessionDateKey ?? FocusSession.dateKeyFor(_now());
     _totalSeconds = widget.task.totalDurationSeconds > 0
         ? widget.task.totalDurationSeconds
         : 5 * 60; // fallback to 5 minutes
     _remainingSeconds = _totalSeconds;
 
-    _startTimer(refreshNotifications: true);
+    unawaited(_restoreSession());
+  }
+
+  DateTime _now() => widget.now?.call() ?? DateTime.now();
+
+  Future<void> _restoreSession() async {
+    final saved = await _repo.getFocusSession(
+      taskId: widget.task.id,
+      assignmentId: widget.task.assignmentId,
+      dateKey: _sessionDateKey,
+    );
+    if (!mounted) return;
+    if (saved != null) {
+      _totalSeconds = saved.totalSeconds;
+      _remainingSeconds = saved.remainingAt(_now());
+      _isPlaying = !saved.isPaused && _remainingSeconds > 0;
+      _activeTrack = _tracks.containsKey(saved.activeTrack)
+          ? saved.activeTrack
+          : null;
+      if (_activeTrack != null) {
+        try {
+          await _audioPlayer.setAsset(_tracks[_activeTrack]!);
+          await _audioPlayer.setLoopMode(LoopMode.one);
+        } catch (_) {
+          _activeTrack = null;
+        }
+        if (!mounted) return;
+      }
+    }
+    if (_remainingSeconds == 0) _isPlaying = false;
+    _endAt = _isPlaying
+        ? saved?.endAt ?? _now().add(Duration(seconds: _remainingSeconds))
+        : null;
+    // Persist the deadline before starting either the UI or notification timer.
+    // A process death must not leave a visible timer with no resumable session.
+    final persisted = await _persistSessionSafely();
+    if (!mounted) return;
+    if (!persisted) {
+      _isPlaying = false;
+      _endAt = null;
+    }
+    if (_isPlaying) {
+      _startTimer(refreshNotifications: true, endAt: _endAt);
+      if (_activeTrack != null) unawaited(_audioPlayer.play());
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _persistSession() {
+    if (_sessionCompleted) return _sessionWrite;
+    final session = FocusSession(
+      taskId: widget.task.id,
+      assignmentId: widget.task.assignmentId,
+      dateKey: _sessionDateKey,
+      totalSeconds: _totalSeconds,
+      remainingSeconds: _remainingSeconds,
+      isPaused: !_isPlaying,
+      endAt: _isPlaying ? _endAt : null,
+      activeTrack: _activeTrack,
+    );
+    final write = _sessionWrite.then((_) => _repo.saveFocusSession(session));
+    _sessionWrite = write.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return write;
+  }
+
+  Future<bool> _persistSessionSafely() async {
+    try {
+      await _persistSession();
+      return true;
+    } catch (_) {
+      debugPrint('Could not persist focus session.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.tr('Session could not be saved. Please try again.'),
+            ),
+          ),
+        );
+      }
+      return false;
+    }
   }
 
   String get _localizedTaskTitle {
     final localized = TaskLocalizer.localizeTitle(
       widget.task.title,
+      localeCode: Localizations.localeOf(context).languageCode,
       category: widget.task.category,
       taskId: widget.task.id,
     ).trim();
@@ -61,17 +168,26 @@ class _FocusScreenState extends State<FocusScreen>
     return 300000 + (hash % 100000);
   }
 
-  Duration get _remaining => Duration(seconds: _remainingSeconds);
+  Duration get _remaining {
+    final endAt = _endAt;
+    if (_isPlaying && endAt != null) {
+      final remaining = endAt.difference(_now());
+      return remaining > Duration.zero ? remaining : Duration.zero;
+    }
+    return Duration(seconds: _remainingSeconds);
+  }
 
-  String get _finishNotificationBody =>
-      '$_localizedTaskTitle is complete. Mark it done.';
+  String get _finishNotificationBody => context.l10n.trf(
+    'Timer finished for {task}. Complete the task to record it.',
+    {'task': _localizedTaskTitle},
+  );
 
-  void _startTimer({required bool refreshNotifications}) {
+  void _startTimer({required bool refreshNotifications, DateTime? endAt}) {
     if (_remainingSeconds <= 0) {
       unawaited(_handleTimerFinished());
       return;
     }
-    _endAt = DateTime.now().add(Duration(seconds: _remainingSeconds));
+    _endAt = endAt ?? _now().add(Duration(seconds: _remainingSeconds));
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -88,8 +204,9 @@ class _FocusScreenState extends State<FocusScreen>
     final endAt = _endAt;
     if (endAt == null) return;
 
-    final millisLeft = endAt.difference(DateTime.now()).inMilliseconds;
-    final nextSeconds = millisLeft <= 0 ? 0 : ((millisLeft + 999) ~/ 1000);
+    final millisLeft = endAt.difference(_now()).inMilliseconds;
+    final nextSeconds = (millisLeft <= 0 ? 0 : ((millisLeft + 999) ~/ 1000))
+        .clamp(0, _totalSeconds);
     final shouldUpdateState = nextSeconds != _remainingSeconds;
     if (shouldUpdateState && mounted) {
       setState(() {
@@ -100,7 +217,7 @@ class _FocusScreenState extends State<FocusScreen>
     }
 
     if (_remainingSeconds <= 0) {
-      unawaited(_handleTimerFinished());
+      if (!_exiting) unawaited(_handleTimerFinished());
       return;
     }
 
@@ -126,7 +243,7 @@ class _FocusScreenState extends State<FocusScreen>
       );
       await _notifications.scheduleTaskTimer(
         notificationId: _notificationId,
-        title: 'Time is up',
+        title: context.l10n.tr('Time is up!'),
         body: _finishNotificationBody,
         duration: _remaining,
       );
@@ -173,51 +290,140 @@ class _FocusScreenState extends State<FocusScreen>
       _isPlaying = false;
     }
     _lastOngoingNotificationSecond = null;
+    await _persistSessionSafely();
     await _audioPlayer.stop();
     await _notifications.cancelTaskTimerOngoing();
+  }
+
+  Future<void> _requestExit() async {
+    if (_loading || _exiting || _exitPromptOpen) return;
+    _exitPromptOpen = true;
+    final l10n = context.l10n;
+    try {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          scrollable: true,
+          title: Text(l10n.tr('Leave focus session?')),
+          content: Text(
+            l10n.tr(
+              _sessionDateKey != FocusSession.dateKeyFor(_now())
+                  ? 'This session belongs to an earlier day. Leaving will not complete the task or carry this session into today.'
+                  : _remainingSeconds == 0
+                  ? 'Leaving will save the finished timer, but will not complete the task.'
+                  : 'Your timer will pause. You can resume this task today.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.tr('Return to session')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.tr('Leave session')),
+            ),
+          ],
+        ),
+      );
+      if (leave == true && mounted) await _exitFocusSession(false);
+    } finally {
+      _exitPromptOpen = false;
+    }
   }
 
   Future<void> _exitFocusSession(bool completed) async {
     if (_exiting) return;
     _exiting = true;
+    // A previous-day completion cannot be recorded safely by the home screen.
+    // Preserve that session just like a normal exit, and return its original day.
+    _sessionCompleted =
+        completed && _sessionDateKey == FocusSession.dateKeyFor(_now());
+    _syncRemainingFromClock();
     _timer?.cancel();
+    _isPlaying = false;
     _endAt = null;
     _lastOngoingNotificationSecond = null;
+    try {
+      if (_sessionCompleted) {
+        await _sessionWrite;
+        await _repo.clearFocusSession(
+          taskId: widget.task.id,
+          assignmentId: widget.task.assignmentId,
+          dateKey: _sessionDateKey,
+        );
+      } else {
+        await _persistSession();
+      }
+    } catch (_) {
+      _exiting = false;
+      _sessionCompleted = false;
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.tr('Session could not be saved. Please try again.'),
+            ),
+          ),
+        );
+      }
+      return;
+    }
     await _audioPlayer.stop();
     await _clearNotifications();
     if (!mounted) return;
-    Navigator.of(context).pop(completed);
+    Navigator.of(
+      context,
+    ).pop(FocusSessionResult(
+      dateKey: _sessionDateKey,
+      assignmentId: widget.task.assignmentId,
+      completed: completed,
+    ));
   }
 
   Future<void> _toggleTimer() async {
+    if (_exiting) return;
     if (_isPlaying) {
       _syncRemainingFromClock();
       _timer?.cancel();
       _endAt = null;
       _audioPlayer.pause();
       _isPlaying = false;
+      await _persistSessionSafely();
       await _clearNotifications();
     } else {
       _isPlaying = true;
-      _startTimer(refreshNotifications: true);
-      if (_activeTrack != null) _audioPlayer.play();
+      _endAt = _now().add(Duration(seconds: _remainingSeconds));
+      final persisted = await _persistSessionSafely();
+      if (!mounted) return;
+      if (persisted) {
+        _startTimer(refreshNotifications: true, endAt: _endAt);
+        if (_activeTrack != null) _audioPlayer.play();
+      } else {
+        _isPlaying = false;
+        _endAt = null;
+      }
     }
     if (!mounted) return;
     setState(() {});
   }
 
   Future<void> _playTrack(String name, String url) async {
+    if (_exiting) return;
     try {
       if (_activeTrack == name) {
         // Toggle off if same
         await _audioPlayer.stop();
         setState(() => _activeTrack = null);
+        await _persistSessionSafely();
         return;
       }
 
       setState(() => _activeTrack = name);
       await _audioPlayer.setAsset(url);
       await _audioPlayer.setLoopMode(LoopMode.one); // Loop ambient endlessly
+      await _persistSessionSafely();
       if (_isPlaying) {
         _audioPlayer.play();
       }
@@ -225,9 +431,11 @@ class _FocusScreenState extends State<FocusScreen>
       debugPrint('Error playing audio: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              "Couldn't load stream. You may need to drop local MP3s!",
+              context.l10n.tr(
+                'Ambient sound could not be played. Please try again.',
+              ),
             ),
           ),
         );
@@ -246,8 +454,15 @@ class _FocusScreenState extends State<FocusScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_loading || _exiting) return;
     if (state == AppLifecycleState.resumed) {
       _syncRemainingFromClock(forceNotificationRefresh: true);
+    }
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _syncRemainingFromClock();
+      unawaited(_persistSessionSafely());
     }
   }
 
@@ -259,210 +474,308 @@ class _FocusScreenState extends State<FocusScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = context.l10n;
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final isDone = _remainingSeconds == 0;
     final progress = 1 - (_remainingSeconds / _totalSeconds);
 
     return WillPopScope(
       onWillPop: () async {
-        await _exitFocusSession(false);
+        await _requestExit();
         return false;
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F141E), // Deep elegant dark
-        body: Stack(
-          children: [
-            // Subtle gradient background
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0F141E), Color(0xFF1B2332)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color.alphaBlend(
+                  scheme.primary.withOpacity(0.06),
+                  scheme.surface,
                 ),
-              ),
+                theme.scaffoldBackgroundColor,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-            SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Nav
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8.0,
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white70,
-                          ),
-                          onPressed: () => unawaited(_exitFocusSession(false)),
-                        ),
-                        Expanded(
-                          child: Text(
-                            widget.task.category.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
+          ),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final horizontalPadding = constraints.maxWidth < 360
+                    ? 16.0
+                    : 24.0;
+                final contentWidth =
+                    (constraints.maxWidth - horizontalPadding * 2)
+                        .clamp(0.0, 560.0)
+                        .toDouble();
+                final timerDiameter = (constraints.maxHeight * 0.32)
+                    .clamp(112.0, 280.0)
+                    .clamp(0.0, contentWidth)
+                    .toDouble();
+                final sectionSpacing = (constraints.maxHeight * 0.03)
+                    .clamp(12.0, 24.0)
+                    .toDouble();
+
+                return SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: 16,
+                  ),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 560,
+                        minHeight: (constraints.maxHeight - 32)
+                            .clamp(0.0, double.infinity)
+                            .toDouble(),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.only(bottom: sectionSpacing),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 48,
+                                        minHeight: 48,
+                                      ),
+                                      icon: Icon(
+                                        Icons.close_rounded,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                      tooltip: l10n.tr('Leave session'),
+                                      onPressed: () =>
+                                          unawaited(_requestExit()),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.categoryBadgeLabel(
+                                          widget.task.category,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(
+                                              color: scheme.onSurfaceVariant,
+                                              fontWeight: FontWeight.w600,
+                                              letterSpacing: 0.6,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 48),
+                                  ],
+                                ),
+                                SizedBox(height: sectionSpacing / 2),
+                                Semantics(
+                                  header: true,
+                                  child: Text(
+                                    _localizedTaskTitle,
+                                    textAlign: TextAlign.center,
+                                    softWrap: true,
+                                    style: theme.textTheme.headlineSmall
+                                        ?.copyWith(
+                                          color: scheme.onSurface,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.25,
+                                        ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 48), // Balance icon
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Task Title
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      widget.task.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
+                          Padding(
+                            padding: EdgeInsets.only(bottom: sectionSpacing),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Center(
+                                  child: SizedBox.square(
+                                    dimension: timerDiameter,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Positioned.fill(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: CircularProgressIndicator(
+                                              value: progress.clamp(0.0, 1.0),
+                                              strokeWidth: 8,
+                                              backgroundColor: scheme.outline
+                                                  .withOpacity(0.35),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    scheme.primary,
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(24),
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              _formatTime(_remainingSeconds),
+                                              style: theme
+                                                  .textTheme
+                                                  .displayLarge
+                                                  ?.copyWith(
+                                                    color: scheme.onSurface,
+                                                    fontSize: 64,
+                                                    fontWeight: FontWeight.w300,
+                                                    fontFeatures: const [
+                                                      FontFeature.tabularFigures(),
+                                                    ],
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: sectionSpacing),
+                                Row(
+                                  children: [
+                                    if (!isDone) ...[
+                                      FloatingActionButton(
+                                        heroTag: 'focus_toggle',
+                                        backgroundColor: scheme.onSurface,
+                                        foregroundColor: scheme.surface,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            unawaited(_toggleTimer()),
+                                        tooltip: l10n.tr(
+                                          _isPlaying
+                                              ? 'Pause timer'
+                                              : 'Resume timer',
+                                        ),
+                                        child: Icon(
+                                          _isPlaying
+                                              ? Icons.pause_rounded
+                                              : Icons.play_arrow_rounded,
+                                          size: 32,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                    ],
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isDone
+                                              ? scheme.onSurface
+                                              : scheme.surface,
+                                          foregroundColor: isDone
+                                              ? scheme.surface
+                                              : scheme.onSurface,
+                                          elevation: 0,
+                                          minimumSize: const Size(48, 56),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 16,
+                                          ),
+                                          side: isDone
+                                              ? BorderSide.none
+                                              : BorderSide(
+                                                  color: scheme.outline,
+                                                ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            unawaited(_exitFocusSession(true)),
+                                        child: Text(
+                                          l10n.tr(
+                                            isDone
+                                                ? 'Complete task'
+                                                : 'Finish early',
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              Text(
+                                l10n.tr('Ambient Sound'),
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              SizedBox(height: sectionSpacing / 2),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _tracks.entries.map((entry) {
+                                  final isActive = _activeTrack == entry.key;
+                                  return ActionChip(
+                                    label: Text(l10n.tr(entry.key)),
+                                    labelStyle: TextStyle(
+                                      color: isActive
+                                          ? scheme.onPrimaryContainer
+                                          : scheme.onSurfaceVariant,
+                                      fontWeight: isActive
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                    backgroundColor: isActive
+                                        ? scheme.primaryContainer
+                                        : scheme.surfaceVariant,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.padded,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    side: BorderSide(
+                                      color: isActive
+                                          ? scheme.primary
+                                          : scheme.outline,
+                                    ),
+                                    onPressed: () =>
+                                        _playTrack(entry.key, entry.value),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-
-                  const Spacer(),
-
-                  // Giant Timer Layout
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Progress Ring
-                        SizedBox(
-                          width: 280,
-                          height: 280,
-                          child: CircularProgressIndicator(
-                            value: progress.clamp(0.0, 1.0),
-                            strokeWidth: 8,
-                            backgroundColor: Colors.white12,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                        ),
-                        // Time Text
-                        Text(
-                          _formatTime(_remainingSeconds),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 64,
-                            fontWeight: FontWeight.w200,
-                            fontFeatures: [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  // Play/Pause & Finish Controls
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (!isDone)
-                        FloatingActionButton(
-                          heroTag: 'focus_toggle',
-                          backgroundColor: Colors.white10,
-                          elevation: 0,
-                          onPressed: () => unawaited(_toggleTimer()),
-                          child: Icon(
-                            _isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                      if (!isDone) const SizedBox(width: 24),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                        onPressed: () => unawaited(_exitFocusSession(true)),
-                        child: Text(
-                          isDone ? 'Done' : 'Finish Early',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 48),
-
-                  // Ambient Sounds
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Ambient Sound',
-                          style: TextStyle(color: Colors.white54, fontSize: 12),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: _tracks.entries.map((entry) {
-                            final isActive = _activeTrack == entry.key;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6.0,
-                              ),
-                              child: ActionChip(
-                                label: Text(entry.key),
-                                labelStyle: TextStyle(
-                                  color: isActive
-                                      ? Colors.black
-                                      : Colors.white70,
-                                  fontWeight: isActive
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                                backgroundColor: isActive
-                                    ? Colors.white
-                                    : Colors.white10,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                side: BorderSide.none,
-                                onPressed: () =>
-                                    _playTrack(entry.key, entry.value),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
-          ],
+          ),
         ),
       ),
     );

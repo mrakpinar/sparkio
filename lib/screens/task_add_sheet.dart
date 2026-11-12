@@ -11,11 +11,17 @@ BoxDecoration _taskAddNeoGlassDecoration(
   double radius = 16,
   double tintOpacity = 0.14,
   double surfaceOpacity = 0.94,
+  bool sheetBackground = false,
 }) {
-  final base = Color.alphaBlend(
-    Colors.black.withOpacity(0.34),
-    const Color(0xFF101827).withOpacity(surfaceOpacity),
-  );
+  final isDark = scheme.brightness == Brightness.dark;
+  final base = isDark
+      ? Color.alphaBlend(
+          Colors.black.withOpacity(0.34),
+          const Color(0xFF101827).withOpacity(surfaceOpacity),
+        )
+      : sheetBackground
+          ? Color.alphaBlend(scheme.primary.withOpacity(0.04), scheme.background)
+          : scheme.surface;
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
     gradient: LinearGradient(
@@ -26,10 +32,14 @@ BoxDecoration _taskAddNeoGlassDecoration(
         Color.alphaBlend(const Color(0xFF8B5CF6).withOpacity(0.08), base),
       ],
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.08)),
+    border: Border.all(
+      color: isDark
+          ? Colors.white.withOpacity(0.08)
+          : scheme.outline.withOpacity(0.35),
+    ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.2),
+        color: Colors.black.withOpacity(isDark ? 0.2 : 0.06),
         blurRadius: 22,
         offset: const Offset(0, 10),
       ),
@@ -535,6 +545,7 @@ class _TaskAddSheetState extends State<TaskAddSheet>
               radius: 22,
               tintOpacity: 0.14,
               surfaceOpacity: isDark ? 0.98 : 0.98,
+              sheetBackground: true,
             ).copyWith(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(22),
@@ -1677,19 +1688,36 @@ class _CreatorPackTile extends StatelessWidget {
       selected: false,
     );
 
+    final cardDecoration = _taskAddNeoGlassDecoration(
+      scheme,
+      tint: colors.first,
+      radius: 12,
+      tintOpacity: 0.16,
+      surfaceOpacity: isDark ? 0.9 : 0.93,
+    );
+    final ratingColor = isDark
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF9A5700);
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-        decoration: _taskAddNeoGlassDecoration(
-          scheme,
-          tint: colors.first,
-          radius: 12,
-          tintOpacity: 0.16,
-          surfaceOpacity: isDark ? 0.9 : 0.93,
-        ),
+        decoration: isDark
+            ? cardDecoration
+            : cardDecoration.copyWith(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color.alphaBlend(colors.first.withOpacity(0.10), scheme.surface),
+                    scheme.surface,
+                  ],
+                ),
+                border: Border.all(color: scheme.outline.withOpacity(0.55)),
+              ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1697,7 +1725,7 @@ class _CreatorPackTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    pack.title,
+                    context.l10n.tr(pack.title),
                     style: theme.textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: isDark
@@ -1724,7 +1752,7 @@ class _CreatorPackTile extends StatelessWidget {
                       context.l10n.tr('NEW'),
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: isDark ? Colors.white : scheme.onPrimaryContainer,
                       ),
                     ),
                   ),
@@ -1739,7 +1767,7 @@ class _CreatorPackTile extends StatelessWidget {
                           : Icons.bookmark_border_rounded,
                       size: 18,
                       color: pack.isSaved
-                          ? const Color(0xFFF59E0B)
+                          ? ratingColor
                           : (isDark
                                 ? Colors.white.withOpacity(0.86)
                                 : scheme.onSurface),
@@ -1750,7 +1778,10 @@ class _CreatorPackTile extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'by ${pack.creatorName} - ${pack.description}',
+              context.l10n.trf('by {creator} - {description}', {
+                'creator': pack.creatorName,
+                'description': context.l10n.tr(pack.description),
+              }),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -1765,7 +1796,7 @@ class _CreatorPackTile extends StatelessWidget {
                 Icon(
                   Icons.star_rounded,
                   size: 14,
-                  color: const Color(0xFFF59E0B),
+                  color: ratingColor,
                 ),
                 const SizedBox(width: 3),
                 Text(
@@ -1885,7 +1916,7 @@ class _CreatorPackTile extends StatelessWidget {
                             ? Icons.star_rounded
                             : Icons.star_border_rounded,
                         size: 14,
-                        color: const Color(0xFFF59E0B),
+                        color: ratingColor,
                       ),
                     ),
                   ),
@@ -1930,9 +1961,10 @@ class _GradientChip extends StatelessWidget {
             surfaceOpacity: isDark ? 0.88 : 0.92,
           ).copyWith(
             border: Border.all(
-              color: selected
-                  ? Colors.white.withOpacity(0.22)
-                  : Colors.white.withOpacity(0.12),
+              color: isDark
+                  ? Colors.white.withOpacity(selected ? 0.22 : 0.12)
+                  : (selected ? scheme.primary : scheme.outline)
+                        .withOpacity(selected ? 0.6 : 0.4),
               width: selected ? 1.2 : 1,
             ),
           ),

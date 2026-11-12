@@ -485,13 +485,30 @@ class AppLocalizations {
   String dayStreak(int count) {
     switch (_code) {
       case 'tr':
-        return count == 1 ? '1 gün seri' : '$count gün seri';
+        if (count == 0) return 'Henüz serin yok';
+        return '$count günlük seri';
       case 'es':
+        if (count == 0) return 'Aún no hay racha';
         return count == 1 ? 'racha de 1 día' : 'racha de $count días';
       case 'de':
-        return count == 1 ? '1 Tag Serie' : '$count Tage Serie';
+        if (count == 0) return 'Noch keine Serie';
+        return count == 1 ? '1 Tag in Folge' : '$count Tage in Folge';
       default:
-        return count == 1 ? '1 day streak' : '$count day streak';
+        if (count == 0) return 'No streak yet';
+        return count == 1 ? 'Streak: 1 day' : 'Streak: $count days';
+    }
+  }
+
+  String currentStreak(int count) {
+    switch (_code) {
+      case 'tr':
+        return 'Güncel serin: $count gün';
+      case 'es':
+        return 'Racha actual: $count ${count == 1 ? 'día' : 'días'}';
+      case 'de':
+        return 'Aktuelle Serie: $count ${count == 1 ? 'Tag' : 'Tage'}';
+      default:
+        return 'Current streak: $count ${count == 1 ? 'day' : 'days'}';
     }
   }
 
@@ -544,6 +561,45 @@ class AppLocalizations {
         return 'Dunkelmodus';
       default:
         return 'Dark Mode';
+    }
+  }
+
+  String themeOnboardingNote(int level) {
+    switch (_code) {
+      case 'tr':
+        return 'Açık tema varsayılandır. Koyu tema $level. seviyede açılır.';
+      case 'es':
+        return 'El tema claro es el predeterminado. El oscuro se desbloquea en el nivel $level.';
+      case 'de':
+        return 'Das helle Design ist voreingestellt. Das dunkle Design wird auf Level $level freigeschaltet.';
+      default:
+        return 'Light theme is the default. Dark theme unlocks at Level $level.';
+    }
+  }
+
+  String darkThemeLocked(int level) {
+    switch (_code) {
+      case 'tr':
+        return 'Kilitli · $level. seviyede açılır';
+      case 'es':
+        return 'Bloqueado · Se desbloquea en el nivel $level';
+      case 'de':
+        return 'Gesperrt · Ab Level $level verfügbar';
+      default:
+        return 'Locked · Unlocks at Level $level';
+    }
+  }
+
+  String get darkThemeUnlockedMessage {
+    switch (_code) {
+      case 'tr':
+        return 'Koyu tema açıldı! Menüden açık veya koyu temayı seçebilirsin.';
+      case 'es':
+        return '¡Tema oscuro desbloqueado! Elige el tema claro u oscuro en el menú.';
+      case 'de':
+        return 'Dunkles Design freigeschaltet! Wähle im Menü zwischen hellem und dunklem Design.';
+      default:
+        return 'Dark theme unlocked! Choose light or dark in the menu.';
     }
   }
 
@@ -747,11 +803,11 @@ class AppLocalizations {
       case 'tr':
         return '$seconds saniye';
       case 'es':
-        return '$seconds segundos';
+        return seconds == 1 ? '1 segundo' : '$seconds segundos';
       case 'de':
-        return '$seconds Sekunden';
+        return seconds == 1 ? '1 Sekunde' : '$seconds Sekunden';
       default:
-        return '$seconds seconds';
+        return seconds == 1 ? '1 second' : '$seconds seconds';
     }
   }
 
@@ -760,11 +816,11 @@ class AppLocalizations {
       case 'tr':
         return '$minutes dakika';
       case 'es':
-        return '$minutes minutos';
+        return minutes == 1 ? '1 minuto' : '$minutes minutos';
       case 'de':
-        return '$minutes Minuten';
+        return minutes == 1 ? '1 Minute' : '$minutes Minuten';
       default:
-        return '$minutes minutes';
+        return minutes == 1 ? '1 minute' : '$minutes minutes';
     }
   }
 
@@ -963,6 +1019,28 @@ class AppLocalizations {
     }
   }
 
+  String otherTasksTodayLabel(int count) {
+    switch (_code) {
+      case 'tr':
+        return count == 0
+            ? 'Bugün için başka görev yok'
+            : 'Bugün için $count görev daha';
+      case 'es':
+        if (count == 0) return 'No hay más tareas para hoy';
+        return count == 1
+            ? '1 tarea más para hoy'
+            : '$count tareas más para hoy';
+      case 'de':
+        if (count == 0) return 'Heute keine weiteren Aufgaben';
+        return count == 1
+            ? 'Heute noch 1 Aufgabe'
+            : 'Heute noch $count Aufgaben';
+      default:
+        if (count == 0) return 'No other tasks today';
+        return count == 1 ? '1 more task today' : '$count more tasks today';
+    }
+  }
+
   String get done {
     switch (_code) {
       case 'tr':
@@ -1111,6 +1189,12 @@ class AppLocalizations {
       'es': '¡Todos los hitos desbloqueados!',
       'de': 'Alle Meilensteine freigeschaltet!',
       'en': 'All milestones unlocked!',
+    },
+    '{earned} of {total} milestones unlocked': {
+      'tr': '{total} kilometre taşından {earned} tanesi açıldı',
+      'es': '{earned} de {total} hitos desbloqueados',
+      'de': '{earned} von {total} Meilensteinen freigeschaltet',
+      'en': '{earned} of {total} milestones unlocked',
     },
     '{earned} of {total} milestones': {
       'tr': '{earned}/{total} kilometre taşı',
@@ -1287,6 +1371,36 @@ class AppLocalizations {
       'de': 'Konstanz',
       'en': 'Consistency',
     },
+    'Mood Flow': {
+      'tr': 'Duygu akışı',
+      'es': 'Evolución del ánimo',
+      'de': 'Stimmungsverlauf',
+      'en': 'Mood Flow',
+    },
+    'No mood entries in the last 7 days.': {
+      'tr': 'Son 7 gün için duygu kaydı yok.',
+      'es': 'No hay registros de ánimo en los últimos 7 días.',
+      'de': 'In den letzten 7 Tagen gibt es keine Stimmungseinträge.',
+      'en': 'No mood entries in the last 7 days.',
+    },
+    'No activity this week yet. Start today!': {
+      'tr': 'Bu hafta henüz etkinlik yok. Bugün başla!',
+      'es': 'Aún no hay actividad esta semana. ¡Empieza hoy!',
+      'de': 'Diese Woche gibt es noch keine Aktivität. Starte heute!',
+      'en': 'No activity this week yet. Start today!',
+    },
+    'Build a streak to see your consistency.': {
+      'tr': 'Tutarlılığını görmek için bir seri başlat.',
+      'es': 'Crea una racha para ver tu constancia.',
+      'de': 'Beginne eine Serie, um deine Regelmäßigkeit zu sehen.',
+      'en': 'Build a streak to see your consistency.',
+    },
+    'Your latest achievement will appear here.': {
+      'tr': 'Son başarın burada görünecek.',
+      'es': 'Tu último logro aparecerá aquí.',
+      'de': 'Dein letzter Erfolg wird hier angezeigt.',
+      'en': 'Your latest achievement will appear here.',
+    },
     'Personal Insights': {
       'tr': 'Kişisel içgörüler',
       'es': 'Insights personales',
@@ -1415,6 +1529,198 @@ class AppLocalizations {
       'es': 'Continuar',
       'de': 'Weiter',
       'en': 'Continue',
+    },
+    'Pause timer': {
+      'tr': 'Duraklat',
+      'es': 'Pausar temporizador',
+      'de': 'Timer pausieren',
+      'en': 'Pause timer',
+    },
+    'Resume timer': {
+      'tr': 'Devam et',
+      'es': 'Reanudar temporizador',
+      'de': 'Timer fortsetzen',
+      'en': 'Resume timer',
+    },
+    'Stop timer': {
+      'tr': 'Sayacı durdur',
+      'es': 'Detener temporizador',
+      'de': 'Timer stoppen',
+      'en': 'Stop timer',
+    },
+    'Leave focus session?': {
+      'tr': 'Odak oturumundan çıkılsın mı?',
+      'es': '¿Salir de la sesión de concentración?',
+      'de': 'Fokussitzung verlassen?',
+      'en': 'Leave focus session?',
+    },
+    'Task saved, but daily tasks could not be refreshed.': {
+      'tr': 'Görev kaydedildi ancak günlük görevler yenilenemedi.',
+      'es': 'La tarea se guardó, pero no se pudieron actualizar las tareas diarias.',
+      'de':
+          'Die Aufgabe wurde gespeichert, aber die täglichen Aufgaben konnten nicht aktualisiert werden.',
+      'en': 'Task saved, but daily tasks could not be refreshed.',
+    },
+    'Completion could not be fully saved. Some progress may already be recorded.': {
+      'tr':
+          'Tamamlama bütünüyle kaydedilemedi. İlerlemenin bir kısmı kaydedilmiş olabilir.',
+      'es':
+          'No se pudo guardar la finalización por completo. Es posible que parte del progreso ya se haya guardado.',
+      'de':
+          'Der Abschluss konnte nicht vollständig gespeichert werden. Ein Teil des Fortschritts ist möglicherweise bereits gespeichert.',
+      'en':
+          'Completion could not be fully saved. Some progress may already be recorded.',
+    },
+    'Daily tasks could not be refreshed. Please try again.': {
+      'tr': 'Günlük görevler yenilenemedi. Lütfen tekrar dene.',
+      'es': 'No se pudieron actualizar las tareas diarias. Inténtalo de nuevo.',
+      'de':
+          'Die täglichen Aufgaben konnten nicht aktualisiert werden. Bitte versuche es erneut.',
+      'en': 'Daily tasks could not be refreshed. Please try again.',
+    },
+    'This session belongs to a different day and was not counted today.': {
+      'tr':
+          'Bu oturum farklı bir güne ait olduğu için bugünün ilerlemesine eklenmedi.',
+      'es': 'Esta sesión pertenece a otro día y no se ha contado hoy.',
+      'de':
+          'Diese Sitzung gehört zu einem anderen Tag und wurde heute nicht gezählt.',
+      'en':
+          'This session belongs to a different day and was not counted today.',
+    },
+    'Your timer will pause. You can resume this task today.': {
+      'tr':
+          'Sayaç duraklatılacak. Bugün bu göreve kaldığın yerden devam edebilirsin.',
+      'es': 'El temporizador se pausará. Puedes retomar esta tarea hoy.',
+      'de':
+          'Der Timer wird pausiert. Du kannst diese Aufgabe heute fortsetzen.',
+      'en': 'Your timer will pause. You can resume this task today.',
+    },
+    'Leaving will save the finished timer, but will not complete the task.': {
+      'tr': 'Biten sayaç kaydedilecek; görev tamamlanmış sayılmayacak.',
+      'es':
+          'Se guardará el temporizador terminado, pero no se completará la tarea.',
+      'de':
+          'Der abgelaufene Timer wird gespeichert. Die Aufgabe wird nicht abgeschlossen.',
+      'en':
+          'Leaving will save the finished timer, but will not complete the task.',
+    },
+    'Leave session': {
+      'tr': 'Oturumdan çık',
+      'es': 'Salir de la sesión',
+      'de': 'Sitzung verlassen',
+      'en': 'Leave session',
+    },
+    'This session belongs to an earlier day. Leaving will not complete the task or carry this session into today.': {
+      'tr':
+          'Bu oturum önceki bir güne ait. Çıkış yapmak görevi tamamlamaz ve oturumu bugüne taşımaz.',
+      'es':
+          'Esta sesión pertenece a un día anterior. Salir no completará la tarea ni trasladará la sesión a hoy.',
+      'de':
+          'Diese Sitzung gehört zu einem früheren Tag. Beim Verlassen wird die Aufgabe weder abgeschlossen noch die Sitzung auf heute übertragen.',
+      'en':
+          'This session belongs to an earlier day. Leaving will not complete the task or carry this session into today.',
+    },
+    'Complete task': {
+      'tr': 'Görevi tamamla',
+      'es': 'Completar tarea',
+      'de': 'Aufgabe abschließen',
+      'en': 'Complete task',
+    },
+    'Finish early': {
+      'tr': 'Erken tamamla',
+      'es': 'Completar antes',
+      'de': 'Vorzeitig abschließen',
+      'en': 'Complete early',
+    },
+    'Return to session': {
+      'tr': 'Oturuma dön',
+      'es': 'Volver a la sesión',
+      'de': 'Zur Sitzung zurück',
+      'en': 'Return to session',
+    },
+    'Ambient Sound': {
+      'tr': 'Ortam sesi',
+      'es': 'Sonido ambiente',
+      'de': 'Hintergrundklänge',
+      'en': 'Ambient sound',
+    },
+    'Rain': {'tr': 'Yağmur', 'es': 'Lluvia', 'de': 'Regen', 'en': 'Rain'},
+    'Cafe': {'tr': 'Kafe', 'es': 'Cafetería', 'de': 'Café', 'en': 'Café'},
+    'Ocean': {
+      'tr': 'Okyanus',
+      'es': 'Océano',
+      'de': 'Meeresrauschen',
+      'en': 'Ocean',
+    },
+    'Ambient sound could not be played. Please try again.': {
+      'tr': 'Ortam sesi çalınamadı. Lütfen tekrar dene.',
+      'es': 'No se pudo reproducir el sonido ambiente. Inténtalo de nuevo.',
+      'de':
+          'Der Hintergrundklang konnte nicht abgespielt werden. Bitte versuche es erneut.',
+      'en': 'Ambient sound could not be played. Please try again.',
+    },
+    'Timer finished for {task}. Complete the task to record it.': {
+      'tr': '{task} için süre doldu. Kaydetmek için görevi tamamla.',
+      'es':
+          'El temporizador de {task} terminó. Completa la tarea para registrarla.',
+      'de':
+          'Der Timer für {task} ist abgelaufen. Schließe die Aufgabe ab, um sie zu erfassen.',
+      'en': 'Timer finished for {task}. Complete the task to record it.',
+    },
+    'All done for today': {
+      'tr': 'Bugünün görevleri tamamlandı',
+      'es': 'Todo listo por hoy',
+      'de': 'Für heute alles erledigt',
+      'en': 'All done for today',
+    },
+    "You're set for today.": {
+      'tr': 'Bugünlük bu kadar.',
+      'es': 'Por hoy ya está.',
+      'de': 'Für heute hast du es geschafft.',
+      'en': "You're set for today.",
+    },
+    'Daily goal completed': {
+      'tr': 'Günlük hedef tamamlandı',
+      'es': 'Objetivo diario completado',
+      'de': 'Tagesziel erreicht',
+      'en': 'Daily goal completed',
+    },
+    'See you tomorrow.': {
+      'tr': 'Yarın görüşürüz.',
+      'es': 'Hasta mañana.',
+      'de': 'Bis morgen.',
+      'en': 'See you tomorrow.',
+    },
+    'View progress': {
+      'tr': 'İlerlemeyi gör',
+      'es': 'Ver progreso',
+      'de': 'Fortschritt ansehen',
+      'en': 'View progress',
+    },
+    'Supports your weekly {category} goal.': {
+      'tr': 'Haftalık {category} hedefini destekler.',
+      'es': 'Apoya tu objetivo semanal de {category}.',
+      'de': 'Unterstützt dein Wochenziel für {category}.',
+      'en': 'Supports your weekly {category} goal.',
+    },
+    'A quick {duration} task at your pace.': {
+      'tr': 'Senin hızında, {duration} süren kısa bir görev.',
+      'es': 'Una tarea breve de {duration} a tu ritmo.',
+      'de': 'Eine kurze Aufgabe von {duration} in deinem Tempo.',
+      'en': 'A quick {duration} task at your pace.',
+    },
+    'Category streak milestone: {category}, {count}': {
+      'tr': '✨ {category}: {count} günlük seri! ✨',
+      'es': '✨ {category}: ¡racha de {count} días! ✨',
+      'de': '✨ {category}: {count} Tage in Folge! ✨',
+      'en': '✨ {category}: {count}-day streak! ✨',
+    },
+    'Session could not be saved. Please try again.': {
+      'tr': 'Oturum kaydedilemedi. Lütfen tekrar dene.',
+      'es': 'No se pudo guardar la sesión. Inténtalo de nuevo.',
+      'de':
+          'Die Sitzung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+      'en': 'Session could not be saved. Please try again.',
     },
     'Get started': {
       'tr': 'Başla',
@@ -2070,6 +2376,19 @@ class AppLocalizations {
       'de': 'Erneut versuchen',
       'en': 'Retry',
     },
+    'Saving...': {
+      'tr': 'Kaydediliyor...',
+      'es': 'Guardando...',
+      'de': 'Wird gespeichert...',
+      'en': 'Saving...',
+    },
+    'Could not save your setup. Please try again.': {
+      'tr': 'Kurulum bilgilerin kaydedilemedi. Lütfen tekrar dene.',
+      'es': 'No se pudo guardar tu configuración. Inténtalo de nuevo.',
+      'de':
+          'Deine Einrichtung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+      'en': 'Could not save your setup. Please try again.',
+    },
     'Copy': {'tr': 'Kopyala', 'es': 'Copiar', 'de': 'Kopieren', 'en': 'Copy'},
     'Invite used: {code}': {
       'tr': 'Kullanılan davet: {code}',
@@ -2095,6 +2414,24 @@ class AppLocalizations {
       'es': 'XP para nivel {level}',
       'de': 'XP bis Level {level}',
       'en': 'XP to Level {level}',
+    },
+    '{xp} XP remaining to level {level}': {
+      'tr': 'Seviye {level} için {xp} XP kaldı',
+      'es': 'Faltan {xp} XP para el nivel {level}',
+      'de': 'Noch {xp} XP bis Level {level}',
+      'en': '{xp} XP remaining to level {level}',
+    },
+    'Best streak': {
+      'tr': 'En iyi seri',
+      'es': 'Mejor racha',
+      'de': 'Längste Serie',
+      'en': 'Best streak',
+    },
+    'Total sparks': {
+      'tr': 'Toplam spark',
+      'es': 'Sparks totales',
+      'de': 'Sparks insgesamt',
+      'en': 'Total sparks',
     },
     'Complete 1 spark to move your weekly plan forward.': {
       'tr': 'Haftalık planını ilerletmek için 1 spark tamamla.',
@@ -2948,6 +3285,18 @@ class AppLocalizations {
       'de': 'Challenges',
       'en': 'Challenges',
     },
+    'Tap a challenge to start it.': {
+      'tr': 'Başlatmak için bir meydan okumaya dokun.',
+      'es': 'Toca un reto para iniciarlo.',
+      'de': 'Tippe auf eine Challenge, um sie zu starten.',
+      'en': 'Tap a challenge to start it.',
+    },
+    'Start {title}': {
+      'tr': '{title} başlat',
+      'es': 'Iniciar {title}',
+      'de': '{title} starten',
+      'en': 'Start {title}',
+    },
     'Pick one and start today.': {
       'tr': 'Birini seç ve bugün başla.',
       'es': 'Elige uno y empieza hoy.',
@@ -3122,6 +3471,12 @@ class AppLocalizations {
       'es': 'Construye constancia con un spark diario durante 14 días.',
       'de': 'Baue mit einem täglichen Spark über 14 Tage Konstanz auf.',
       'en': 'Build consistency with one daily spark for 14 days.',
+    },
+    'by {creator} - {description}': {
+      'tr': '{creator} tarafından - {description}',
+      'es': 'Por {creator} - {description}',
+      'de': 'Von {creator} - {description}',
+      'en': 'by {creator} - {description}',
     },
     'Focus Flow': {
       'tr': 'Odak Akışı',
@@ -3438,13 +3793,13 @@ class AppLocalizations {
   String get onboardingGoalSubtitle {
     switch (_code) {
       case 'tr':
-        return 'Motoru ihtiyaçlarına göre uyarlayacağız.';
+        return 'İlk görev önerin, mümkünse seçtiğin hedefe uygun olur.';
       case 'es':
-        return 'Adaptaremos el motor a tus necesidades.';
+        return 'La primera tarea sugerida se adaptará a tu objetivo, si es posible.';
       case 'de':
-        return 'Wir passen die Engine deinen Bedürfnissen an.';
+        return 'Dein erster Aufgabenvorschlag passt nach Möglichkeit zu deinem Ziel.';
       default:
-        return 'We will adapt the engine to your needs.';
+        return 'Your first task suggestion will match your goal when possible.';
     }
   }
 

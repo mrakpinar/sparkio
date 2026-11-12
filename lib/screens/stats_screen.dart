@@ -144,31 +144,16 @@ BoxDecoration _neoGlassDecoration(
   double tintOpacity = 0.1,
   double surfaceOpacity = 1.0,
 }) {
-  final base = Color.alphaBlend(
-    Colors.white.withOpacity(0.02),
-    const Color(0xFF0E1523).withOpacity(surfaceOpacity),
-  );
   return BoxDecoration(
     borderRadius: BorderRadius.circular(radius),
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Color.alphaBlend(tint.withOpacity(tintOpacity * 0.72), base),
-        Color.alphaBlend(const Color(0xFF8B7CFF).withOpacity(0.045), base),
-        Color.alphaBlend(const Color(0xFF101726).withOpacity(0.18), base),
-      ],
-      stops: const [0.0, 0.52, 1.0],
+    color: Color.alphaBlend(
+      tint.withOpacity(tintOpacity.clamp(0.0, 0.08)),
+      (scheme.brightness == Brightness.dark
+              ? const Color(0xFF111624)
+              : scheme.surface)
+          .withOpacity(surfaceOpacity),
     ),
-    border: Border.all(color: Colors.white.withOpacity(0.05)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.16),
-        blurRadius: 18,
-        spreadRadius: -6,
-        offset: const Offset(0, 10),
-      ),
-    ],
+    border: Border.all(color: scheme.outline.withOpacity(0.35)),
   );
 }
 
@@ -207,6 +192,9 @@ class _StatsBodyState extends State<_StatsBody> {
     final l10n = context.l10n;
     final scheme = widget.scheme;
     final theme = widget.theme;
+    final headerBackground = theme.brightness == Brightness.dark
+        ? const Color(0xFF0B0F1A)
+        : scheme.background;
     final data = widget.data;
     final series = _buildDailySeries(data.dailyHistory, days: 7);
     final maxDaily = series.isEmpty
@@ -223,38 +211,20 @@ class _StatsBodyState extends State<_StatsBody> {
       slivers: [
         SliverAppBar(
           toolbarHeight: 68,
-          pinned: false,
-          floating: true,
-          snap: true,
+          pinned: true,
+          floating: false,
+          snap: false,
           elevation: 0,
-          backgroundColor: Colors.transparent,
+          backgroundColor: headerBackground,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           centerTitle: false,
           titleSpacing: 16,
-          flexibleSpace: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color.fromRGBO(11, 15, 26, 0.82),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.05),
-                      width: 1,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color.fromRGBO(0, 0, 0, 0.25),
-                        blurRadius: 22,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                ),
+          flexibleSpace: DecoratedBox(
+            decoration: BoxDecoration(
+              color: headerBackground,
+              border: Border(
+                bottom: BorderSide(color: scheme.outline.withOpacity(0.35)),
               ),
             ),
           ),
@@ -280,33 +250,46 @@ class _StatsBodyState extends State<_StatsBody> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Main stats grid
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatCard(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cards = [
+                    _StatCard(
                       title: l10n.tr('Sparks lit'),
                       value: data.total.toString(),
                       icon: Icons.task_alt_rounded,
                       color: scheme.primary,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
+                    _StatCard(
                       title: l10n.tr('Your rhythm'),
-                      value: data.bestStreak.toString(),
-                      subtitle: l10n.tr('day streak'),
+                      value: l10n.dayStreak(data.bestStreak),
                       icon: Icons.local_fire_department_rounded,
                       color: const Color(0xFFF97316),
                     ),
-                  ),
-                ],
+                  ];
+                  final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+                  if (constraints.maxWidth < 300 || scale > 1.4) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        cards[0],
+                        const SizedBox(height: 12),
+                        cards[1],
+                      ],
+                    );
+                  }
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: cards[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: cards[1]),
+                      ],
+                    ),
+                  );
+                },
               ),
-
               const SizedBox(height: 12),
-
-              // Favorite category
               _StatCard(
                 title: l10n.tr('Favorite category'),
                 value: widget.favoriteLabel,
@@ -314,56 +297,111 @@ class _StatsBodyState extends State<_StatsBody> {
                 color: widget.favoriteColor,
                 isWide: true,
               ),
-
-              if (data.weeklyTarget > 0) ...[
-                const SizedBox(height: 12),
-                _StatCard(
-                  title: l10n.tr('This week'),
-                  value: '${data.weeklyDone}/${data.weeklyTarget}',
-                  subtitle: l10n.tr('sparks'),
-                  icon: Icons.calendar_view_week_rounded,
-                  iconAssetPath: 'assets/in_app_icons/calendar.png',
-                  color: scheme.primary,
-                  isWide: true,
-                  onTap: _openWeeklyPlanDialog,
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: _neoGlassDecoration(
+                  scheme,
+                  tint: scheme.primary,
+                  radius: 20,
                 ),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Weekly Activity
-              _SectionHeader(
-                title: l10n.tr('Weekly Activity'),
-                icon: Icons.bar_chart_rounded,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SectionHeader(
+                      title: l10n.tr('Weekly Activity'),
+                      icon: Icons.bar_chart_rounded,
+                    ),
+                    if (data.weeklyTarget > 0) ...[
+                      const SizedBox(height: 8),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _openWeeklyPlanDialog,
+                          borderRadius: BorderRadius.circular(12),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    l10n.tr('This week'),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${data.weeklyDone}/${data.weeklyTarget}',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    color: scheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: scheme.onSurfaceVariant,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _BarChart(
+                      series: series,
+                      maxValue: maxDaily,
+                      embedded: true,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              _BarChart(series: series, maxValue: maxDaily),
-
               const SizedBox(height: 24),
-
-              // Consistency
               _SectionHeader(
                 title: l10n.tr('Consistency'),
                 icon: Icons.calendar_today_rounded,
               ),
               const SizedBox(height: 12),
               _HeatRow(series: series, maxValue: maxDaily),
-
               const SizedBox(height: 24),
-
-              // Mood Flow
               _SectionHeader(
                 title: l10n.tr('Mood Flow'),
                 icon: Icons.mood_rounded,
               ),
               const SizedBox(height: 12),
               _MoodHeatRow(moodHistory: data.moodHistory),
-
               const SizedBox(height: 24),
-
+              _SectionHeader(
+                title: l10n.tr('Recent Win'),
+                icon: Icons.emoji_events_rounded,
+              ),
+              const SizedBox(height: 12),
+              _RecentWinCard(
+                item: data.lastCompleted,
+                color: widget.favoriteColor,
+                labelResolver: widget.labelResolver,
+                iconResolver: widget.iconResolver,
+              ),
+              const SizedBox(height: 24),
+              _SectionHeader(
+                title: l10n.tr('Badges'),
+                icon: Icons.workspace_premium_rounded,
+              ),
+              const SizedBox(height: 12),
+              _MilestoneLane(
+                badges: badges,
+                emptyMessage: l10n.tr(
+                  'Your first milestone is closer than you think.',
+                ),
+              ),
+              const SizedBox(height: 28),
               _SectionHeader(
                 title: l10n.tr('Personal Insights'),
                 icon: Icons.insights_rounded,
+                secondary: true,
               ),
               const SizedBox(height: 12),
               if (LevelUnlocks.canUseInsightModule(
@@ -380,13 +418,11 @@ class _StatsBodyState extends State<_StatsBody> {
                 _LockedInsightsCard(
                   requiredLevel: LevelUnlocks.personalInsightsLevel,
                 ),
-
               const SizedBox(height: 24),
-
-              // Category Focus
               _SectionHeader(
                 title: l10n.tr('Category Focus'),
                 icon: Icons.analytics_rounded,
+                secondary: true,
               ),
               const SizedBox(height: 12),
               if (topCategories.isEmpty)
@@ -395,47 +431,38 @@ class _StatsBodyState extends State<_StatsBody> {
                   icon: Icons.auto_awesome_rounded,
                 )
               else
-                ...topCategories.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _CategoryBar(
-                      label: widget.labelResolver(entry.key),
-                      value: entry.value,
-                      color: widget.colorResolver(entry.key),
-                      icon: widget.iconResolver(entry.key),
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  decoration: _neoGlassDecoration(
+                    scheme,
+                    tint: scheme.primary,
+                    tintOpacity: 0.025,
+                  ),
+                  child: Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < topCategories.length;
+                        index++
+                      ) ...[
+                        _CategoryBar(
+                          label: widget.labelResolver(topCategories[index].key),
+                          value: topCategories[index].value,
+                          color: widget.colorResolver(topCategories[index].key),
+                          icon: widget.iconResolver(topCategories[index].key),
+                        ),
+                        if (index < topCategories.length - 1)
+                          Divider(
+                            height: 1,
+                            color: scheme.outline.withOpacity(0.3),
+                          ),
+                      ],
+                    ],
                   ),
                 ),
-
-              const SizedBox(height: 24),
-
-              // Recent Win
-              _SectionHeader(
-                title: l10n.tr('Recent Win'),
-                icon: Icons.emoji_events_rounded,
-              ),
-              const SizedBox(height: 12),
-              _RecentWinCard(
-                item: data.lastCompleted,
-                color: widget.favoriteColor,
-                labelResolver: widget.labelResolver,
-                iconResolver: widget.iconResolver,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Badges
-              _SectionHeader(
-                title: l10n.tr('Badges'),
-                icon: Icons.workspace_premium_rounded,
-              ),
-              const SizedBox(height: 12),
-              _MilestoneLane(
-                badges: badges,
-                emptyMessage: l10n.tr(
-                  'Your first milestone is closer than you think.',
-                ),
-              ),
             ]),
           ),
         ),
@@ -574,23 +601,39 @@ class _StatsBodyState extends State<_StatsBody> {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.icon});
+  const _SectionHeader({
+    required this.title,
+    required this.icon,
+    this.secondary = false,
+  });
 
   final String title;
   final IconData icon;
+  final bool secondary;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 16, color: scheme.primary.withOpacity(0.88)),
+        Icon(
+          icon,
+          size: 16,
+          color: secondary
+              ? scheme.onSurfaceVariant
+              : scheme.primary.withOpacity(0.88),
+        ),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w400,
-            color: scheme.onSurface.withOpacity(0.68),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: secondary
+                  ? scheme.onSurfaceVariant
+                  : scheme.onSurface.withOpacity(0.9),
+              fontSize: secondary ? 14 : null,
+            ),
           ),
         ),
       ],
@@ -637,7 +680,11 @@ class _StatsAmbientBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: DecoratedBox(
-        decoration: const BoxDecoration(color: Color(0xFF0B0F1A)),
+        decoration: BoxDecoration(
+          color: scheme.brightness == Brightness.dark
+              ? const Color(0xFF0B0F1A)
+              : scheme.background,
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -718,193 +765,62 @@ class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
     required this.value,
-    this.subtitle,
     required this.color,
     required this.icon,
-    this.iconAssetPath,
     this.isWide = false,
-    this.onTap,
   });
-
   final String title;
   final String value;
-  final String? subtitle;
   final Color color;
   final IconData icon;
-  final String? iconAssetPath;
   final bool isWide;
-  final VoidCallback? onTap;
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
-    final isRhythmCard = subtitle == 'day streak';
-    final rhythmValue = int.tryParse(value) ?? 0;
-    final streakBoost = isRhythmCard
-        ? (rhythmValue.clamp(0, 14) / 14).toDouble()
-        : 0.0;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: _neoGlassDecoration(
-            scheme,
-            tint: color,
-            radius: 16,
-            surfaceOpacity: 1.0,
-            tintOpacity: isRhythmCard
-                ? (0.16 + (streakBoost * 0.22)).clamp(0.16, 0.38)
-                : 0.07,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(-0.9, -1.0),
-                          radius: 1.28,
-                          colors: [
-                            color.withOpacity(
-                              isRhythmCard
-                                  ? (0.22 + (streakBoost * 0.24)).clamp(
-                                      0.22,
-                                      0.46,
-                                    )
-                                  : 0.1,
-                            ),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              color.withOpacity(
-                                isRhythmCard
-                                    ? (0.48 + (streakBoost * 0.2)).clamp(
-                                        0.48,
-                                        0.68,
-                                      )
-                                    : 0.22,
-                              ),
-                              color.withOpacity(
-                                isRhythmCard
-                                    ? (0.82 + (streakBoost * 0.16)).clamp(
-                                        0.82,
-                                        0.98,
-                                      )
-                                    : 0.42,
-                              ),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: isRhythmCard
-                              ? [
-                                  BoxShadow(
-                                    color: color.withOpacity(
-                                      (0.48 + (streakBoost * 0.24)).clamp(
-                                        0.48,
-                                        0.72,
-                                      ),
-                                    ),
-                                    blurRadius: 20 + (streakBoost * 8),
-                                    spreadRadius: -4,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: iconAssetPath != null
-                            ? Image.asset(
-                                iconAssetPath!,
-                                width: 24,
-                                height: 24,
-                                color: Colors.white,
-                                colorBlendMode: BlendMode.srcIn,
-                              )
-                            : Icon(icon, color: Colors.white, size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant.withOpacity(
-                                  0.74,
-                                ),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                _AnimatedMetricValue(
-                                  value: value,
-                                  style: theme.textTheme.headlineSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: color,
-                                        shadows: subtitle == 'day streak'
-                                            ? [
-                                                Shadow(
-                                                  color: color.withOpacity(
-                                                    (0.6 + (streakBoost * 0.25))
-                                                        .clamp(0.6, 0.85),
-                                                  ),
-                                                  blurRadius:
-                                                      13 + (streakBoost * 5),
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                ),
-                                if (subtitle != null) ...[
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    subtitle!,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (onTap != null)
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    final scheme = theme.colorScheme;
+    final labels = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            height: 1.4,
           ),
         ),
+        const SizedBox(height: 6),
+        _AnimatedMetricValue(
+          value: value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+          ),
+        ),
+      ],
+    );
+    final symbol = Icon(icon, color: color, size: 24);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _neoGlassDecoration(
+        scheme,
+        tint: color,
+        tintOpacity: 0.04,
+        radius: 20,
       ),
+      child: isWide
+          ? Row(
+              children: [
+                symbol,
+                const SizedBox(width: 14),
+                Expanded(child: labels),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [symbol, const SizedBox(height: 14), labels],
+            ),
     );
   }
 }
@@ -925,6 +841,7 @@ class _WeeklyProgressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
     final safeDone = done.clamp(0, target);
     final progress = target <= 0 ? 0.0 : safeDone / target;
     return Container(
@@ -935,14 +852,21 @@ class _WeeklyProgressRow extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF111A2B),
-            Color.alphaBlend(color.withOpacity(0.08), const Color(0xFF0E1523)),
+            isDark ? const Color(0xFF111A2B) : scheme.surface,
+            Color.alphaBlend(
+              color.withOpacity(0.08),
+              isDark ? const Color(0xFF0E1523) : scheme.surface,
+            ),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.07)
+              : scheme.outline.withOpacity(0.35),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.24),
+            color: Colors.black.withOpacity(isDark ? 0.24 : 0.05),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -977,7 +901,7 @@ class _WeeklyProgressRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: Colors.white.withOpacity(0.12),
+              backgroundColor: scheme.onSurface.withOpacity(0.12),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -1016,8 +940,55 @@ class _AnimatedMetricValue extends StatelessWidget {
   }
 }
 
+class _ReadableChartViewport extends StatefulWidget {
+  const _ReadableChartViewport({required this.itemCount, required this.child});
+  final int itemCount;
+  final Widget child;
+  @override
+  State<_ReadableChartViewport> createState() => _ReadableChartViewportState();
+}
+
+class _ReadableChartViewportState extends State<_ReadableChartViewport> {
+  final _controller = ScrollController();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
+        final width = math.max(
+          constraints.maxWidth,
+          widget.itemCount * 44.0 * math.max(1.0, scale),
+        );
+        final scrolls = width > constraints.maxWidth;
+        return Scrollbar(
+          controller: _controller,
+          thumbVisibility: scrolls,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _controller,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.only(bottom: scrolls ? 12 : 0),
+            child: SizedBox(width: width, child: widget.child),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _BarChart extends StatefulWidget {
-  const _BarChart({required this.series, required this.maxValue});
+  const _BarChart({
+    required this.series,
+    required this.maxValue,
+    this.embedded = false,
+  });
+  final bool embedded;
 
   final List<_DayStat> series;
   final int maxValue;
@@ -1047,19 +1018,13 @@ class _BarChartState extends State<_BarChart>
     final series = widget.series;
     if (series.isEmpty) {
       return _EmptyCard(
-        message: 'No activity this week yet. Start today!',
+        message: context.l10n.tr('No activity this week yet. Start today!'),
         icon: Icons.bar_chart_rounded,
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _neoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF34D5FF),
-        radius: 20,
-        tintOpacity: 0.14,
-      ),
+    final chart = _ReadableChartViewport(
+      itemCount: series.length,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(series.length, (i) {
@@ -1131,9 +1096,15 @@ class _BarChartState extends State<_BarChart>
                                     height: 84,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(10),
-                                      color: Colors.white.withOpacity(0.11),
+                                      color: scheme.onSurface.withOpacity(
+                                        scheme.brightness == Brightness.dark
+                                            ? 0.11
+                                            : 0.08,
+                                      ),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.06),
+                                        color: scheme.brightness == Brightness.dark
+                                            ? Colors.white.withOpacity(0.06)
+                                            : scheme.outline.withOpacity(0.12),
                                       ),
                                     ),
                                   ),
@@ -1229,9 +1200,9 @@ class _BarChartState extends State<_BarChart>
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: selected
                             ? scheme.onSurface.withOpacity(0.9)
-                            : scheme.onSurfaceVariant.withOpacity(0.8),
+                            : scheme.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
-                        fontSize: 10.5,
+                        fontSize: 12,
                         letterSpacing: 0.12,
                       ),
                     ),
@@ -1242,6 +1213,12 @@ class _BarChartState extends State<_BarChart>
           );
         }),
       ),
+    );
+    if (widget.embedded) return chart;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _neoGlassDecoration(scheme, tint: scheme.primary, radius: 20),
+      child: chart,
     );
   }
 }
@@ -1275,7 +1252,7 @@ class _HeatRowState extends State<_HeatRow>
 
     if (widget.series.isEmpty) {
       return _EmptyCard(
-        message: 'Build a streak to see your consistency.',
+        message: context.l10n.tr('Build a streak to see your consistency.'),
         icon: Icons.bolt_rounded,
       );
     }
@@ -1292,96 +1269,100 @@ class _HeatRowState extends State<_HeatRow>
         animation: _breatheController,
         builder: (context, _) {
           final breathe = Curves.easeInOut.transform(_breatheController.value);
-          return Row(
-            children: List.generate(widget.series.length, (index) {
-              final day = widget.series[index];
-              final normalized = widget.maxValue == 0
-                  ? 0.0
-                  : (day.count / widget.maxValue);
-              final isActive = day.count > 0;
-              final phase = (breathe + (index * 0.11)) % 1.0;
-              final pulse = (math.sin(phase * math.pi * 2) * 0.5) + 0.5;
-              final fillOpacity = isActive
-                  ? (0.24 + (0.64 * normalized) + (pulse * 0.06))
-                        .clamp(0.24, 0.9)
-                        .toDouble()
-                  : (0.08 + (pulse * 0.02)).toDouble();
-              final glowOpacity = isActive
-                  ? (0.14 + (0.2 * normalized) + (pulse * 0.08))
-                        .clamp(0.14, 0.36)
-                        .toDouble()
-                  : 0.0;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 24,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(
-                            color: scheme.outline.withOpacity(0.16),
+          return _ReadableChartViewport(
+            itemCount: widget.series.length,
+            child: Row(
+              children: List.generate(widget.series.length, (index) {
+                final day = widget.series[index];
+                final normalized = widget.maxValue == 0
+                    ? 0.0
+                    : (day.count / widget.maxValue);
+                final isActive = day.count > 0;
+                final phase = (breathe + (index * 0.11)) % 1.0;
+                final pulse = (math.sin(phase * math.pi * 2) * 0.5) + 0.5;
+                final fillOpacity = isActive
+                    ? (0.24 + (0.64 * normalized) + (pulse * 0.06))
+                          .clamp(0.24, 0.9)
+                          .toDouble()
+                    : (0.08 + (pulse * 0.02)).toDouble();
+                final glowOpacity = isActive
+                    ? (0.14 + (0.2 * normalized) + (pulse * 0.08))
+                          .clamp(0.14, 0.36)
+                          .toDouble()
+                    : 0.0;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Column(
+                      children: [
+                        Container(
+                          height: 24,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(7),
+                            border: Border.all(
+                              color: scheme.outline.withOpacity(0.16),
+                            ),
                           ),
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6.5),
-                                  color: scheme.onSurfaceVariant.withOpacity(
-                                    0.06,
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(6.5),
+                                    color: scheme.onSurfaceVariant.withOpacity(
+                                      0.06,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned.fill(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6.5),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      scheme.primary.withOpacity(
-                                        (fillOpacity + 0.08).clamp(0.0, 1.0),
-                                      ),
-                                      scheme.primary.withOpacity(fillOpacity),
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(6.5),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        scheme.primary.withOpacity(
+                                          (fillOpacity + 0.08).clamp(0.0, 1.0),
+                                        ),
+                                        scheme.primary.withOpacity(fillOpacity),
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      if (isActive)
+                                        BoxShadow(
+                                          color: scheme.primary.withOpacity(
+                                            glowOpacity,
+                                          ),
+                                          blurRadius: 10 + (normalized * 6),
+                                          spreadRadius: -3 + (normalized * 1.6),
+                                        ),
                                     ],
                                   ),
-                                  boxShadow: [
-                                    if (isActive)
-                                      BoxShadow(
-                                        color: scheme.primary.withOpacity(
-                                          glowOpacity,
-                                        ),
-                                        blurRadius: 10 + (normalized * 6),
-                                        spreadRadius: -3 + (normalized * 1.6),
-                                      ),
-                                  ],
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        day.label,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isActive
-                              ? scheme.onSurface.withOpacity(0.82)
-                              : scheme.onSurfaceVariant.withOpacity(0.66),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 6),
+                        Text(
+                          day.label,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: isActive
+                                    ? scheme.onSurface.withOpacity(0.82)
+                                    : scheme.onSurfaceVariant,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              }),
+            ),
           );
         },
       ),
@@ -1391,28 +1372,40 @@ class _HeatRowState extends State<_HeatRow>
 
 class _MoodHeatRow extends StatelessWidget {
   const _MoodHeatRow({required this.moodHistory});
-  
+
   final Map<String, int> moodHistory;
 
   String _moodEmoji(int? mood) {
     switch (mood) {
-      case 1: return '😖';
-      case 2: return '😕';
-      case 3: return '😐';
-      case 4: return '🙂';
-      case 5: return '🤩';
-      default: return '';
+      case 1:
+        return '😖';
+      case 2:
+        return '😕';
+      case 3:
+        return '😐';
+      case 4:
+        return '🙂';
+      case 5:
+        return '🤩';
+      default:
+        return '';
     }
   }
 
   Color _moodColor(int? mood) {
     switch (mood) {
-      case 1: return const Color(0xFFF43F5E); // Red
-      case 2: return const Color(0xFFF59E0B); // Amber
-      case 3: return const Color(0xFF10B981); // Green
-      case 4: return const Color(0xFF3B82F6); // Blue
-      case 5: return const Color(0xFF8B5CF6); // Purple
-      default: return Colors.white12;
+      case 1:
+        return const Color(0xFFF43F5E); // Red
+      case 2:
+        return const Color(0xFFF59E0B); // Amber
+      case 3:
+        return const Color(0xFF10B981); // Green
+      case 4:
+        return const Color(0xFF3B82F6); // Blue
+      case 5:
+        return const Color(0xFF8B5CF6); // Purple
+      default:
+        return Colors.white12;
     }
   }
 
@@ -1426,6 +1419,17 @@ class _MoodHeatRow extends StatelessWidget {
       return DateFormat('yyyy-MM-dd').format(d);
     });
 
+    final hasMood = keys.any((key) {
+      final value = moodHistory[key];
+      return value != null && value >= 1 && value <= 5;
+    });
+    if (!hasMood) {
+      return _EmptyCard(
+        message: context.l10n.tr('No mood entries in the last 7 days.'),
+        icon: Icons.mood_outlined,
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _neoGlassDecoration(
@@ -1434,51 +1438,60 @@ class _MoodHeatRow extends StatelessWidget {
         radius: 20,
         tintOpacity: 0.08,
       ),
-      child: Row(
-        children: keys.map((dateKey) {
-          final val = moodHistory[dateKey];
-          final emoji = _moodEmoji(val);
-          final col = _moodColor(val);
-          final label = dateKey.substring(8, 10); // get DD
-          
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                children: [
-                  Container(
-                    height: 28,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: val == null ? scheme.onSurfaceVariant.withOpacity(0.06) : col.withOpacity(0.2),
-                      border: Border.all(
-                        color: val == null ? scheme.outline.withOpacity(0.16) : col.withOpacity(0.4),
-                      ),
-                      boxShadow: val != null ? [
-                        BoxShadow(
-                          color: col.withOpacity(0.3),
-                          blurRadius: 8,
-                          spreadRadius: -2,
+      child: _ReadableChartViewport(
+        itemCount: keys.length,
+        child: Row(
+          children: keys.map((dateKey) {
+            final val = moodHistory[dateKey];
+            final emoji = _moodEmoji(val);
+            final col = _moodColor(val);
+            final label = dateKey.substring(8, 10); // get DD
+
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Column(
+                  children: [
+                    Container(
+                      constraints: const BoxConstraints(minHeight: 40),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: val == null
+                            ? scheme.onSurfaceVariant.withOpacity(0.06)
+                            : col.withOpacity(0.2),
+                        border: Border.all(
+                          color: val == null
+                              ? scheme.outline.withOpacity(0.16)
+                              : col.withOpacity(0.4),
                         ),
-                      ] : [],
+                        boxShadow: val != null
+                            ? [
+                                BoxShadow(
+                                  color: col.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  spreadRadius: -2,
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Text(emoji, style: const TextStyle(fontSize: 18)),
                     ),
-                    child: Text(emoji, style: const TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant.withOpacity(0.66),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 6),
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -1502,13 +1515,7 @@ class _CategoryBar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _neoGlassDecoration(
-        scheme,
-        tint: color,
-        radius: 16,
-        tintOpacity: 0.14,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         children: [
           Container(
@@ -1596,7 +1603,7 @@ class _RecentWinCard extends StatelessWidget {
 
     if (item == null) {
       return _EmptyCard(
-        message: 'Your latest achievement will appear here.',
+        message: context.l10n.tr('Your latest achievement will appear here.'),
         icon: Icons.emoji_events_rounded,
       );
     }
@@ -1612,25 +1619,33 @@ class _RecentWinCard extends StatelessWidget {
             Color.alphaBlend(
               color.withOpacity(0.18),
               Color.alphaBlend(
-                Colors.black.withOpacity(0.22),
+                Colors.black.withOpacity(
+                  scheme.brightness == Brightness.dark ? 0.22 : 0.02,
+                ),
                 scheme.surface.withOpacity(0.94),
               ),
             ),
             Color.alphaBlend(
               const Color(0xFF8B5CF6).withOpacity(0.12),
               Color.alphaBlend(
-                Colors.black.withOpacity(0.22),
+                Colors.black.withOpacity(
+                  scheme.brightness == Brightness.dark ? 0.22 : 0.02,
+                ),
                 scheme.surface.withOpacity(0.94),
               ),
             ),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(
+          color: scheme.brightness == Brightness.dark
+              ? Colors.white.withOpacity(0.12)
+              : scheme.outline.withOpacity(0.3),
+        ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [color.withOpacity(0.7), color.withOpacity(0.92)],
@@ -1640,7 +1655,7 @@ class _RecentWinCard extends StatelessWidget {
             child: Icon(
               iconResolver(item!.category),
               color: Colors.white,
-              size: 28,
+              size: 22,
             ),
           ),
           const SizedBox(width: 14),
@@ -1657,8 +1672,7 @@ class _RecentWinCard extends StatelessWidget {
                   style: Theme.of(
                     context,
                   ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1687,36 +1701,20 @@ class _RecentWinCard extends StatelessWidget {
 
 class _LockedInsightsCard extends StatelessWidget {
   const _LockedInsightsCard({required this.requiredLevel});
-
   final int requiredLevel;
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: _neoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF8B5CF6),
-        radius: 20,
-        tintOpacity: 0.1,
-      ),
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: scheme.surfaceContainerHighest.withOpacity(0.54),
-            ),
-            child: Icon(
-              Icons.lock_rounded,
-              size: 20,
-              color: scheme.onSurfaceVariant,
-            ),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 18,
+            color: scheme.onSurfaceVariant,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1725,8 +1723,9 @@ class _LockedInsightsCard extends StatelessWidget {
               children: [
                 Text(
                   context.l10n.tr('Personal Insights locked'),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1737,7 +1736,7 @@ class _LockedInsightsCard extends StatelessWidget {
                   ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -1980,11 +1979,13 @@ class _BadgeChip extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: color,
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -1995,73 +1996,75 @@ class _BadgeChip extends StatelessWidget {
 
 class _MilestoneLane extends StatelessWidget {
   const _MilestoneLane({required this.badges, required this.emptyMessage});
-
   final List<_Badge> badges;
   final String emptyMessage;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isEmpty = badges.isEmpty;
-
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _neoGlassDecoration(
-        scheme,
-        tint: const Color(0xFF8B5CF6),
-        radius: 20,
-        tintOpacity: 0.1,
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: _neoGlassDecoration(scheme, tint: scheme.primary, radius: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             emptyMessage,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant.withOpacity(0.9),
-              fontWeight: FontWeight.w600,
+              color: scheme.onSurfaceVariant,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           if (isEmpty)
-            Row(
-              children: [
-                _ComingSoonMilestone(
-                  icon: Icons.bolt_rounded,
-                  label: context.l10n.tr('First spark'),
-                ),
-                const SizedBox(width: 8),
-                _ComingSoonMilestone(
-                  icon: Icons.local_fire_department_rounded,
-                  label: context.l10n.tr('3-day rhythm'),
-                ),
-                const SizedBox(width: 8),
-                _ComingSoonMilestone(
-                  icon: Icons.emoji_events_rounded,
-                  label: context.l10n.tr('10 sparks'),
-                ),
-                const SizedBox(width: 8),
-                _ComingSoonMilestone(
-                  icon: Icons.workspace_premium_rounded,
-                  label: context.l10n.tr('Momentum'),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
+                final columns = constraints.maxWidth >= 260 && scale <= 1.4
+                    ? 2
+                    : 1;
+                final width =
+                    (constraints.maxWidth - 12 * (columns - 1)) / columns;
+                final milestones = [
+                  (Icons.bolt_rounded, context.l10n.tr('First spark')),
+                  (
+                    Icons.local_fire_department_rounded,
+                    context.l10n.tr('3-day rhythm'),
+                  ),
+                  (Icons.emoji_events_rounded, context.l10n.tr('10 sparks')),
+                  (
+                    Icons.workspace_premium_rounded,
+                    context.l10n.tr('Momentum'),
+                  ),
+                ];
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final milestone in milestones)
+                      SizedBox(
+                        width: width,
+                        child: _ComingSoonMilestone(
+                          icon: milestone.$1,
+                          label: milestone.$2,
+                        ),
+                      ),
+                  ],
+                );
+              },
             )
           else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: badges.map((badge) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _BadgeChip(
-                      label: context.l10n.tr(badge.label),
-                      icon: badge.icon,
-                      color: badge.color,
-                    ),
-                  );
-                }).toList(),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 10,
+              children: [
+                for (final badge in badges)
+                  _BadgeChip(
+                    label: context.l10n.tr(badge.label),
+                    icon: badge.icon,
+                    color: badge.color,
+                  ),
+              ],
             ),
         ],
       ),
@@ -2071,41 +2074,32 @@ class _MilestoneLane extends StatelessWidget {
 
 class _ComingSoonMilestone extends StatelessWidget {
   const _ComingSoonMilestone({required this.icon, required this.label});
-
   final IconData icon;
   final String label;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: scheme.surfaceVariant.withOpacity(0.28),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: scheme.onSurfaceVariant.withOpacity(0.7),
-            ),
-            const SizedBox(height: 4),
-            Text(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outline.withOpacity(0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
               label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant.withOpacity(0.7),
-                fontWeight: FontWeight.w600,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.4,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
