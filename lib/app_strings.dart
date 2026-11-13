@@ -62,6 +62,22 @@ class AppLocalizations {
     }
   }
 
+  String dailyEncouragement(DateTime date) {
+    const messages = [
+      'Small steps make a big difference.',
+      'A little progress is still progress.',
+      'Make room for a moment of calm.',
+      'Go at your own pace today.',
+      'One small action can brighten your day.',
+      'You can begin again, one step at a time.',
+      'Be kind to yourself as you grow.',
+    ];
+    final day = DateTime.utc(date.year, date.month, date.day)
+        .difference(DateTime.utc(2026))
+        .inDays;
+    return tr(messages[day % messages.length]);
+  }
+
   String get stats {
     switch (_code) {
       case 'tr':
@@ -1154,6 +1170,126 @@ class AppLocalizations {
   }
 
   static const Map<String, Map<String, String>> _textMap = {
+    'Small steps make a big difference.': {
+      'tr': 'Küçük adımlar büyük fark yaratır.',
+      'es': 'Los pequeños pasos marcan una gran diferencia.',
+      'de': 'Kleine Schritte machen einen großen Unterschied.',
+      'en': 'Small steps make a big difference.',
+    },
+    'A little progress is still progress.': {
+      'tr': 'Az da olsa ilerlemek, ilerlemektir.',
+      'es': 'Un pequeño avance también es progreso.',
+      'de': 'Auch ein kleiner Fortschritt ist ein Fortschritt.',
+      'en': 'A little progress is still progress.',
+    },
+    'Make room for a moment of calm.': {
+      'tr': 'Sakin bir ana yer aç.',
+      'es': 'Haz espacio para un momento de calma.',
+      'de': 'Schaffe Raum für einen ruhigen Moment.',
+      'en': 'Make room for a moment of calm.',
+    },
+    'Go at your own pace today.': {
+      'tr': 'Bugün kendi hızında ilerle.',
+      'es': 'Hoy ve a tu propio ritmo.',
+      'de': 'Gehe heute in deinem eigenen Tempo voran.',
+      'en': 'Go at your own pace today.',
+    },
+    'One small action can brighten your day.': {
+      'tr': 'Küçük bir adım gününü güzelleştirebilir.',
+      'es': 'Una pequeña acción puede alegrarte el día.',
+      'de': 'Eine kleine Handlung kann deinen Tag verschönern.',
+      'en': 'One small action can brighten your day.',
+    },
+    'You can begin again, one step at a time.': {
+      'tr': 'Adım adım yeniden başlayabilirsin.',
+      'es': 'Puedes volver a empezar, paso a paso.',
+      'de': 'Du kannst neu anfangen, Schritt für Schritt.',
+      'en': 'You can begin again, one step at a time.',
+    },
+    'Be kind to yourself as you grow.': {
+      'tr': 'Gelişirken kendine nazik davran.',
+      'es': 'Trátate con amabilidad mientras creces.',
+      'de': 'Sei freundlich zu dir selbst, während du wächst.',
+      'en': 'Be kind to yourself as you grow.',
+    },
+    'How are you feeling today?': {
+      'tr': 'Bugün nasılsın?',
+      'es': '¿Cómo te sientes hoy?',
+      'de': 'Wie fühlst du dich heute?',
+      'en': 'How are you feeling today?',
+    },
+    'Optional check-in': {
+      'tr': 'İsteğe bağlı',
+      'es': 'Opcional',
+      'de': 'Freiwillig',
+      'en': 'Optional',
+    },
+    'Feeling very low': {
+      'tr': 'Çok kötü hissediyorum',
+      'es': 'Me siento muy mal',
+      'de': 'Ich fühle mich sehr schlecht',
+      'en': 'Feeling very low',
+    },
+    'Feeling low': {
+      'tr': 'Kötü hissediyorum',
+      'es': 'Me siento mal',
+      'de': 'Ich fühle mich schlecht',
+      'en': 'Feeling low',
+    },
+    'Feeling okay': {
+      'tr': 'İdare ediyorum',
+      'es': 'Me siento regular',
+      'de': 'Mir geht es so weit okay',
+      'en': 'Feeling okay',
+    },
+    'Feeling good': {
+      'tr': 'İyi hissediyorum',
+      'es': 'Me siento bien',
+      'de': 'Ich fühle mich gut',
+      'en': 'Feeling good',
+    },
+    'Feeling great': {
+      'tr': 'Harika hissediyorum',
+      'es': 'Me siento genial',
+      'de': 'Ich fühle mich großartig',
+      'en': 'Feeling great',
+    },
+    'Lv {level}': {
+      'tr': 'Sv. {level}',
+      'es': 'Nv. {level}',
+      'de': 'Lv. {level}',
+      'en': 'Lv {level}',
+    },
+    'Mood could not be saved. Please try again.': {
+      'tr': 'Ruh halin kaydedilemedi. Lütfen tekrar dene.',
+      'es': 'No se pudo guardar tu estado de ánimo. Inténtalo de nuevo.',
+      'de': 'Deine Stimmung konnte nicht gespeichert werden. Versuche es erneut.',
+      'en': 'Mood could not be saved. Please try again.',
+    },
+    'Keep your spark going.': {
+      'tr': 'Kıvılcımını canlı tut.',
+      'es': 'Mantén viva tu chispa.',
+      'de': 'Halte deinen Funken lebendig.',
+      'en': 'Keep your spark going.',
+    },
+    'Suggest another step': {
+      'tr': 'Başka bir adım öner',
+      'es': 'Sugerir otro paso',
+      'de': 'Anderen Schritt vorschlagen',
+      'en': 'Suggest another step',
+    },
+    'Completed sparks: {count}': {
+      'tr': 'Tamamlanan kıvılcımlar: {count}',
+      'es': 'Sparks completados: {count}',
+      'de': 'Abgeschlossene Sparks: {count}',
+      'en': 'Completed sparks: {count}',
+    },
+    'Lv {level} · {current}/{target} XP': {
+      'tr': 'Sv. {level} · {current}/{target} XP',
+      'es': 'Nv. {level} · {current}/{target} XP',
+      'de': 'Lv. {level} · {current}/{target} XP',
+      'en': 'Lv {level} · {current}/{target} XP',
+    },
     'Milestones': {
       'tr': 'Kilometre taşları',
       'es': 'Hitos',
@@ -2440,7 +2576,7 @@ class AppLocalizations {
       'en': 'Complete 1 spark to move your weekly plan forward.',
     },
     'Light your first spark today.': {
-      'tr': 'Bugün ilk sparkını yak.',
+      'tr': 'Bugün ilk kıvılcımını yak.',
       'es': 'Enciende hoy tu primer spark.',
       'de': 'Entfache heute deinen ersten Spark.',
       'en': 'Light your first spark today.',

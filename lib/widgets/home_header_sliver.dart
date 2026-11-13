@@ -1,8 +1,7 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import 'home_header_card.dart';
+import 'home_card_entrance.dart';
 
 class HomeHeaderSliver extends StatelessWidget {
   const HomeHeaderSliver({
@@ -12,6 +11,12 @@ class HomeHeaderSliver extends StatelessWidget {
     required this.streakCount,
     required this.weeklyDoneCount,
     required this.weeklyTotalCount,
+    this.dayKey = '',
+    this.dailyCompletions = const {},
+    this.celebration = 0,
+    this.level = 1,
+    this.xpInLevel = 0,
+    this.xpToNextLevel = 0,
     this.syncedProgress,
     required this.onShare,
     required this.onOpenWeekly,
@@ -25,6 +30,12 @@ class HomeHeaderSliver extends StatelessWidget {
   final int streakCount;
   final int weeklyDoneCount;
   final int weeklyTotalCount;
+  final String dayKey;
+  final Map<String, int> dailyCompletions;
+  final int celebration;
+  final int level;
+  final int xpInLevel;
+  final int xpToNextLevel;
   final double? syncedProgress;
   final VoidCallback onShare;
   final VoidCallback onOpenWeekly;
@@ -34,47 +45,27 @@ class HomeHeaderSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IgnorePointer(
-            child: SizedBox(
-              height: 4,
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          scheme.background.withOpacity(0.03),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          HomeHeaderCard(
-            doneCount: doneCount,
-            totalCount: totalCount,
-            streakCount: streakCount,
-            weeklyDoneCount: weeklyDoneCount,
-            weeklyTotalCount: weeklyTotalCount,
-            syncedProgress: syncedProgress,
-            onShare: onShare,
-            onOpenWeekly: onOpenWeekly,
-            onStartFirstSpark: onStartFirstSpark,
-            hasPendingSpark: hasPendingSpark,
-            showAction: showAction,
-          ),
-        ],
+      child: HomeCardEntrance(
+        child: HomeHeaderCard(
+          doneCount: doneCount,
+          totalCount: totalCount,
+          streakCount: streakCount,
+          weeklyDoneCount: weeklyDoneCount,
+          weeklyTotalCount: weeklyTotalCount,
+          dayKey: dayKey,
+          dailyCompletions: dailyCompletions,
+          celebration: celebration,
+          level: level,
+          xpInLevel: xpInLevel,
+          xpToNextLevel: xpToNextLevel,
+          syncedProgress: syncedProgress,
+          onShare: onShare,
+          onOpenWeekly: onOpenWeekly,
+          onStartFirstSpark: onStartFirstSpark,
+          hasPendingSpark: hasPendingSpark,
+          showAction: showAction,
+        ),
       ),
     );
   }

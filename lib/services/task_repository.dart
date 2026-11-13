@@ -739,7 +739,15 @@ class TaskRepository {
     final sp = await SharedPreferences.getInstance();
     final hist = await getMoodHistory();
     hist[dateKey] = moodValue.clamp(1, 5);
-    await sp.setString(_kDailyMoodHistory_v2, jsonEncode(hist));
+    try {
+      if (!await sp.setString(_kDailyMoodHistory_v2, jsonEncode(hist))) {
+        throw StateError('Could not save daily mood');
+      }
+    } catch (_) {
+      // SharedPreferences may update its cache even when persistence fails.
+      await sp.reload();
+      rethrow;
+    }
   }
 
   Future<String?> getSurvivalModeActiveDate() async {

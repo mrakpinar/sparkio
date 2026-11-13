@@ -297,6 +297,7 @@ class _BannerAdBarState extends State<BannerAdBar> with WidgetsBindingObserver {
               ),
             ),
             child: Center(
+              heightFactor: 1,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(

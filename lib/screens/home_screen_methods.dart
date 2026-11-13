@@ -50,7 +50,9 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final yesterdayKey = _controller.todayKey(
       DateTime(day.year, day.month, day.day - 1),
     );
-    final yesterdayMood = (await _repo.getMoodHistory())[yesterdayKey];
+    final moodHistory = await _repo.getMoodHistory();
+    final yesterdayMood = moodHistory[yesterdayKey];
+    final dailySparkHistory = await _repo.getDailyHistory(days: 7);
     final done = _filterWeeklyDoneByTargets(
       done: state.weeklyDone,
       targets: state.weeklyTargets,
@@ -59,6 +61,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
       if (!mounted) return;
       _updateState(() {
         _today = state.today;
+        _checkedInMood = moodHistory[period.dayKey];
         _resumableFocusSession = focusSession;
         _onboardingFirstSelection = state.onboardingFirstSelection;
         _completed = {
@@ -66,6 +69,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
             task.id: state.completed[task.id] ?? false,
         };
         _todayCompleted = state.todayCompleted;
+        _dailySparkHistory = dailySparkHistory;
         _dailyAddCount = state.dailyAddCount;
         _adaptiveDifficultyDelta = state.adaptivePlan.difficultyDelta;
         _weeklyWeekKey = period.weekKey;
@@ -836,6 +840,7 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     final yesterdayKey = DateFormat('yyyy-MM-dd').format(yesterdayDate);
     final moodHistory = await _repo.getMoodHistory();
     final yesterdayMood = moodHistory[yesterdayKey];
+    final dailySparkHistory = await _repo.getDailyHistory(days: 7);
 
     final survivalDate = await _repo.getSurvivalModeActiveDate();
     final survivalDeclinedDate = await _repo.getSurvivalModeDeclinedDate();
@@ -864,9 +869,11 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     _updateState(() {
       _streak = result.streak;
       _todayCompleted = result.todayCompleted;
+      _dailySparkHistory = dailySparkHistory;
       _totalSparksLit = totalSparksLit;
       _reminderEnabled = result.reminderEnabled;
       _today = result.today;
+      _checkedInMood = moodHistory[result.calendar.period.dayKey];
       _resumableFocusSession = focusSession;
       _onboardingFirstSelection = result.calendar.onboardingFirstSelection;
       _completed = normalizedCompleted;
@@ -1688,6 +1695,28 @@ extension _HomeScreenStateMethods on _HomeScreenState {
           content: Text('Next week plan queued: $suggestedTarget sparks'),
         ),
       );
+    }
+  }
+
+  Future<void> _recordMoodCheckIn(int mood, String? dayKey) async {
+    if (_moodCheckInSaving || mood < 1 || mood > 5 || dayKey == null) return;
+    _updateState(() => _moodCheckInSaving = true);
+    try {
+      await _calendar.runForDay(dayKey, (_) async {
+        if (!mounted) return;
+        await _repo.saveDailyMood(dayKey, mood);
+        if (mounted && _calendar.loadedPeriod?.dayKey == dayKey) {
+          _updateState(() => _checkedInMood = mood);
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        _showSnack(
+          context.l10n.tr('Mood could not be saved. Please try again.'),
+        );
+      }
+    } finally {
+      if (mounted) _updateState(() => _moodCheckInSaving = false);
     }
   }
 
@@ -5578,6 +5607,8 @@ extension _HomeScreenStateMethods on _HomeScreenState {
     if (mounted) {
       _updateState(() {
         _todayCompleted = newDaily;
+        _dailySparkHistory = {..._dailySparkHistory, commit.dateKey: newDaily};
+        _taskCelebrationSerial++;
         _totalXp = xpProgress.totalXp;
         _level = xpProgress.level;
         _xpInLevel = xpProgress.xpInLevel;

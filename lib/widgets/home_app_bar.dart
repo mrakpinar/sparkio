@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../app_strings.dart';
+import '../theme/home_card_style.dart';
 import 'sparkio_logo.dart';
 
 class HomeAppBar extends StatelessWidget {
@@ -14,6 +15,8 @@ class HomeAppBar extends StatelessWidget {
     required this.onOpenProfile,
     required this.onOpenStats,
     required this.onOpenMenu,
+    this.level = 1,
+    this.levelProgress = 0,
   });
 
   final String userName;
@@ -22,6 +25,8 @@ class HomeAppBar extends StatelessWidget {
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenStats;
   final VoidCallback onOpenMenu;
+  final int level;
+  final double levelProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +35,58 @@ class HomeAppBar extends StatelessWidget {
     final l10n = context.l10n;
     final cleanName = userName.trim();
     final displayName = cleanName.isEmpty ? l10n.friend : cleanName;
-    final greeting = l10n.greetingForHour(DateTime.now().hour);
+    final now = DateTime.now();
+    final greeting = l10n.greetingForHour(now.hour);
+    final slogan = l10n.dailyEncouragement(now);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < 380 ||
+        textScaler.scale(16) > 21;
+    final toolbarHeight =
+        (textScaler.scale(13) * 1.2 + textScaler.scale(17.5) * 1.1 + 16)
+            .clamp(56.0, double.infinity)
+            .toDouble();
+    final sloganStyle = theme.textTheme.bodySmall?.copyWith(
+      fontSize: 13,
+      height: 1.35,
+      fontWeight: FontWeight.w400,
+      color: Color.lerp(scheme.onSurfaceVariant, scheme.onSurface, 0.45),
+    );
+    // Use the full width below the toolbar, aligned with the name at 76px.
+    final sloganPainter = TextPainter(
+      text: TextSpan(text: slogan, style: sloganStyle),
+      textDirection: Directionality.of(context),
+      textScaler: textScaler,
+      locale: Localizations.localeOf(context),
+    )..layout(
+      maxWidth: (MediaQuery.sizeOf(context).width - 76 - 16)
+          .clamp(1.0, double.infinity).toDouble(),
+    );
+    final bottomHeight = sloganPainter.height + 8 + (compact ? 52 : 0);
+    sloganPainter.dispose();
+    final controls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _LevelBadge(
+          level: level,
+          progress: levelProgress,
+          onTap: onOpenProfile,
+        ),
+        const SizedBox(width: 4),
+        _HeaderActionButton(
+          tooltip: l10n.stats,
+          onTap: onOpenStats,
+          child: Icon(Icons.bar_chart_rounded, size: 20, color: scheme.onSurface),
+        ),
+        const SizedBox(width: 4),
+        _HeaderActionButton(
+          tooltip: l10n.menu,
+          onTap: onOpenMenu,
+          child: Icon(Icons.menu_rounded, size: 20, color: scheme.onSurface),
+        ),
+        const SizedBox(width: 12),
+      ],
+    );
 
     return SliverAppBar(
       systemOverlayStyle: (isDark
@@ -52,7 +108,7 @@ class HomeAppBar extends StatelessWidget {
       snap: true,
       pinned: false,
       centerTitle: false,
-      toolbarHeight: 68,
+      toolbarHeight: toolbarHeight,
       titleSpacing: 16,
       automaticallyImplyLeading: false,
       flexibleSpace: Padding(
@@ -63,26 +119,19 @@ class HomeAppBar extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color.fromRGBO(11, 15, 26, 0.55),
+                color: scheme.surface.withOpacity(isDark ? 0.72 : 0.7),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.05),
+                  color: scheme.outline.withOpacity(0.3),
                   width: 1,
                 ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color.fromRGBO(0, 0, 0, 0.25),
-                    blurRadius: 30,
-                    offset: Offset(0, 6),
-                  ),
-                ],
               ),
             ),
           ),
         ),
       ),
       title: SizedBox(
-        height: 48,
+        height: toolbarHeight - 8,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -99,37 +148,34 @@ class HomeAppBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '$greeting, ',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.22,
-                              fontSize: 15.5,
-                              color: scheme.onSurface.withOpacity(0.78),
-                              height: 1.1,
-                            ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          greeting,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: FontWeight.w400,
+                            color: HomeCardStyle.secondaryForeground(scheme),
                           ),
-                          TextSpan(
-                            text: displayName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.28,
-                              fontSize: 17.5,
-                              color: scheme.onSurface.withOpacity(0.98),
-                              height: 1.1,
-                            ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          displayName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17.5,
+                            height: 1.1,
+                            color: scheme.onSurface,
                           ),
-                        ],
-                      ),
-                      textHeightBehavior: const TextHeightBehavior(
-                        applyHeightToFirstAscent: false,
-                        applyHeightToLastDescent: false,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -138,39 +184,79 @@ class HomeAppBar extends StatelessWidget {
           ),
         ),
       ),
-      actions: [
-        _GlassIconButton(
-          icon: Icons.bar_chart_rounded,
-          tooltip: l10n.stats,
-          onTap: onOpenStats,
-          isDark: isDark,
-          emphasis: _IconEmphasis.primary,
-        ),
-        const SizedBox(width: 8),
-        _GlassIconButton(
-          icon: Icons.menu_rounded,
-          tooltip: l10n.menu,
-          onTap: onOpenMenu,
-          isDark: isDark,
-          emphasis: _IconEmphasis.secondary,
-        ),
-        const SizedBox(width: 12),
-      ],
+      actions: compact ? const [SizedBox.shrink()] : [controls],
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(
-          height: 1,
-          margin: const EdgeInsets.fromLTRB(18, 0, 18, 0),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Colors.transparent,
-                Colors.white.withOpacity(0.08),
-                Colors.transparent,
-              ],
+        preferredSize: Size.fromHeight(bottomHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 76, end: 16, bottom: 8,
+              ),
+              child: Text(slogan, style: sloganStyle),
             ),
+            if (compact)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Align(alignment: Alignment.centerRight, child: controls),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({
+    required this.level,
+    required this.progress,
+    required this.onTap,
+  });
+
+  final int level;
+  final double progress;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = context.l10n;
+    final label = l10n.levelLabel(level, l10n.levelTitle(level));
+    return _HeaderActionButton(
+      tooltip: label,
+      onTap: onTap,
+      child: Semantics(
+        label: label,
+        excludeSemantics: true,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                l10n.trf('Lv {level}', {'level': level}),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: HomeCardStyle.brandForeground(scheme),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              SizedBox(
+                width: 22,
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0).toDouble(),
+                  minHeight: 2,
+                  borderRadius: BorderRadius.circular(2),
+                  color: HomeCardStyle.brandForeground(scheme),
+                  backgroundColor: scheme.primary.withOpacity(0.26),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -178,28 +264,22 @@ class HomeAppBar extends StatelessWidget {
   }
 }
 
-enum _IconEmphasis { primary, secondary }
-
-class _GlassIconButton extends StatefulWidget {
-  const _GlassIconButton({
-    required this.icon,
+class _HeaderActionButton extends StatefulWidget {
+  const _HeaderActionButton({
+    required this.child,
     required this.tooltip,
     required this.onTap,
-    required this.isDark,
-    required this.emphasis,
   });
 
-  final IconData icon;
+  final Widget child;
   final String tooltip;
-  final VoidCallback? onTap;
-  final bool isDark;
-  final _IconEmphasis emphasis;
+  final VoidCallback onTap;
 
   @override
-  State<_GlassIconButton> createState() => _GlassIconButtonState();
+  State<_HeaderActionButton> createState() => _HeaderActionButtonState();
 }
 
-class _GlassIconButtonState extends State<_GlassIconButton> {
+class _HeaderActionButtonState extends State<_HeaderActionButton> {
   bool _pressed = false;
 
   void _setPressed(bool value) {
@@ -210,16 +290,7 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final disabledColor = widget.isDark
-        ? Colors.white.withOpacity(0.3)
-        : scheme.onSurface.withOpacity(0.3);
-    final isPrimary = widget.emphasis == _IconEmphasis.primary;
-    final iconColor = widget.onTap == null
-        ? disabledColor
-        : (isPrimary
-              ? scheme.onSurface.withOpacity(_pressed ? 0.96 : 0.80)
-              : scheme.onSurfaceVariant.withOpacity(_pressed ? 0.82 : 0.70));
-
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Tooltip(
       message: widget.tooltip,
       child: Center(
@@ -230,36 +301,31 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
             onTapDown: (_) => _setPressed(true),
             onTapUp: (_) => _setPressed(false),
             onTapCancel: () => _setPressed(false),
-            borderRadius: BorderRadius.circular(15),
-            splashColor: scheme.primary.withOpacity(0.08),
-            highlightColor: scheme.primary.withOpacity(0.03),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox.square(
+              dimension: 48,
+              child: Center(
+                child: AnimatedScale(
+                  duration: Duration(milliseconds: reduceMotion ? 0 : 160),
                   curve: Curves.easeOutCubic,
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    color: const Color.fromRGBO(255, 255, 255, 0.04),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color.fromRGBO(0, 0, 0, 0.10),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
+                  scale: _pressed ? 0.96 : 1,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Color.alphaBlend(
+                        scheme.onSurface.withOpacity(
+                          scheme.brightness == Brightness.dark ? 0.07 : 0.04,
+                        ),
+                        scheme.surface,
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: AnimatedScale(
-                      duration: const Duration(milliseconds: 120),
-                      curve: Curves.easeOutCubic,
-                      scale: _pressed ? 1.04 : 1.0,
-                      child: Icon(widget.icon, size: 20, color: iconColor),
+                      border: Border.all(
+                        color: scheme.outline.withOpacity(0.6),
+                      ),
                     ),
+                    child: Center(child: widget.child),
                   ),
                 ),
               ),

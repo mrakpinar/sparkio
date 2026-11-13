@@ -34,6 +34,7 @@ import '../services/task_localizer.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/home_calendar_controller.dart';
 import '../app_strings.dart';
+import '../theme/home_card_style.dart';
 import 'task_add_sheet.dart';
 import 'premium_perks_sheet.dart';
 import 'premium_purchase_sheet.dart';
@@ -50,6 +51,7 @@ import '../widgets/survival_prompt_card.dart';
 import '../widgets/spark_particles_background.dart';
 import 'package:just_audio/just_audio.dart';
 import '../widgets/home_app_bar.dart';
+import '../widgets/home_personalization_sliver.dart';
 import '../widgets/home_header_sliver.dart';
 import '../widgets/home_flow_mode_sliver.dart';
 import '../widgets/home_plan_preview_sliver.dart';
@@ -121,6 +123,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
   bool _refreshing = false;
   bool _dailyMoodPrompting = false;
+  int? _checkedInMood;
+  bool _moodCheckInSaving = false;
   bool _survivalModeActive = false;
   bool _showSurvivalPrompt = false;
   static const int _maxRefreshPerDay = 2;
@@ -139,6 +143,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   int _streak = 0;
   int _todayCompleted = 0;
+  Map<String, int> _dailySparkHistory = {};
+  int _taskCelebrationSerial = 0;
   int _totalSparksLit = 0;
   String? _lastCompletedTaskTitle;
   bool _reminderEnabled = false;
@@ -183,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Timer? _premiumTicker;
   bool _flowModeEnabled = false;
   String? _flowAssignmentId;
+  String? _suggestedStepAssignmentId;
   bool _flowMomentumPrompt = false;
   AudioPlayer? _ambientPlayer;
   late AnimationController _ambientBlob1Ctrl;
@@ -264,6 +271,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
     if (pending.isEmpty) return null;
     return pending.first;
+  }
+
+  Future<void> _suggestAnotherStep(Task current) async {
+    final dayKey = _calendar.loadedPeriod?.dayKey;
+    await _runCalendarAction(dayKey, (_) async {
+      if (!mounted ||
+          _activeTimerTask != null ||
+          current.assignmentId == null ||
+          !_today.any((task) => identical(task, current))) {
+        return;
+      }
+      // Rotate the displayed assignment within today's existing pending list.
+      final pending = _today.where((task) =>
+          task.assignmentId != null && _completed[task.id] != true).toList();
+      final index = pending.indexWhere((task) => task.hasSameAssignment(current));
+      if (index < 0 || pending.length < 2) return;
+      final next = pending[(index + 1) % pending.length];
+      _updateState(() {
+        _suggestedStepAssignmentId = next.assignmentId;
+        if (_flowModeEnabled) _flowAssignmentId = next.assignmentId;
+      });
+    });
   }
 
   void _enterFlowMode(Task task) {
@@ -416,6 +445,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final shownDayKey = _calendar.loadedPeriod?.dayKey;
     final doneCount = _today.where((t) => _completed[t.id] == true).length;
     final completedTodayCount = max(doneCount, _todayCompleted);
     final weeklyDoneTotal = _weeklyDoneTotal();
@@ -465,6 +495,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (task.assignmentId != null &&
             task.assignmentId == focusSession.assignmentId &&
             task.id == focusSession.taskId) {
+          heroTask = task;
+          break;
+        }
+      }
+    }
+    if (heroTask == null && _suggestedStepAssignmentId != null) {
+      for (final task in pendingTasks) {
+        if (task.assignmentId == _suggestedStepAssignmentId) {
           heroTask = task;
           break;
         }
@@ -521,18 +559,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final homeBaseBackground = isDark
         ? const Color(0xFF030508)
         : scheme.background;
-    final bottomRightAmbient = isDark
-        ? Colors.white.withOpacity(0.02)
-        : scheme.onSurface.withOpacity(0.04);
-    // Spread the existing cards on taller screens, retaining compact spacing
-    // on short screens and keeping the task's primary action near the top.
-    final sectionSpacing = ((MediaQuery.sizeOf(context).height - 640) * 0.16)
-        .clamp(0.0, 32.0)
-        .toDouble();
+    final bottomRightAmbient = const Color(0xFFB7A2DF)
+        .withOpacity(isDark ? 0.06 : 0.12);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: homeBaseBackground,
       endDrawer: _buildEndDrawer(),
+      bottomNavigationBar: !_loading && !_endDrawerOpen
+          ? BannerAdBar(onOpenRemoveAds: _openSubscribeSheet)
+          : null,
       onEndDrawerChanged: (isOpen) {
         if (_endDrawerOpen == isOpen || !mounted) return;
         setState(() => _endDrawerOpen = isOpen);
@@ -542,7 +577,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
-                decoration: BoxDecoration(color: homeBaseBackground),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.alphaBlend(
+                        const Color(0xFFC4B5FD)
+                            .withOpacity(isDark ? 0.12 : 0.36),
+                        homeBaseBackground,
+                      ),
+                      Color.alphaBlend(
+                        const Color(0xFFDDD6FE)
+                            .withOpacity(isDark ? 0.04 : 0.10),
+                        homeBaseBackground,
+                      ),
+                      Color.alphaBlend(
+                        const Color(0xFFE6D8F5)
+                            .withOpacity(isDark ? 0.08 : 0.24),
+                        homeBaseBackground,
+                      ),
+                    ],
+                    stops: const [0, 0.55, 1],
+                  ),
+                ),
               ),
             ),
           ),
@@ -584,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
-                        colors: [Color(0xFF2FD0B2), Colors.transparent],
+                        colors: [Color(0xFFB7A2DF), Colors.transparent],
                         stops: [0.0, 1.0],
                       ),
                     ),
@@ -642,9 +700,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   controller: _homeScrollController,
                   slivers: [
                     HomeAppBar(
-                      userName: _profileName.isEmpty ? 'Friend' : _profileName,
+                      userName: _profileName,
                       isDark: isDark,
                       streak: _streak,
+                      level: _level,
+                      levelProgress: _xpToNextLevel <= 0
+                          ? 0
+                          : (_xpInLevel / _xpToNextLevel)
+                                .clamp(0.0, 1.0)
+                                .toDouble(),
                       onOpenProfile: _openProfileScreen,
                       onOpenStats: () => Navigator.push(
                         context,
@@ -655,16 +719,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       onOpenMenu: () =>
                           _scaffoldKey.currentState?.openEndDrawer(),
                     ),
+                    HomePersonalizationSliver(
+                      selectedMood: _checkedInMood,
+                      onSelectMood: _moodCheckInSaving || !_calendar.isCurrent
+                          ? null
+                          : (mood) => unawaited(
+                              _recordMoodCheckIn(mood, shownDayKey),
+                            ),
+                    ),
                     if (_showSurvivalPrompt)
                       SliverToBoxAdapter(
                         child: SurvivalPromptCard(
                           onAccept: _activateSurvivalMode,
                           onDecline: _declineSurvivalMode,
                         ),
-                      ),
-                    if (!allDone)
-                      SliverToBoxAdapter(
-                        child: SizedBox(height: sectionSpacing / 2),
                       ),
                     if (allDone)
                       HomeAllDoneSliver(streakCount: _streak)
@@ -682,6 +750,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         timerPaused: heroTaskIsPaused,
                         timerFinished: heroTaskTimerFinished,
                         focusSessionAvailable: heroTaskHasFocusSession,
+                        onSuggestAnother: heroTask != null &&
+                                heroTask.assignmentId != null &&
+                                !heroTaskHasTimer &&
+                                !heroTaskHasFocusSession &&
+                                !_flowMomentumPrompt &&
+                                pendingTasks.where((task) =>
+                                    task.assignmentId != null).length > 1
+                            ? () => unawaited(_suggestAnotherStep(heroTask!))
+                            : null,
                         timerRemaining: heroTaskHasTimer || heroTaskHasFocusSession
                             ? heroRemaining
                             : null,
@@ -715,7 +792,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   : heroTaskIsActive
                                   ? null
                                   : () => _handleFlowPrimaryAction(heroTask!))
-                            : (nextSparkTask == null
+                            : (heroTask == null
                                   ? null
                                   : heroTaskTimerFinished
                                   ? () => unawaited(
@@ -725,18 +802,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ? () => unawaited(_resumeTaskTimer(heroTask!))
                                   : heroTaskIsActive
                                   ? null
-                                  : () => _startFlowFromHome(nextSparkTask!)),
+                                  : () => _startFlowFromHome(heroTask!)),
                       ),
                     if (!allDone)
-                      SliverToBoxAdapter(
-                        child: SizedBox(height: sectionSpacing),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: HomeCardStyle.gap),
                       ),
                     HomeHeaderSliver(
+                      key: const ValueKey('home-progress'),
                       doneCount: completedTodayCount,
                       totalCount: _today.length,
                       streakCount: _streak,
                       weeklyDoneCount: weeklyDoneTotal,
                       weeklyTotalCount: weeklyTargetTotal,
+                      dayKey: shownDayKey ?? '',
+                      dailyCompletions: _dailySparkHistory,
+                      celebration: _taskCelebrationSerial,
+                      level: _level,
+                      xpInLevel: _xpInLevel,
+                      xpToNextLevel: _xpToNextLevel,
                       syncedProgress: heroTaskHasTimer || heroTaskHasFocusSession
                           ? heroTimerProgress
                           : null,
@@ -749,8 +833,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       showAction: false,
                     ),
                     if (!allDone && _today.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: SizedBox(height: sectionSpacing / 2),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: HomeCardStyle.gap),
                       ),
                     if (!allDone && _today.isNotEmpty)
                       HomePlanPreviewSliver(
@@ -770,11 +854,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 82 + MediaQuery.of(context).padding.bottom,
-                      ),
-                    ),
                     if (_showLegacyHomeExtras) ...[
                       _buildInAppNudgesSliver(),
                       _buildStreakRescuePlanSliver(),
@@ -794,15 +873,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       _buildEndOfDayReviewSliver(),
                     ],
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: HomeCardStyle.gap +
+                            MediaQuery.paddingOf(context).bottom,
+                      ),
+                    ),
                   ],
                 ),
-          if (!_loading && !_endDrawerOpen)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: BannerAdBar(onOpenRemoveAds: _openSubscribeSheet),
-            ),
         ],
       ),
     );

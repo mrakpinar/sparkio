@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../app_strings.dart';
+import '../theme/home_card_style.dart';
+import 'home_card_entrance.dart';
 
 class HomePlanPreviewSliver extends StatelessWidget {
   const HomePlanPreviewSliver({
@@ -20,55 +22,69 @@ class HomePlanPreviewSliver extends StatelessWidget {
     final safeLater = laterCount.clamp(0, 99);
 
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        child: Material(
-          color: scheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: scheme.outline.withOpacity(0.65)),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.list_alt_rounded,
-                    size: 20,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.todaysRhythm,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: scheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
+      child: HomeCardEntrance(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: DecoratedBox(
+            decoration: HomeCardStyle.decoration(scheme),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: HomeCardStyle.borderRadius,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: HomeCardStyle.borderRadius,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.otherTasksTodayLabel(safeLater),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+                        child: Icon(
+                          Icons.list_alt_rounded,
+                          size: 22,
+                          color: HomeCardStyle.brandForeground(scheme),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.todaysRhythm,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.otherTasksTodayLabel(safeLater),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: HomeCardStyle.secondaryForeground(scheme),
+                                fontWeight: FontWeight.w400,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
